@@ -36,6 +36,13 @@ device_cfg, _, _, _ = load_config()
 device_id, _ = get_device(device_cfg)
 app.secret_key = hashlib.sha256(f"offline-scouting-{device_id}".encode()).hexdigest()
 
+
+# Make version available to all templates
+@app.context_processor
+def inject_version():
+    return {"app_version": CURRENT_VERSION}
+
+
 # Check for updates on startup (non-blocking)
 update_info = check_for_updates()
 if update_info["update_available"]:
