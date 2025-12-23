@@ -20,6 +20,7 @@ from utils import (
     validate_required_fields,
     calculate_team_stats,
     get_all_teams_summary,
+    get_radar_data,
     REQUIRED_FIELDS,
     save_uploaded_file,
     load_combined_data_from_temp,
@@ -303,53 +304,14 @@ def team_info(team_number):
     match_sort_order = "desc"
 
     # Try to get data from uploaded temp files first, fall back to local CSV
-    temp_filenames = session.get("temp_filenames", [])
+    temp_filenames = session.get("temp_filenames", None)
 
-    if temp_filenames:
-        # Load data from temp files
-        uploaded_data = load_combined_data_from_temp(temp_filenames)
+    team_data = calculate_team_stats(team_number, stat_fields, temp_filenames)
 
-        # Filter matches for this team from uploaded data
-        team_matches = [
-            row for row in uploaded_data if str(row.get("team", "")) == str(team_number)
-        ]
+    if team_data["total_matches"] == 0:
+        abort(404, description=f"No data found for team {team_number}")
 
-        if not team_matches:
-            abort(404, description=f"No data found for team {team_number}")
-
-        # Calculate stats from uploaded data
-        stats = {}
-        for field in stat_fields:
-            values = []
-            for match in team_matches:
-                val = match.get(field, "")
-                try:
-                    values.append(float(val))
-                except (ValueError, TypeError):
-                    continue
-
-            if values:
-                stats[field] = {
-                    "average": round(sum(values) / len(values), 2),
-                    "max": max(values),
-                    "min": min(values),
-                    "total": sum(values),
-                }
-            else:
-                stats[field] = {"average": 0, "max": 0, "min": 0, "total": 0}
-
-        team_data = {
-            "team_number": team_number,
-            "total_matches": len(team_matches),
-            "stats": stats,
-            "matches": team_matches,
-        }
-    else:
-        # Fall back to local CSV file
-        team_data = calculate_team_stats(team_number, stat_fields)
-
-        if team_data["total_matches"] == 0:
-            abort(404, description=f"No data found for team {team_number}")
+    radar_data = get_radar_data(team_number, stat_fields, temp_filenames)
 
     return render_template(
         "team_info.html",
@@ -359,6 +321,7 @@ def team_info(team_number):
         graph_fields=graph_fields,
         show_trends=show_trends,
         show_radar=show_radar,
+        radar_data=radar_data,
         matches_per_page=matches_per_page,
         match_sort_order=match_sort_order,
     )

@@ -324,8 +324,8 @@
     // Radar Chart for overall performance
     const radarCategories = [{% for field_config in graph_fields %}{{ field_config.label | tojson }},{% endfor %}];
     const radarData = [
-      {% for field_config in graph_fields %}
-      {{ team_data.stats.get(field_config.field, {}).get('average', 0) }},
+      {% for radar_data_point in radar_data.values() %}
+      {{ radar_data_point }},
       {% endfor %}
     ];
 
@@ -336,7 +336,7 @@
         data: {
           labels: radarCategories,
           datasets: [{
-            label: 'Average Score',
+            label: 'Relative Score',
             data: radarData,
             backgroundColor: 'rgba(59, 130, 246, 0.2)',
             borderColor: 'rgb(59, 130, 246)',
