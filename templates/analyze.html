@@ -46,6 +46,14 @@
           <div class="mt-3">{{ alert.error(error) }}</div>
         {% endif %}
 
+        {% if warnings %}
+          <div class="mt-3">
+            {% for warn in warnings %}
+              {{ alert.warning(warn) }}
+            {% endfor %}
+          </div>
+        {% endif %}
+
         {% if uploaded_filenames %}
         <div class="mt-3 p-3 border border-success rounded bg-app-surface-2">
           <div class="d-flex align-items-center justify-content-between mb-2">

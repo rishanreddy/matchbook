@@ -15,9 +15,24 @@
     {% if saved %}
       {{ alert.success('Settings saved successfully.') }}
     {% endif %}
+    {% if reset_done %}
+      {{ alert.warning('Local data cleared for this device.') }}
+    {% endif %}
     {% if error %}
       {{ alert.error(error) }}
     {% endif %}
+
+    <div class="card mb-4">
+      <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <h2 class="h5 mb-1">Reset Local Data</h2>
+          <p class="small text-muted-app mb-0">Clears CSV data and device tracking on this laptop.</p>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#resetDataModal">
+          Clear local data
+        </button>
+      </div>
+    </div>
 
     <form method="post" action="{{ url_for('settings') }}" id="settingsForm" class="d-grid gap-4">
       <!-- Setup Export -->
@@ -239,6 +254,27 @@
         <button type="submit" class="btn btn-primary">Save Settings</button>
       </div>
     </form>
+
+    <div class="modal fade" id="resetDataModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content bg-app-surface border border-app">
+          <div class="modal-header">
+            <h5 class="modal-title">Clear local data</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>This will delete scouting data and device tracking on this laptop.</p>
+            <p class="small text-muted-app">A backup CSV will be saved in the backups folder.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <form method="post" action="{{ url_for('settings_reset') }}">
+              <button type="submit" class="btn btn-danger">Clear local data</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 {% endblock %}

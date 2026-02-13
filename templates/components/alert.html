@@ -23,3 +23,16 @@
   <span>{{ message }}</span>
 </div>
 {% endmacro %}
+
+{% macro warning(message, id='') %}
+<div id="{{ id }}" class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+  <svg width="18" height="18" fill="currentColor" viewBox="0 0 20 20">
+    <path
+      fill-rule="evenodd"
+      d="M8.257 3.099c.765-1.36 2.68-1.36 3.446 0l6.518 11.59c.75 1.334-.213 2.987-1.723 2.987H3.462c-1.51 0-2.473-1.653-1.723-2.987l6.518-11.59zM9 8a1 1 0 012 0v3a1 1 0 11-2 0V8zm1 7a1.25 1.25 0 100-2.5A1.25 1.25 0 0010 15z"
+      clip-rule="evenodd"
+    />
+  </svg>
+  <span>{{ message }}</span>
+</div>
+{% endmacro %}

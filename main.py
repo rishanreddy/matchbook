@@ -195,6 +195,7 @@ def settings():
 
     error = None
     saved = request.args.get("saved") == "1"
+    reset_done = request.args.get("reset") == "1"
 
     if request.method == "POST":
         event_name = (request.form.get("event_name") or "").strip()
@@ -296,17 +297,36 @@ def settings():
             save_app_state(state)
             return redirect(url_for("settings", saved="1"))
 
-    return render_template(
-        "settings.html",
-        event=event,
-        device=device_cfg,
-        device_name=device_cfg.get("name") or device_cfg.get("uniqueId"),
-        fields=fields,
-        analysis=analysis_cfg,
-        required_fields=REQUIRED_FIELDS,
-        error=error,
-        saved=saved,
-    )
+        return render_template(
+            "settings.html",
+            event=event,
+            device=device_cfg,
+            device_name=device_cfg.get("name") or device_cfg.get("uniqueId"),
+            fields=fields,
+            analysis=analysis_cfg,
+            required_fields=REQUIRED_FIELDS,
+            error=error,
+            saved=saved,
+            reset_done=reset_done,
+        )
+
+
+@app.route("/settings/reset", methods=["POST"])
+def settings_reset():
+    try:
+        reset_local_data()
+    except Exception as exc:
+        app.logger.error("Settings reset failed: %s", exc)
+        return (
+            render_template(
+                "error.html",
+                title="Reset Failed",
+                message="Unable to clear local data. Please check file permissions.",
+            ),
+            500,
+        )
+
+    return redirect(url_for("settings", reset="1"))
 
 
 @app.route("/settings/export-setup", methods=["GET"])
@@ -492,16 +512,116 @@ def analyze():
     - We merge them and show every row in a big table.
     - Columns are built from uploaded CSV headers.
     """
-    device_cfg, event, _, analysis_config = load_config()
+    device_cfg, event, fields, analysis_config = load_config()
     device_name = device_cfg.get("name") or device_cfg.get("uniqueId")
 
     table_columns = []
     table_rows = []
     teams_summary = []
     error = None
+    warnings = []
     uploaded_filenames = []
     device_statuses = []
     expected_devices = analysis_config.get("expected_devices", 8)
+
+    def prepare_analysis(rows: list, config_fields: list):
+        nonlocal warnings, table_columns, table_rows, teams_summary
+        nonlocal device_statuses, expected_devices
+
+        if not rows:
+            table_columns = []
+            table_rows = []
+            teams_summary = []
+            device_statuses = []
+            return
+
+        all_keys = set().union(*(row.keys() for row in rows))
+        table_columns = [{"id": k, "label": k} for k in sorted(all_keys)]
+
+        base_cols = {
+            "timestamp",
+            "event_name",
+            "event_season",
+            "config_id",
+            "device_id",
+            "device_name",
+        }
+        config_field_names = [f.get("name") for f in config_fields if f.get("name")]
+        missing_fields = [f for f in config_field_names if f not in all_keys]
+        if missing_fields:
+            warnings.append(
+                f"Missing fields in uploaded CSVs: {', '.join(missing_fields)}"
+            )
+
+        extra_fields = sorted(all_keys - base_cols - set(config_field_names))
+        if extra_fields:
+            warnings.append(
+                "Extra fields found in uploads (not in current config): "
+                + ", ".join(extra_fields)
+            )
+
+        deduped_rows = []
+        seen = set()
+        dup_count = 0
+        for row in rows:
+            device_key = (row.get("device_id") or row.get("device_name") or "").strip()
+            match_val = (row.get("match") or row.get("match_number") or "").strip()
+            team_val = (row.get("team") or row.get("team_number") or "").strip()
+            if not (device_key or match_val or team_val):
+                deduped_rows.append(row)
+                continue
+            key = (device_key, match_val, team_val)
+            if key in seen:
+                dup_count += 1
+                continue
+            seen.add(key)
+            deduped_rows.append(row)
+
+        if dup_count:
+            warnings.append(
+                f"Removed {dup_count} duplicate rows (same device + match + team)."
+            )
+
+        table_rows = deduped_rows
+
+        graph_fields_config = analysis_config.get(
+            "graph_fields", ["auto_score", "teleop_score"]
+        )
+        stat_fields = []
+        for field_item in graph_fields_config:
+            if isinstance(field_item, dict):
+                stat_fields.append(field_item.get("field"))
+            else:
+                stat_fields.append(field_item)
+        teams_summary = get_all_teams_summary(table_rows, stat_fields)
+
+        registry = register_from_rows(
+            table_rows,
+            event.get("name") or "",
+            source="analysis",
+        )
+        expected_devices = analysis_config.get(
+            "expected_devices", get_expected_devices(registry)
+        )
+        registry = set_expected_devices(registry, expected_devices)
+        save_registry(registry)
+
+        counts_by_name = {}
+        for row in table_rows:
+            name = (row.get("device_name") or "Unknown").strip() or "Unknown"
+            counts_by_name[name] = counts_by_name.get(name, 0) + 1
+
+        device_statuses = []
+        for device in list_devices(registry):
+            name = device.get("name") or device.get("device_id") or "Unknown"
+            device_statuses.append(
+                {
+                    "name": name,
+                    "entries": counts_by_name.get(name, 0),
+                    "last_seen": device.get("last_seen"),
+                    "status": "synced" if name in counts_by_name else "missing",
+                }
+            )
 
     if request.method == "POST":
         files = request.files.getlist("csv_files")
@@ -537,119 +657,21 @@ def analyze():
                     len(combined_rows),
                 )
 
-                # Build columns from CSV headers dynamically
-                if combined_rows:
-                    headers = list(combined_rows[0].keys())
-                    table_columns = [
-                        {"id": header, "label": header} for header in headers
-                    ]
-
-                table_rows = combined_rows
-
-                if combined_rows:
-                    registry = register_from_rows(
-                        combined_rows,
-                        event.get("name") or "",
-                        source="analysis",
-                    )
-                else:
-                    registry = load_registry()
-
-                expected_devices = analysis_config.get(
-                    "expected_devices", get_expected_devices(registry)
-                )
-                registry = set_expected_devices(registry, expected_devices)
-                save_registry(registry)
-
-                counts_by_name = {}
-                for row in combined_rows:
-                    name = (row.get("device_name") or "Unknown").strip() or "Unknown"
-                    counts_by_name[name] = counts_by_name.get(name, 0) + 1
-
-                device_statuses = []
-                for device in list_devices(registry):
-                    name = device.get("name") or device.get("device_id") or "Unknown"
-                    device_statuses.append(
-                        {
-                            "name": name,
-                            "entries": counts_by_name.get(name, 0),
-                            "last_seen": device.get("last_seen"),
-                            "status": "synced" if name in counts_by_name else "missing",
-                        }
-                    )
+                prepare_analysis(combined_rows, fields)
 
                 # Store only filenames in session (not the data!)
                 session["temp_filenames"] = saved_filenames
                 session["uploaded_filenames"] = uploaded_filenames
 
-                # Generate team summaries - extract field names from graph_fields
-                graph_fields_config = analysis_config.get(
-                    "graph_fields", ["auto_score", "teleop_score"]
-                )
-                stat_fields = []
-                for field_item in graph_fields_config:
-                    if isinstance(field_item, dict):
-                        stat_fields.append(field_item.get("field"))
-                    else:
-                        stat_fields.append(field_item)
-                teams_summary = get_all_teams_summary(combined_rows, stat_fields)
+                # Summary computed in prepare_analysis
     else:
         # On GET request, check if we have temp files in session
         temp_filenames = session.get("temp_filenames", [])
         if temp_filenames:
             # Load data from temp files
             combined_rows = load_combined_data_from_temp(temp_filenames)
-            table_rows = combined_rows
             uploaded_filenames = session.get("uploaded_filenames", [])
-
-            # Rebuild columns
-            if combined_rows:
-                headers = list(combined_rows[0].keys())
-                table_columns = [{"id": header, "label": header} for header in headers]
-
-            # Regenerate team summaries - extract field names from graph_fields
-            graph_fields_config = analysis_config.get(
-                "graph_fields", ["auto_score", "teleop_score"]
-            )
-            stat_fields = []
-            for field_item in graph_fields_config:
-                if isinstance(field_item, dict):
-                    stat_fields.append(field_item.get("field"))
-                else:
-                    stat_fields.append(field_item)
-            teams_summary = get_all_teams_summary(combined_rows, stat_fields)
-
-            if combined_rows:
-                registry = register_from_rows(
-                    combined_rows,
-                    event.get("name") or "",
-                    source="analysis",
-                )
-            else:
-                registry = load_registry()
-
-            expected_devices = analysis_config.get(
-                "expected_devices", get_expected_devices(registry)
-            )
-            registry = set_expected_devices(registry, expected_devices)
-            save_registry(registry)
-
-            counts_by_name = {}
-            for row in combined_rows:
-                name = (row.get("device_name") or "Unknown").strip() or "Unknown"
-                counts_by_name[name] = counts_by_name.get(name, 0) + 1
-
-            device_statuses = []
-            for device in list_devices(registry):
-                name = device.get("name") or device.get("device_id") or "Unknown"
-                device_statuses.append(
-                    {
-                        "name": name,
-                        "entries": counts_by_name.get(name, 0),
-                        "last_seen": device.get("last_seen"),
-                        "status": "synced" if name in counts_by_name else "missing",
-                    }
-                )
+            prepare_analysis(combined_rows, fields)
 
     return render_template(
         "analyze.html",
@@ -659,6 +681,7 @@ def analyze():
         table_rows=table_rows,
         teams_summary=teams_summary,
         error=error,
+        warnings=warnings,
         uploaded_filenames=uploaded_filenames,
         device_statuses=device_statuses,
         expected_devices=expected_devices,
