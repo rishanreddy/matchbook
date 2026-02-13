@@ -37,5 +37,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: "dist/OfflineScoutingManager-windows.exe"
-          draft: true
+          draft: false
+          prerelease: true
           generate_release_notes: true

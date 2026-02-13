@@ -15,6 +15,7 @@ uv pip install pyinstaller
 uv run pyinstaller \
   --name "OfflineScoutingManager" \
   --onefile \
+  --add-data "pyproject.toml:." \
   --add-data "templates:templates" \
   --add-data "static:static" \
   --add-data "config:config" \

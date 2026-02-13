@@ -3,22 +3,42 @@
 import requests
 from packaging import version
 import logging
+import sys
 import tomllib
+from importlib import metadata
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Read version from pyproject.toml
-_BASE_DIR = Path(__file__).resolve().parent.parent
-_PYPROJECT_PATH = _BASE_DIR / "pyproject.toml"
+
+def _read_version_from_pyproject() -> str:
+    candidates = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass))
+
+    candidates.append(Path(sys.executable).resolve().parent)
+    candidates.append(Path(__file__).resolve().parent.parent)
+
+    for base in candidates:
+        path = base / "pyproject.toml"
+        if path.exists():
+            with path.open("rb") as f:
+                data = tomllib.load(f)
+            return data["project"]["version"]
+
+    raise FileNotFoundError("pyproject.toml not found")
+
 
 try:
-    with open(_PYPROJECT_PATH, "rb") as f:
-        _pyproject_data = tomllib.load(f)
-    CURRENT_VERSION = _pyproject_data["project"]["version"]
+    CURRENT_VERSION = _read_version_from_pyproject()
 except Exception as e:
     logger.warning(f"Could not read version from pyproject.toml: {e}")
-    CURRENT_VERSION = "0.0.0"
+    try:
+        CURRENT_VERSION = metadata.version("offline-scouting-manager")
+    except Exception as meta_error:
+        logger.warning(f"Could not read version metadata: {meta_error}")
+        CURRENT_VERSION = "0.0.0"
 
 GITHUB_REPO = "rishanreddy/Offline_Scouting_Manager"
 # Use /releases endpoint to get all releases including pre-releases
