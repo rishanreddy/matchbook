@@ -31,6 +31,9 @@ from utils import (
     TEMP_EXPORTS_DIR,
     BACKUP_DIR,
     LOG_DIR,
+    DEVICE_REGISTRY_FILE,
+    DEVICE_FILE,
+    TEMP_UPLOADS_DIR,
     validate_required_fields,
     calculate_team_stats,
     get_all_teams_summary,
@@ -96,6 +99,27 @@ def load_app_state() -> dict:
 def save_app_state(state: dict) -> None:
     APP_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     APP_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def reset_local_data() -> None:
+    """Clear local scouting data and registry files."""
+    if CSV_FILE.exists():
+        ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup_path = BACKUP_DIR / f"scouting_data_{ts}.csv"
+        shutil.copy(CSV_FILE, backup_path)
+        CSV_FILE.unlink(missing_ok=True)
+
+    if DEVICE_REGISTRY_FILE.exists():
+        DEVICE_REGISTRY_FILE.unlink(missing_ok=True)
+
+    if DEVICE_FILE.exists():
+        DEVICE_FILE.unlink(missing_ok=True)
+
+    for temp_dir in [TEMP_UPLOADS_DIR, TEMP_EXPORTS_DIR]:
+        if temp_dir.exists():
+            for item in temp_dir.glob("*"):
+                if item.is_file():
+                    item.unlink(missing_ok=True)
 
 
 @app.before_request
@@ -331,10 +355,17 @@ def setup_wizard():
         return render_template("setup_wizard.html", current_version=CURRENT_VERSION)
 
     if request.form.get("skip_setup") == "1":
+        data_action = (request.form.get("data_action") or "keep").strip()
+        if data_action == "reset":
+            reset_local_data()
         state = load_app_state()
         state["last_version"] = CURRENT_VERSION
         save_app_state(state)
         return redirect(url_for("show_form"))
+
+    data_action = (request.form.get("data_action") or "keep").strip()
+    if data_action == "reset":
+        reset_local_data()
 
     event_name = (request.form.get("event_name") or "").strip()
     event_season = (request.form.get("season") or "").strip()
@@ -855,6 +886,12 @@ def reset_data():
                 ),
                 500,
             )
+
+    if DEVICE_REGISTRY_FILE.exists():
+        DEVICE_REGISTRY_FILE.unlink(missing_ok=True)
+
+    if DEVICE_FILE.exists():
+        DEVICE_FILE.unlink(missing_ok=True)
 
     return redirect(url_for("show_form", reset="1"))
 
