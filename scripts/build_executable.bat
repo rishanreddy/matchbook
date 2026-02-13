@@ -9,16 +9,22 @@ if %errorlevel% neq 0 (
 )
 
 uv sync
-uv pip install pyinstaller
+uv pip install pillow pyinstaller
+
+for /f "usebackq tokens=*" %%v in (`uv run python scripts\get_version.py`) do set VERSION=%%v
+set NAME=OfflineScoutingManager-v%VERSION%
+
+uv run python scripts\make_icon.py
 
 uv run pyinstaller ^
-  --name "OfflineScoutingManager" ^
+  --name "%NAME%" ^
   --onefile ^
   --add-data "pyproject.toml;." ^
   --add-data "templates;templates" ^
   --add-data "static;static" ^
   --add-data "config;config" ^
+  --icon "build\icon.ico" ^
   main.py
 
-echo Build complete: dist\OfflineScoutingManager.exe
+echo Build complete: dist\%NAME%.exe
 pause
