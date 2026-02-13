@@ -19,6 +19,7 @@ data/temp_uploads/*.csv
 data/temp_exports/
 config/secret.key
 config/device_registry.json
+config/app_state.json
 logs/
 
 # Build artifacts
