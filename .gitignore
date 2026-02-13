@@ -25,3 +25,6 @@ logs/
 dist/
 build/
 *.spec
+
+# OS metadata
+.DS_Store
