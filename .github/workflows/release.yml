@@ -34,5 +34,5 @@ jobs:
         with:
           files: "dist/OfflineScoutingManager-${{ github.ref_name }}.exe"
           draft: false
-          prerelease: true
+          prerelease: false
           generate_release_notes: true
