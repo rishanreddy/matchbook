@@ -11,31 +11,52 @@ A Flask web app for robotics competition scouting that works completely offline.
 
 ## Setup
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/) first:
-
-Then:
+Recommended (auto‑install deps):
 
 ```bash
-# Install dependencies
-uv sync
+# Mac/Linux
+./scripts/setup.sh
 
-# Run the app
-uv run main.py
+# Windows
+scripts\setup.bat
 ```
 
-**Alternative**: Run `setup-run.bat` (Windows) to automatically install dependencies and start the app.
+Manual:
 
-Open `http://127.0.0.1:5000` in your browser.
+```bash
+uv sync
+
+# Run the app (production)
+uv run main.py
+
+# Run in development mode
+uv run main.py --dev
+
+# Allow LAN access (optional)
+uv run main.py --lan
+```
+
+Open `http://127.0.0.1:8080` in your browser.
+
+## Build an executable
+
+```bash
+# Mac/Linux
+./scripts/build_executable.sh
+
+# Windows
+scripts\build_executable.bat
+```
+
+Executable will be in `dist/`.
 
 ## Configuration
 
-Edit `config/config.yaml` to customize:
+Use the **Setup Wizard** at `/setup` (auto‑launches on first run) or the **Settings** page to configure:
 
 - Event name and season
-- Device identification
+- Device name (unique per laptop)
 - Form fields and data types
-
-Each device should have a unique ID in `config/device.json` that is automatically generated using the device idenification (so make sure you give each device that will be scouting a unique name).
 
 ## Usage
 
@@ -48,6 +69,5 @@ Each device should have a unique ID in `config/device.json` that is automaticall
 ## Tech Stack
 
 - Flask + Jinja2
-- Tailwind CSS + Flowbite
-- DataTables for sorting/filtering
+- Bootstrap 5 (offline local assets)
 - YAML for config

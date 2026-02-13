@@ -2,6 +2,7 @@
 
 import csv
 import os
+import re
 import uuid
 from pathlib import Path
 from .constants import TEMP_UPLOADS_DIR
@@ -20,7 +21,11 @@ def save_uploaded_file(file_content: str, original_filename: str) -> str:
     """
     # Generate unique filename to avoid collisions
     unique_id = uuid.uuid4().hex[:8]
-    safe_filename = f"{unique_id}_{original_filename}"
+    base_name = Path(original_filename).name
+    base_name = re.sub(r"[^A-Za-z0-9._-]", "_", base_name)
+    if not base_name:
+        base_name = "upload.csv"
+    safe_filename = f"{unique_id}_{base_name}"
     file_path = TEMP_UPLOADS_DIR / safe_filename
 
     with open(file_path, "w", encoding="utf-8") as f:
@@ -59,7 +64,7 @@ def load_combined_data_from_temp(filenames: list) -> list:
     return combined_rows
 
 
-def clear_temp_uploads(filenames: list = None):
+def clear_temp_uploads(filenames: list | None = None):
     """
     Clear temporary upload files.
 

@@ -1,66 +1,54 @@
-event:
-  name: "Rebuilt Regional"
-  season: "2026-2026"
-
 device:
-  name: "Scout Laptop"
-  uniqueId: "SCOUT-001"
-
+  name: Scout 1
+  uniqueId: SCOUT-001
+event:
+  name: Event Name
+  season: 2026-2026
 analysis:
-  # List numeric fields to graph and analyze (must exist in your CSV data)
-  # Simple format: just field name (defaults to 'line' chart)
-  # Advanced format: specify field and chart_type (line, area, or bar)
   graph_fields:
-    - field: auto_score
-      chart_type: line
-    - field: teleop_score
-      chart_type: bar
-
+  - field: auto_score
+    chart_type: line
+  - field: teleop_score
+    chart_type: bar
   matches_per_page: 25
-
-# REQUIRED FIELDS - Do not remove these, they are mandatory for the system
-# team: Team number
-# auto_score: Autonomous period score
-# teleop_score: Teleoperated period score
+  expected_devices: 8
 fields:
-  - name: match
-    label: "Match #"
-    type: integer
-    required: true
-
-  - name: team
-    label: "Team Number"
-    type: integer
-    required: true
-
-  - name: scout_name
-    label: "Scout name"
-    type: text
-    required: true
-
-  - name: alliance_color
-    label: "Alliance"
-    type: select
-    options: ["Red", "Blue"]
-    required: true
-
-  - name: auto_score
-    label: "Auto score"
-    type: integer
-    required: true
-
-  - name: teleop_score
-    label: "Tele-op score"
-    type: integer
-    required: true
-
-  - name: endgame
-    label: "Endgame status"
-    type: select
-    options: ["Failed", "Partial", "Complete"]
-    required: true
-
-  - name: notes
-    label: "Notes"
-    type: textarea
-    required: false
+- name: match
+  label: 'Match #'
+  type: integer
+  required: true
+- name: team
+  label: Team Number
+  type: integer
+  required: true
+- name: scout_name
+  label: Scout name
+  type: text
+  required: true
+- name: alliance_color
+  label: Alliance
+  type: select
+  required: true
+  options:
+  - Red
+  - Blue
+- name: auto_score
+  label: Auto score
+  type: integer
+  required: true
+- name: teleop_score
+  label: Tele-op score
+  type: integer
+  required: true
+- name: endgame
+  label: Endgame status
+  type: select
+  required: true
+  options:
+  - Failed
+  - Partial
+  - Complete
+- name: notes
+  label: Notes
+  type: textarea
+  required: false

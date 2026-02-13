@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>{% block title %}Offline Scouting Manager{% endblock %}</title>
@@ -11,27 +11,25 @@
     />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='dist/output.css') }}"
+      href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}"
     />
-    <!-- DataTables CSS -->
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='DataTables/jquery.dataTables.min.css') }}"
+      href="{{ url_for('static', filename='css/app.css') }}"
     />
-    <script src="{{ url_for('static', filename='node_modules/flowbite/dist/flowbite.min.js') }}"></script>
     {% block extra_head %}{% endblock %}
   </head>
-  <body class="bg-gray-900 text-gray-100 min-h-screen">
+  <body class="min-vh-100 bg-app-surface text-light">
     <!-- Update notification banner -->
-    <div id="update-banner" class="hidden bg-yellow-600 text-gray-900 px-4 py-3 text-center">
-      <div class="flex items-center justify-center gap-2">
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+    <div id="update-banner" class="d-none bg-warning text-dark py-2">
+      <div class="container d-flex align-items-center justify-content-center gap-2">
+        <svg class="me-1" width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
         </svg>
         <span id="update-message">A new version is available!</span>
-        <a id="update-link" href="#" target="_blank" class="underline font-semibold">Download Update</a>
-        <button onclick="document.getElementById('update-banner').classList.add('hidden')" class="ml-4 text-gray-900 hover:text-gray-700">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <a id="update-link" href="#" target="_blank" class="fw-semibold text-decoration-underline">Download Update</a>
+        <button onclick="document.getElementById('update-banner').classList.add('d-none')" class="btn btn-sm btn-link text-dark ms-2">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
           </svg>
         </button>
@@ -41,16 +39,15 @@
     {% include 'components/navbar.html' %} {% block content %}{% endblock %}
     
     <!-- Footer with version -->
-    <footer class="mt-auto py-4 text-center text-gray-500 text-sm border-t border-gray-800">
-      <div class="container mx-auto">
+    <footer class="mt-auto py-3 text-center text-muted border-top border-app">
+      <div class="container">
         Offline Scouting Manager v{{ app_version }}
       </div>
     </footer>
-    
+
     <!-- Common Scripts -->
-    <script src="{{ url_for('static', filename='DataTables/jquery-3.7.1.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='DataTables/jquery.dataTables.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='chart.js/dist/chart.umd.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
     
     <!-- Version check script -->
     <script>
@@ -65,7 +62,7 @@
             
             message.textContent = `Update available! v${data.current_version} → v${data.latest_version}`;
             link.href = data.download_url;
-            banner.classList.remove('hidden');
+            banner.classList.remove('d-none');
           }
         })
         .catch(error => {

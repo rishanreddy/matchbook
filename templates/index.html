@@ -1,250 +1,170 @@
-{% extends "base.html" %} {% set current_page = 'scouting' %} {% import
-'components/alert.html' as alert %} {% import 'components/card.html' as card %}
-{% import 'components/modal.html' as modal %} {% block title %}Scouting Form -
-Offline Scouting Manager{% endblock %} {% block content %}
-<section class="min-h-[calc(100vh-4rem)] py-6">
-  <div class="max-w-screen-2xl mx-auto px-4">
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+{% extends "base.html" %}
+{% set current_page = 'scouting' %}
+{% import 'components/alert.html' as alert %}
+
+{% block title %}Scouting Form - Offline Scouting Manager{% endblock %}
+
+{% block content %}
+<section class="py-4">
+  <div class="container">
+    <div class="row g-4">
       <!-- Sidebar -->
-      <div class="lg:col-span-3">
-        <div
-          class="p-6 bg-gray-800 border border-gray-700 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700"
-        >
-          {% if event %}
-          <p class="text-xs text-gray-400 mb-1">Event</p>
-          <h5 class="text-base text-white font-semibold mb-1">
-            {{ event.name }}
-          </h5>
-          <p class="text-xs text-gray-400 mb-3">
-            {{ event.season }}{% if event.config_id %} · {{ event.config_id }}{%
-            endif %}
-          </p>
-          {% else %}
-          <h5 class="text-base text-white font-semibold mb-1">
-            No event configured
-          </h5>
-          {% endif %} {% if device_name %}
-          <p class="text-xs text-gray-400 mt-3">
-            Current device:<br />
-            <strong class="text-white">{{ device_name }}</strong>
-          </p>
-          {% endif %}
+      <div class="col-lg-4">
+        <div class="card">
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="text-uppercase small text-muted-app">Event</div>
+              {% if event %}
+                <div class="h5 mb-0">{{ event.name }}</div>
+                <div class="small text-muted-app">
+                  {{ event.season }}{% if event.config_id %} · {{ event.config_id }}{% endif %}
+                </div>
+              {% else %}
+                <div class="h6 mb-0">No event configured</div>
+              {% endif %}
+            </div>
 
-          <hr class="my-4 border-gray-700" />
-
-          <!-- Data Status -->
-          <div class="mb-4">
-            <p class="text-xs text-gray-400 mb-1">Data status</p>
-            <p class="text-xs text-white">
-              {% if stats and stats.entries %}
-              <strong>{{ stats.entries }}</strong> entries<br />
-              Last entry: {{ stats.last_timestamp }} {% else %}
-              <strong>0</strong> entries<br />
-              No data yet {% endif %}
-            </p>
-          </div>
-
-          <!-- Export Button -->
-          <div class="mb-4">
-            <p class="text-xs text-gray-400 mb-2">Export</p>
-            {% if stats and stats.entries > 0 %}
-            <a
-              href="{{ url_for('download_sync') }}"
-              class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800 inline-flex items-center justify-center transition-all duration-200"
-            >
-              <svg
-                class="w-4 h-4 mr-2"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
-              Export CSV
-            </a>
-            {% else %}
-            <button
-              disabled
-              class="w-full text-gray-400 bg-gray-700 cursor-not-allowed font-medium rounded-lg text-sm px-5 py-2.5 inline-flex items-center justify-center"
-              title="No data available to export"
-            >
-              <svg
-                class="w-4 h-4 mr-2"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
-              Export CSV
-            </button>
-            <p class="text-xs text-yellow-500 mt-2">
-              <svg
-                class="w-3 h-3 inline-block mr-1"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
-              Submit data first to enable export
-            </p>
+            {% if device_name %}
+            <div class="mb-3">
+              <div class="text-uppercase small text-muted-app">Current device</div>
+              <div class="fw-semibold">{{ device_name }}</div>
+            </div>
             {% endif %}
-          </div>
 
-          <!-- File Location -->
-          <div>
-            <p class="text-xs text-gray-400 mb-1">Local CSV location</p>
-            <code
-              class="block text-xs bg-gray-900 text-gray-300 p-2 rounded break-all mb-2"
-              >{{ data_path }}</code
-            >
-            <p class="text-xs text-gray-500">
-              Copy this file to a USB drive from File Explorer to merge on your
-              analysis laptop.
-            </p>
+            <hr class="border-app" />
+
+            <div class="mb-3">
+              <div class="text-uppercase small text-muted-app">Data status</div>
+              <div class="mt-1">
+                {% if stats and stats.entries %}
+                  <div class="h4 mb-0 text-primary">{{ stats.entries }}</div>
+                  <div class="small text-muted-app">Last entry: {{ stats.last_timestamp }}</div>
+                {% else %}
+                  <div class="h4 mb-0">0</div>
+                  <div class="small text-muted-app">No data yet</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <hr class="border-app" />
+
+            <div class="mb-3">
+              <div class="text-uppercase small text-muted-app">Export</div>
+              {% if stats and stats.entries > 0 %}
+                <a href="{{ url_for('download_sync') }}" class="btn btn-primary w-100 mt-2">
+                  Export to USB
+                </a>
+              {% else %}
+                <button class="btn btn-secondary w-100 mt-2" disabled>
+                  Export to USB
+                </button>
+                <div class="small text-warning mt-2">Submit data first to enable export.</div>
+              {% endif %}
+            </div>
+
+            <hr class="border-app" />
+
+            <div>
+              <div class="text-uppercase small text-muted-app">Local CSV location</div>
+              <code class="d-block bg-app-surface-2 border border-app rounded p-2 small mt-2">
+                {{ data_path }}
+              </code>
+              <div class="small text-muted-app mt-2">
+                Copy this file to a USB drive to merge on your analysis laptop.
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Main Form Panel -->
-      <div class="lg:col-span-9">
-        <div
-          class="p-6 bg-gray-800 border border-gray-700 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700"
-        >
-          <header class="mb-6">
-            <h2 class="text-2xl font-bold text-white mb-2">Scouting Form</h2>
-            <p class="text-sm text-gray-400">
-              Fill this out once per robot you scout. Fields marked
-              <span class="text-red-500">*</span> are required.
-            </p>
+      <!-- Main Form -->
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-body">
+            <h2 class="h4">Scouting Form</h2>
+            <p class="small text-muted-app">Fill this out once per robot. Required fields are marked.</p>
 
-            <!-- Success Alert -->
-            {% if request.args.get('success') == '1' %} {{ alert.success( 'Entry
-            saved at ' + stats.last_timestamp + '.' if stats and
-            stats.last_timestamp else 'Entry saved.', 'save-success' ) }} {%
-            endif %}
+            {% if request.args.get('success') == '1' %}
+              {{ alert.success(
+                'Entry saved at ' + stats.last_timestamp + '.' if stats and stats.last_timestamp else 'Entry saved.',
+                'save-success'
+              ) }}
+            {% endif %}
 
-            <!-- Reset Alert -->
-            {% if request.args.get('reset') == '1' %} {{ alert.error('All local
-            entries deleted.', 'reset-message') }} {% endif %}
-          </header>
+            {% if request.args.get('reset') == '1' %}
+              {{ alert.error('All local entries deleted.', 'reset-message') }}
+            {% endif %}
 
-          <form
-            method="post"
-            action="{{ url_for('submit_form') }}"
-            class="space-y-4"
-          >
-            {% for field in fields %}
-            <div>
-              <label class="block mb-2 text-sm font-medium text-white">
-                {{ field.label }} {% if field.required %}<span
-                  class="text-red-500"
-                  >*</span
-                >{% endif %}
-              </label>
+            <form method="post" action="{{ url_for('submit_form') }}" class="mt-3">
+              <div class="row g-3">
+                {% for field in fields %}
+                  <div class="col-12">
+                    <label class="form-label">
+                      {{ field.label }}
+                      {% if field.required %}
+                        <span class="text-danger">*</span>
+                      {% endif %}
+                    </label>
 
-              {% if field.type == "text" %}
-              <input
-                type="text"
-                name="{{ field.name }}"
-                class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                {%
-                if
-                field.required
-                %}required{%
-                endif
-                %}
-              />
+                    {% if field.type == "text" %}
+                      <input
+                        type="text"
+                        name="{{ field.name }}"
+                        class="form-control"
+                        {% if field.required %}required{% endif %}
+                      />
 
-              {% elif field.type == "integer" %}
-              <input
-                type="number"
-                step="1"
-                name="{{ field.name }}"
-                class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                {%
-                if
-                field.required
-                %}required{%
-                endif
-                %}
-              />
+                    {% elif field.type == "integer" %}
+                      <input
+                        type="number"
+                        step="1"
+                        name="{{ field.name }}"
+                        class="form-control"
+                        {% if field.required %}required{% endif %}
+                      />
 
-              {% elif field.type == "select" %}
-              <select
-                name="{{ field.name }}"
-                class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                {%
-                if
-                field.required
-                %}required{%
-                endif
-                %}
-              >
-                <option value="" disabled selected>Select…</option>
-                {% for option in field.options %}
-                <option value="{{ option }}">{{ option }}</option>
+                    {% elif field.type == "select" %}
+                      <select
+                        name="{{ field.name }}"
+                        class="form-select"
+                        {% if field.required %}required{% endif %}
+                      >
+                        <option value="" disabled selected>Select...</option>
+                        {% for option in field.options %}
+                          <option value="{{ option }}">{{ option }}</option>
+                        {% endfor %}
+                      </select>
+
+                    {% elif field.type == "textarea" %}
+                      <textarea
+                        name="{{ field.name }}"
+                        rows="3"
+                        class="form-control"
+                        {% if field.required %}required{% endif %}
+                      ></textarea>
+
+                    {% else %}
+                      <input
+                        type="text"
+                        name="{{ field.name }}"
+                        class="form-control"
+                        {% if field.required %}required{% endif %}
+                      />
+                    {% endif %}
+                  </div>
                 {% endfor %}
-              </select>
+              </div>
 
-              {% elif field.type == "textarea" %}
-              <textarea
-                name="{{ field.name }}"
-                rows="3"
-                class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                {%
-                if
-                field.required
-                %}required{%
-                endif
-                %}
-              ></textarea>
-
-              {% else %}
-              <input
-                type="text"
-                name="{{ field.name }}"
-                class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                {%
-                if
-                field.required
-                %}required{%
-                endif
-                %}
-              />
-              {% endif %}
-            </div>
-            {% endfor %}
-
-            <div class="flex items-center justify-between gap-3 pt-4">
-              <button
-                type="button"
-                data-modal-target="reset-modal"
-                data-modal-toggle="reset-modal"
-                class="text-red-700 hover:text-white border border-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:border-red-500 dark:text-red-500 dark:hover:text-white dark:hover:bg-red-600 dark:focus:ring-red-900"
-              >
-                Clear all data
-              </button>
-              <button
-                type="submit"
-                class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-              >
-                Save entry
-              </button>
-            </div>
-          </form>
+              <div class="d-flex justify-content-between align-items-center mt-4">
+                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetModal">
+                  Clear all data
+                </button>
+                <button type="submit" class="btn btn-primary">
+                  Save entry
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -252,55 +172,43 @@ Offline Scouting Manager{% endblock %} {% block content %}
 </section>
 
 <!-- Reset Modal -->
-{% call modal.modal('reset-modal', 'Delete all data') %}
-<p class="text-gray-300">
-  This will permanently delete all scouting entries on
-  <strong class="text-white">this device</strong>. This cannot be undone.
-</p>
-<p class="mt-3 text-sm text-gray-400">
-  To confirm, type <strong class="text-white">Delete my data</strong> exactly as
-  shown:
-</p>
-<div class="mt-3">
-  <input
-    type="text"
-    id="reset-confirm-input"
-    placeholder="Delete my data"
-    autocomplete="off"
-    class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-red-500 focus:border-red-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-red-500 dark:focus:border-red-500"
-  />
-  <p class="text-sm text-red-400 mt-1 hidden" id="reset-help">
-    Text must exactly match "Delete my data".
-  </p>
+<div class="modal fade" id="resetModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-app-surface border border-app">
+      <div class="modal-header">
+        <h5 class="modal-title">Delete all data</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>This will permanently delete all scouting entries on this device. This cannot be undone.</p>
+        <p class="small text-muted-app">To confirm, type <strong>Delete my data</strong> exactly as shown:</p>
+        <input
+          type="text"
+          id="reset-confirm-input"
+          placeholder="Delete my data"
+          autocomplete="off"
+          class="form-control"
+        />
+        <div class="small text-danger mt-2 d-none" id="reset-help">
+          Text must exactly match "Delete my data".
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form id="reset-form" method="post" action="{{ url_for('reset_data') }}">
+          <button type="submit" id="reset-confirm-btn" class="btn btn-danger" disabled>
+            Delete all data
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
-<div class="flex items-center justify-end gap-2 mt-4">
-  <button
-    type="button"
-    data-modal-hide="reset-modal"
-    class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-gray-200 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600"
-  >
-    Cancel
-  </button>
-  <form
-    id="reset-form"
-    method="post"
-    action="{{ url_for('reset_data') }}"
-    class="inline"
-  >
-    <button
-      type="submit"
-      id="reset-confirm-btn"
-      disabled
-      class="text-white bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300 dark:focus:ring-red-800 font-medium rounded-lg text-sm px-5 py-2.5 text-center disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      Delete all data
-    </button>
-  </form>
-</div>
-{% endcall %} {% endblock %} {% block extra_scripts %}
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
-    // Auto-hide alerts after 2 seconds
     const fadeAndRemove = (el) => {
       if (!el) return;
       setTimeout(() => {
@@ -313,7 +221,6 @@ Offline Scouting Manager{% endblock %} {% block content %}
     fadeAndRemove(document.getElementById("save-success"));
     fadeAndRemove(document.getElementById("reset-message"));
 
-    // Clean up URL parameters
     if (window.history && window.history.replaceState) {
       const url = new URL(window.location);
       url.searchParams.delete("success");
@@ -321,7 +228,6 @@ Offline Scouting Manager{% endblock %} {% block content %}
       window.history.replaceState({}, document.title, url.toString());
     }
 
-    // Confirmation input validation
     const input = document.getElementById("reset-confirm-input");
     const confirmBtn = document.getElementById("reset-confirm-btn");
     const help = document.getElementById("reset-help");
@@ -333,9 +239,9 @@ Offline Scouting Manager{% endblock %} {% block content %}
         const matches = value === REQUIRED_TEXT;
         confirmBtn.disabled = !matches;
         if (!matches && value.length > 0) {
-          help.classList.remove("hidden");
+          help.classList.remove("d-none");
         } else {
-          help.classList.add("hidden");
+          help.classList.add("d-none");
         }
       });
     }

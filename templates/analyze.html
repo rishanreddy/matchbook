@@ -1,488 +1,175 @@
-{% extends "base.html" %} {% set current_page = 'analysis' %} {% import
-'components/alert.html' as alert %} {% block title %}Data Analysis - Offline
-Scouting Manager{% endblock %} {% block extra_head %}
-<style>
-  /* DataTables dark theme overrides */
-  table.dataTable {
-    width: 100% !important;
-    background-color: transparent;
-  }
+{% extends "base.html" %}
+{% set current_page = 'analysis' %}
+{% import 'components/alert.html' as alert %}
 
-  thead th {
-    background-color: #1f2937;
-    color: #f3f4f6;
-    border-bottom: 1px solid #374151 !important;
-    font-weight: 600;
-    padding: 0.75rem !important;
-    font-size: 0.875rem;
-  }
+{% block title %}Data Analysis - Offline Scouting Manager{% endblock %}
 
-  tbody td {
-    color: #e5e7eb;
-    border-color: #1f2937 !important;
-    padding: 0.75rem !important;
-  }
+{% block content %}
+<section class="py-4">
+  <div class="container">
+    <!-- Import Card -->
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h5">Import Data</h2>
+        <p class="small text-muted-app">Select CSV files from scouting devices to view combined data.</p>
 
-  table.dataTable.stripe tbody tr:nth-child(odd) {
-    background-color: #111827;
-  }
+        <form method="post" action="{{ url_for('analyze') }}" enctype="multipart/form-data" id="uploadForm">
+          <div class="mt-3">
+            <label
+              for="fileInput"
+              id="dropZone"
+              class="w-100 border border-app rounded p-4 text-center bg-app-surface-2"
+              style="cursor: pointer;"
+            >
+              <div class="mb-2">
+                <strong>Click to upload</strong> or drag and drop
+              </div>
+              <div class="small text-muted-app">CSV files only</div>
+              <input id="fileInput" type="file" name="csv_files" multiple accept=".csv" class="d-none" />
+            </label>
+          </div>
 
-  table.dataTable.stripe tbody tr:nth-child(even) {
-    background-color: #0f1419;
-  }
-
-  table.dataTable.hover tbody tr:hover {
-    background-color: #1f2937;
-  }
-
-  .dataTables_wrapper {
-    color: #9ca3af;
-  }
-
-  .dataTables_wrapper .dataTables_filter label,
-  .dataTables_wrapper .dataTables_length label {
-    font-size: 0.875rem;
-    color: #9ca3af;
-  }
-
-  .dataTables_wrapper .dataTables_filter input,
-  .dataTables_wrapper .dataTables_length select {
-    background-color: #0f1419;
-    border: 1px solid #374151;
-    border-radius: 0.25rem;
-    padding: 0.5rem;
-    color: #e5e7eb;
-    font-size: 0.875rem;
-  }
-
-  .dataTables_wrapper .dataTables_filter input:focus,
-  .dataTables_wrapper .dataTables_length select:focus {
-    outline: none;
-    border-color: #4b5563;
-  }
-
-  .dataTables_wrapper .dataTables_info {
-    font-size: 0.875rem;
-    color: #9ca3af;
-  }
-
-  .dataTables_wrapper .dataTables_paginate .paginate_button {
-    font-size: 0.875rem;
-    padding: 0.375rem 0.75rem;
-    margin: 0 0.125rem;
-    border-radius: 0.5rem;
-    border: 1px solid transparent;
-    color: #9ca3af !important;
-    background: transparent;
-  }
-
-  .dataTables_wrapper .dataTables_paginate .paginate_button.current {
-    color: #fff !important;
-    background-color: #3b82f6 !important;
-  }
-
-  .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-    color: #fff !important;
-    background-color: #2563eb !important;
-  }
-
-  /* Team links styling */
-  tbody td a {
-    color: #3b82f6;
-    text-decoration: none;
-    font-weight: 500;
-    transition: all 0.2s;
-  }
-
-  tbody td a:hover {
-    color: #60a5fa;
-    text-decoration: underline;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .spinner {
-    width: 3rem;
-    height: 3rem;
-    border: 4px solid rgba(59, 130, 246, 0.3);
-    border-top-color: rgb(59, 130, 246);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-</style>
-{% endblock %} {% block content %}
-<!-- Loading Spinner -->
-<div
-  id="loadingOverlay"
-  class="hidden fixed inset-0 bg-gray-900/95 z-50 items-center justify-center"
->
-  <div class="text-center">
-    <div role="status">
-      <svg
-        aria-hidden="true"
-        class="inline w-12 h-12 text-gray-200 animate-spin dark:text-gray-600 fill-blue-600"
-        viewBox="0 0 100 101"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-          fill="currentColor"
-        />
-        <path
-          d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-          fill="currentFill"
-        />
-      </svg>
-      <span class="sr-only">Loading...</span>
-    </div>
-    <p class="mt-4 text-white">Processing data...</p>
-  </div>
-</div>
-
-<section class="py-6">
-  <div class="max-w-7xl mx-auto px-4">
-    <!-- Upload Card -->
-    <div
-      class="mb-6 p-6 bg-gray-800 border border-gray-700 rounded-lg shadow dark:bg-gray-800 dark:border-gray-700"
-    >
-      <h5 class="text-lg font-semibold text-white mb-2">Import Data</h5>
-      <p class="text-sm text-gray-400 mb-4">
-        Select CSV files from scouting devices to view combined data.
-      </p>
-
-      <form
-        method="post"
-        action="{{ url_for('analyze') }}"
-        enctype="multipart/form-data"
-        id="uploadForm"
-      >
-        <div class="mb-4">
-          <label
-            for="dropZone"
-            id="dropZone"
-            class="flex flex-col items-center justify-center w-full h-40 border-2 border-gray-600 border-dashed rounded-lg cursor-pointer bg-gray-900 hover:bg-gray-700"
-          >
-            <div class="flex flex-col items-center justify-center pt-5 pb-6">
-              <svg
-                class="w-10 h-10 mb-3 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                ></path>
-              </svg>
-              <p class="mb-2 text-sm text-gray-300">
-                <span class="font-semibold">Click to upload</span> or drag and
-                drop
-              </p>
-              <p class="text-xs text-gray-400">CSV files only</p>
+          <div id="fileListContainer" class="d-none mt-3">
+            <div class="bg-app-surface-2 border border-app rounded p-3">
+              <div class="small fw-semibold mb-2">Selected Files</div>
+              <div id="fileList" class="d-grid gap-2"></div>
             </div>
-            <input
-              id="fileInput"
-              type="file"
-              name="csv_files"
-              multiple
-              accept=".csv"
-              class="hidden"
-            />
-          </label>
-        </div>
+          </div>
 
-        <div id="fileListContainer" class="hidden mb-4">
-          <div class="p-4 bg-gray-900 rounded-lg">
-            <p class="text-sm font-semibold text-white mb-2">Selected Files:</p>
-            <div id="fileList" class="space-y-2"></div>
+          <div class="d-flex gap-2 mt-3">
+            <button type="submit" id="submitBtn" class="btn btn-primary" disabled>Load Data</button>
+            <button type="button" id="clearBtn" class="btn btn-outline-secondary d-none">Clear</button>
+          </div>
+        </form>
+
+        {% if error %}
+          <div class="mt-3">{{ alert.error(error) }}</div>
+        {% endif %}
+
+        {% if uploaded_filenames %}
+        <div class="mt-3 p-3 border border-success rounded bg-app-surface-2">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-semibold text-success">Loaded Files ({{ uploaded_filenames|length }})</div>
+            <form method="POST" action="/clear_session" class="mb-0">
+              <button type="submit" class="btn btn-danger btn-sm">Clear All</button>
+            </form>
+          </div>
+          <ul class="list-unstyled mb-0">
+            {% for name in uploaded_filenames %}
+            <li class="small">{{ name }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if table_rows %}
+    <!-- Device Status -->
+    {% if device_statuses %}
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div>
+            <h2 class="h6 mb-0">Device Sync Status</h2>
+            <div class="small text-muted-app">
+              {{ device_statuses|length }} of {{ expected_devices }} devices synced
+            </div>
+          </div>
+          {% if expected_devices > device_statuses|length %}
+          <div class="small text-muted-app">
+            Missing: {{ expected_devices - device_statuses|length }}
+          </div>
+          {% endif %}
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for device in device_statuses %}
+            <span class="badge {% if device.status == 'synced' %}bg-success{% else %}bg-secondary{% endif %}">
+              {{ device.name }}
+              {% if device.entries %}
+                · {{ device.entries }}
+              {% endif %}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="small text-muted-app">Total Entries</div>
+            <div class="h4 text-primary">{{ table_rows|length }}</div>
           </div>
         </div>
-
-        <div class="flex gap-2">
-          <button
-            type="submit"
-            id="submitBtn"
-            disabled
-            class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800 disabled:bg-gray-600 disabled:cursor-not-allowed"
-          >
-            Load Data
-          </button>
-          <button
-            type="button"
-            id="clearBtn"
-            class="hidden text-white bg-gray-700 hover:bg-gray-800 focus:ring-4 focus:ring-gray-300 font-medium rounded-lg text-sm px-5 py-2.5 dark:bg-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700"
-          >
-            Clear
-          </button>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="small text-muted-app">Unique Teams</div>
+            <div class="h4">{{ teams_summary|length }}</div>
+          </div>
         </div>
-      </form>
-
-      {% if error %} {{ alert.error(error) }} {% endif %} {% if
-      uploaded_filenames %}
-      <div
-        class="mt-4 p-4 border border-green-300 rounded-lg bg-green-50 dark:bg-gray-800 dark:border-green-700"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <h3
-            class="text-sm font-semibold text-green-800 dark:text-green-400 flex items-center gap-2"
-          >
-            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            Loaded Files ({{ uploaded_filenames|length }})
-          </h3>
-          <form method="POST" action="/clear_session" class="inline">
-            <button
-              type="submit"
-              class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-md transition-colors duration-200 flex items-center gap-1.5"
-              onclick="return confirm('Clear all loaded files from session?');"
-            >
-              <svg
-                class="w-3.5 h-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-              Clear All
-            </button>
-          </form>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="small text-muted-app">Unique Matches</div>
+            <div class="h4" id="uniqueMatches">—</div>
+          </div>
         </div>
-        <ul class="space-y-1.5">
-          {% for name in uploaded_filenames %}
-          <li
-            class="flex items-center gap-2 text-sm text-green-800 dark:text-green-400"
-          >
-            <svg
-              class="w-4 h-4 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
-              ></path>
-            </svg>
-            <span class="truncate">{{ name }}</span>
-          </li>
-          {% endfor %}
-        </ul>
       </div>
-      {% endif %}
-    </div>
-
-    <!-- Statistics Cards -->
-    {% if table_rows %}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div
-        class="p-6 bg-gray-800 border border-gray-700 rounded-lg text-center"
-      >
-        <dt class="mb-2 text-3xl font-extrabold text-blue-500">
-          {{ table_rows|length }}
-        </dt>
-        <dd class="text-gray-400 text-sm">Total Entries</dd>
-      </div>
-      <div
-        class="p-6 bg-gray-800 border border-gray-700 rounded-lg text-center"
-      >
-        <dt class="mb-2 text-3xl font-extrabold text-blue-500">
-          {{ teams_summary|length }}
-        </dt>
-        <dd class="text-gray-400 text-sm">Unique Teams</dd>
-      </div>
-      <div
-        class="p-6 bg-gray-800 border border-gray-700 rounded-lg text-center"
-      >
-        <dt
-          id="uniqueMatches"
-          class="mb-2 text-3xl font-extrabold text-blue-500"
-        >
-          —
-        </dt>
-        <dd class="text-gray-400 text-sm">Unique Matches</dd>
-      </div>
-      <div
-        class="p-6 bg-gray-800 border border-gray-700 rounded-lg text-center"
-      >
-        <dt class="mb-2 text-3xl font-extrabold text-blue-500">
-          {{ uploaded_filenames|length if uploaded_filenames else 0 }}
-        </dt>
-        <dd class="text-gray-400 text-sm">Data Sources</dd>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="small text-muted-app">Data Sources</div>
+            <div class="h4">{{ uploaded_filenames|length if uploaded_filenames else 0 }}</div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="mb-6 border-b border-gray-700">
-      <ul
-        class="flex flex-wrap -mb-px text-sm font-medium text-center"
-        role="tablist"
-      >
-        <li class="mr-2" role="presentation">
-          <button
-            class="inline-flex items-center justify-center p-4 border-b-2 border-blue-600 rounded-t-lg text-blue-500 hover:text-blue-400 group"
-            id="teams-tab"
-            data-tabs-target="#teams-content"
-            type="button"
-            role="tab"
-            aria-controls="teams-content"
-            aria-selected="true"
-          >
-            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"
-              ></path>
-            </svg>
-            Teams Overview
-          </button>
-        </li>
-        <li class="mr-2" role="presentation">
-          <button
-            class="inline-flex items-center justify-center p-4 border-b-2 border-transparent rounded-t-lg text-gray-400 hover:text-gray-300 hover:border-gray-500 group"
-            id="raw-data-tab"
-            data-tabs-target="#raw-data-content"
-            type="button"
-            role="tab"
-            aria-controls="raw-data-content"
-            aria-selected="false"
-          >
-            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
-              <path
-                fill-rule="evenodd"
-                d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              ></path>
-            </svg>
-            Raw Data
-            <span
-              class="ml-2 inline-flex items-center justify-center bg-gray-700 text-gray-300 text-xs font-medium min-w-[2rem] px-2 py-0.5 rounded-full"
-            >
-              {{ table_rows|length }}
-            </span>
-          </button>
-        </li>
-      </ul>
-    </div>
-
-    <!-- Tab Content -->
-    <div id="tab-content">
+    <!-- Tabs -->
+    <ul class="nav nav-tabs border-app" id="analysisTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="teams-tab" data-bs-toggle="tab" data-bs-target="#teams" type="button" role="tab">Teams Overview</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="raw-tab" data-bs-toggle="tab" data-bs-target="#raw" type="button" role="tab">Raw Data</button>
+      </li>
+    </ul>
+    <div class="tab-content border border-app border-top-0 p-3 bg-app-surface-2">
       <!-- Teams Tab -->
-      <div id="teams-content" role="tabpanel" aria-labelledby="teams-tab">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="tab-pane fade show active" id="teams" role="tabpanel">
+        <div class="row g-3">
           {% for team in teams_summary %}
-          <a
-            href="{{ url_for('team_info', team_number=team.team_number) }}"
-            class="block p-6 bg-gray-800 border border-gray-700 rounded-lg hover:bg-gray-750 hover:border-blue-500 transition-all"
-          >
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="text-2xl font-bold text-white">
-                Team {{ team.team_number }}
-              </h3>
-              <svg
-                class="w-5 h-5 text-blue-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 5l7 7-7 7"
-                ></path>
-              </svg>
-            </div>
-            <div class="space-y-2">
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-400">Matches:</span>
-                <span class="text-white font-medium"
-                  >{{ team.total_matches }}</span
-                >
+          <div class="col-md-6 col-lg-4">
+            <a href="{{ url_for('team_info', team_number=team.team_number) }}" class="text-decoration-none">
+              <div class="card h-100">
+                <div class="card-body">
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="h5 mb-0">Team {{ team.team_number }}</div>
+                    <span class="text-primary">›</span>
+                  </div>
+                  <div class="small text-muted-app">Matches: {{ team.total_matches }}</div>
+                  {% for field_name, field_stats in team.stats.items() %}
+                    <div class="small">{{ field_name.replace('_', ' ').title() }} Avg: <strong>{{ field_stats.average }}</strong></div>
+                  {% endfor %}
+                </div>
               </div>
-              {% for field_name, field_stats in team.stats.items() %}
-              <div class="flex justify-between text-sm">
-                <span class="text-gray-400"
-                  >{{ field_name.replace('_', ' ').title() }} Avg:</span
-                >
-                <span class="text-white font-medium"
-                  >{{ field_stats.average }}</span
-                >
-              </div>
-              {% endfor %}
-            </div>
-          </a>
+            </a>
+          </div>
           {% endfor %}
         </div>
       </div>
 
       <!-- Raw Data Tab -->
-      <div
-        id="raw-data-content"
-        class="hidden"
-        role="tabpanel"
-        aria-labelledby="raw-data-tab"
-      >
-        <!-- Filters -->
-        <div class="mb-4 p-4 bg-gray-800 border border-gray-700 rounded-lg">
-          <h5 class="text-sm font-semibold text-white mb-3">Filter Data</h5>
-          <div id="filterContainer" class="space-y-3 mb-3">
-            <!-- Dynamic filters will be added here -->
-          </div>
-          <div class="flex gap-2">
-            <button
-              onclick="addFilter()"
-              class="text-white bg-green-700 hover:bg-green-800 font-medium rounded-lg text-xs px-4 py-2"
-            >
-              <svg
-                class="w-3 h-3 inline-block mr-1"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                  clip-rule="evenodd"
-                ></path>
-              </svg>
-              Add Filter
-            </button>
-            <button
-              onclick="applyFilters()"
-              class="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-xs px-4 py-2"
-            >
-              Apply
-            </button>
-            <button
-              onclick="clearFilters()"
-              class="text-white bg-gray-700 hover:bg-gray-800 font-medium rounded-lg text-xs px-4 py-2"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-
-        <!-- Data Table -->
-        <div
-          class="relative overflow-x-auto bg-gray-800 border border-gray-700 rounded-lg p-4"
-        >
-          <table id="combinedTable" class="table display stripe hover w-full">
+      <div class="tab-pane fade" id="raw" role="tabpanel">
+        <div class="table-responsive">
+          <table id="combinedTable" class="table table-dark table-striped align-middle">
             <thead>
               <tr>
                 {% for col in table_columns %}
@@ -494,7 +181,13 @@ Scouting Manager{% endblock %} {% block extra_head %}
               {% for row in table_rows %}
               <tr>
                 {% for col in table_columns %}
-                <td>{{ row.get(col.id, "") }}</td>
+                  {% set col_id = col.id|default('') %}
+                  {% set value = row.get(col.id, '') %}
+                  {% if 'team' in col_id|lower and value %}
+                    <td><a href="{{ url_for('team_info', team_number=value) }}">{{ value }}</a></td>
+                  {% else %}
+                    <td>{{ value }}</td>
+                  {% endif %}
                 {% endfor %}
               </tr>
               {% endfor %}
@@ -504,66 +197,26 @@ Scouting Manager{% endblock %} {% block extra_head %}
       </div>
     </div>
     {% else %}
-    <div class="p-6 bg-gray-800 border border-gray-700 rounded-lg">
-      <div class="flex flex-col items-center justify-center py-16">
-        <svg
-          class="w-16 h-16 text-gray-400 mb-4"
-          fill="currentColor"
-          viewBox="0 0 20 20"
-        >
-          <path
-            d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"
-          ></path>
-        </svg>
-        <h3 class="text-xl font-semibold text-white mb-2">No Data</h3>
-        <p class="text-sm text-gray-400">
-          Select CSV files above to view your scouting data.
-        </p>
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <div class="h5">No Data</div>
+        <div class="small text-muted-app">Select CSV files above to view your scouting data.</div>
       </div>
     </div>
     {% endif %}
   </div>
 </section>
-{% endblock %} {% block extra_scripts %}
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    // Tab functionality
-    const tabButtons = document.querySelectorAll('[role="tab"]');
-    const tabContents = document.querySelectorAll('[role="tabpanel"]');
-
-    tabButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const targetId = button.getAttribute("data-tabs-target");
-        const target = document.querySelector(targetId);
-
-        // Hide all tab contents
-        tabContents.forEach((content) => {
-          content.classList.add("hidden");
-        });
-
-        // Remove active state from all tabs
-        tabButtons.forEach((btn) => {
-          btn.classList.remove("border-blue-600", "text-blue-500");
-          btn.classList.add("border-transparent", "text-gray-400");
-          btn.setAttribute("aria-selected", "false");
-        });
-
-        // Show target content and activate button
-        target.classList.remove("hidden");
-        button.classList.remove("border-transparent", "text-gray-400");
-        button.classList.add("border-blue-600", "text-blue-500");
-        button.setAttribute("aria-selected", "true");
-      });
-    });
-
     const dropZone = document.getElementById("dropZone");
     const fileInput = document.getElementById("fileInput");
     const fileList = document.getElementById("fileList");
     const fileListContainer = document.getElementById("fileListContainer");
     const submitBtn = document.getElementById("submitBtn");
     const clearBtn = document.getElementById("clearBtn");
-    const uploadForm = document.getElementById("uploadForm");
-    const loadingOverlay = document.getElementById("loadingOverlay");
 
     if (dropZone) {
       dropZone.addEventListener("click", () => fileInput.click());
@@ -573,22 +226,6 @@ Scouting Manager{% endblock %} {% block extra_head %}
           e.preventDefault();
           e.stopPropagation();
         });
-        document.body.addEventListener(eventName, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        });
-      });
-
-      ["dragenter", "dragover"].forEach((eventName) => {
-        dropZone.addEventListener(eventName, () =>
-          dropZone.classList.add("border-blue-500", "bg-gray-800")
-        );
-      });
-
-      ["dragleave", "drop"].forEach((eventName) => {
-        dropZone.addEventListener(eventName, () =>
-          dropZone.classList.remove("border-blue-500", "bg-gray-800")
-        );
       });
 
       dropZone.addEventListener("drop", (e) => {
@@ -601,29 +238,23 @@ Scouting Manager{% endblock %} {% block extra_head %}
 
       function handleFiles(files) {
         if (files.length === 0) {
-          fileListContainer.classList.add("hidden");
+          fileListContainer.classList.add("d-none");
           submitBtn.disabled = true;
-          clearBtn.classList.add("hidden");
+          clearBtn.classList.add("d-none");
           return;
         }
 
         fileList.innerHTML = "";
         Array.from(files).forEach((file) => {
-          const fileItem = document.createElement("div");
-          fileItem.className = "flex items-center gap-3 text-sm text-white";
-          fileItem.innerHTML = `
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z"></path>
-          </svg>
-          <span class="flex-1">${file.name}</span>
-          <span class="text-gray-400">${formatFileSize(file.size)}</span>
-        `;
-          fileList.appendChild(fileItem);
+          const item = document.createElement("div");
+          item.className = "small";
+          item.textContent = `${file.name} (${formatFileSize(file.size)})`;
+          fileList.appendChild(item);
         });
 
-        fileListContainer.classList.remove("hidden");
+        fileListContainer.classList.remove("d-none");
         submitBtn.disabled = false;
-        clearBtn.classList.remove("hidden");
+        clearBtn.classList.remove("d-none");
       }
 
       function formatFileSize(bytes) {
@@ -631,203 +262,36 @@ Scouting Manager{% endblock %} {% block extra_head %}
         const k = 1024;
         const sizes = ["Bytes", "KB", "MB"];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return (
-          Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i]
-        );
+        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
       }
 
       clearBtn.addEventListener("click", () => {
         fileInput.value = "";
         fileList.innerHTML = "";
-        fileListContainer.classList.add("hidden");
+        fileListContainer.classList.add("d-none");
         submitBtn.disabled = true;
-        clearBtn.classList.add("hidden");
-      });
-
-      uploadForm.addEventListener("submit", () => {
-        loadingOverlay.classList.remove("hidden");
-        loadingOverlay.classList.add("flex");
+        clearBtn.classList.add("d-none");
       });
     }
 
     const tableEl = document.getElementById("combinedTable");
-    if (!tableEl) return;
-
-    // Find team column index
-    let teamColumnIndex = -1;
-    $("#combinedTable thead th").each(function (index) {
-      const headerText = $(this).text().toLowerCase();
-      if (headerText.includes("team")) {
-        teamColumnIndex = index;
-        return false;
-      }
-    });
-
-    const dataTable = $("#combinedTable").DataTable({
-      paging: true,
-      pageLength: 50,
-      lengthMenu: [
-        [10, 25, 50, 100, -1],
-        [10, 25, 50, 100, "All"],
-      ],
-      lengthChange: true,
-      ordering: true,
-      order: [],
-      info: true,
-      searching: true,
-      scrollX: true,
-      columnDefs:
-        teamColumnIndex >= 0
-          ? [
-              {
-                targets: teamColumnIndex,
-                render: function (data, type, row) {
-                  if (type === "display" && data) {
-                    return (
-                      '<a href="/team/' +
-                      data +
-                      '" class="text-blue-500 hover:text-blue-400 hover:underline">' +
-                      data +
-                      "</a>"
-                    );
-                  }
-                  return data;
-                },
-              },
-            ]
-          : [],
-      language: {
-        search: "Search:",
-        lengthMenu: "Show _MENU_",
-        info: "Showing _START_ to _END_ of _TOTAL_",
-        infoEmpty: "No entries",
-        infoFiltered: "(filtered from _MAX_)",
-        zeroRecords: "No matches found",
-        paginate: {
-          first: "First",
-          last: "Last",
-          previous: "Prev",
-          next: "Next",
-        },
-      },
-    });
-
-    calculateStats();
-
-    function calculateStats() {
-      const data = dataTable.rows().data();
-      const uniqueValues = {};
-
-      // Count unique values for each column
-      dataTable.columns().every(function (i) {
-        const columnName = $(this.header()).text();
-        const values = new Set();
-        data.each((row) => {
-          if (row[i]) values.add(row[i]);
-        });
-        uniqueValues[columnName] = values.size;
-      });
-
-      // Try to find team/match columns dynamically
-      const uniqueTeamsEl = document.getElementById("uniqueTeams");
-      const uniqueMatchesEl = document.getElementById("uniqueMatches");
-
-      if (uniqueTeamsEl) {
-        const teamKey = Object.keys(uniqueValues).find((k) =>
-          k.toLowerCase().includes("team")
-        );
-        uniqueTeamsEl.textContent = teamKey ? uniqueValues[teamKey] : "—";
-      }
-      if (uniqueMatchesEl) {
-        const matchKey = Object.keys(uniqueValues).find((k) =>
-          k.toLowerCase().includes("match")
-        );
-        uniqueMatchesEl.textContent = matchKey ? uniqueValues[matchKey] : "—";
-      }
-    }
-
-    const availableColumns = [];
-    dataTable.columns().every(function (i) {
-      availableColumns.push({
-        index: i,
-        name: $(this.header()).text(),
-      });
-    });
-
-    let filterCount = 0;
-
-    window.addFilter = function () {
-      const filterId = `filter_${filterCount++}`;
-      const filterHtml = `
-        <div id="${filterId}" class="flex gap-2 items-end">
-          <div class="flex-1">
-            <label class="block mb-2 text-xs font-medium text-gray-400">Column</label>
-            <select class="filter-column bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-              <option value="">Select column...</option>
-              ${availableColumns
-                .map(
-                  (col) => `<option value="${col.index}">${col.name}</option>`
-                )
-                .join("")}
-            </select>
-          </div>
-          <div class="flex-1">
-            <label class="block mb-2 text-xs font-medium text-gray-400">Value</label>
-            <input type="text" class="filter-value bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" placeholder="Filter value..." />
-          </div>
-          <button onclick="removeFilter('${filterId}')" class="text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:ring-red-300 font-medium rounded-lg text-sm p-2.5">
-            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
-            </svg>
-          </button>
-        </div>
-      `;
-      document
-        .getElementById("filterContainer")
-        .insertAdjacentHTML("beforeend", filterHtml);
-    };
-
-    window.removeFilter = function (filterId) {
-      document.getElementById(filterId).remove();
-    };
-
-    window.applyFilters = function () {
-      $.fn.dataTable.ext.search = [];
-
-      const filters = [];
-      document
-        .querySelectorAll("#filterContainer > div")
-        .forEach((filterDiv) => {
-          const colIndex = filterDiv.querySelector(".filter-column").value;
-          const filterValue = filterDiv
-            .querySelector(".filter-value")
-            .value.trim()
-            .toLowerCase();
-
-          if (colIndex !== "" && filterValue !== "") {
-            filters.push({ colIndex: parseInt(colIndex), value: filterValue });
+    if (tableEl) {
+      const headers = Array.from(tableEl.querySelectorAll("thead th")).map((th) =>
+        th.textContent.trim().toLowerCase()
+      );
+      const matchIndex = headers.findIndex((h) => h.includes("match"));
+      if (matchIndex >= 0) {
+        const unique = new Set();
+        Array.from(tableEl.querySelectorAll("tbody tr")).forEach((row) => {
+          const cell = row.children[matchIndex];
+          if (cell && cell.textContent.trim()) {
+            unique.add(cell.textContent.trim());
           }
         });
-
-      if (filters.length > 0) {
-        $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
-          return filters.every((filter) => {
-            const cellValue = (data[filter.colIndex] || "")
-              .toString()
-              .toLowerCase();
-            return cellValue.includes(filter.value);
-          });
-        });
+        const uniqueMatchesEl = document.getElementById("uniqueMatches");
+        if (uniqueMatchesEl) uniqueMatchesEl.textContent = unique.size;
       }
-
-      dataTable.draw();
-    };
-
-    window.clearFilters = function () {
-      document.getElementById("filterContainer").innerHTML = "";
-      $.fn.dataTable.ext.search = [];
-      dataTable.draw();
-    };
+    }
   });
 </script>
 {% endblock %}

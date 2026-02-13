@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Setup - Offline Scouting Manager{% endblock %}
+
+{% block content %}
+<section class="py-5">
+  <div class="container" style="max-width: 900px;">
+    <div class="text-center mb-4">
+      <h1 class="h3">Welcome to Offline Scouting Manager</h1>
+      <p class="text-muted-app">Set up your device in a few quick steps.</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-body">
+        <div class="progress mb-4" style="height: 8px;">
+          <div id="wizardProgress" class="progress-bar" style="width: 50%;"></div>
+        </div>
+
+        <form id="setupForm" method="post" action="{{ url_for('setup_wizard') }}" enctype="multipart/form-data">
+          <!-- Step 1 -->
+          <div class="wizard-step" data-step="1">
+            <h2 class="h5">Event Information</h2>
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <label class="form-label">Event Name</label>
+                <input type="text" name="event_name" class="form-control" placeholder="e.g., Rebuilt Regional" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Season</label>
+                <input type="text" name="season" class="form-control" placeholder="e.g., 2026-2026">
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <label class="form-label">Import setup file (optional)</label>
+              <input type="file" name="setup_file" class="form-control" accept=".yaml,.yml" />
+              <div class="form-text text-muted-app">
+                If you already exported a setup file, choose it here to reuse fields and settings.
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="wizard-step d-none" data-step="2">
+            <h2 class="h5">Device Name</h2>
+            <p class="small text-muted-app">Use a unique name for each device.</p>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 1">Scout 1</button>
+              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 2">Scout 2</button>
+              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 3">Scout 3</button>
+              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 4">Scout 4</button>
+              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Pit Scout">Pit Scout</button>
+            </div>
+
+            <label class="form-label">Device Name</label>
+            <input type="text" name="device_name" id="deviceNameInput" class="form-control" placeholder="e.g., Scout 1" required>
+            <div id="deviceConflict" class="small text-warning mt-2 d-none">
+              This name already exists in your data. Consider using a different name.
+            </div>
+            <div id="deviceSuggestions" class="small text-muted-app mt-1"></div>
+          </div>
+
+          <div class="d-flex justify-content-between mt-4">
+            <button type="button" id="prevBtn" class="btn btn-outline-secondary" disabled>Back</button>
+            <button type="button" id="nextBtn" class="btn btn-primary">Next</button>
+            <button type="submit" id="finishBtn" class="btn btn-primary d-none">Finish Setup</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    let step = 1;
+    const steps = document.querySelectorAll(".wizard-step");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const finishBtn = document.getElementById("finishBtn");
+    const progress = document.getElementById("wizardProgress");
+
+    const deviceInput = document.getElementById("deviceNameInput");
+    const deviceConflict = document.getElementById("deviceConflict");
+    const deviceSuggestions = document.getElementById("deviceSuggestions");
+
+    function showStep(newStep) {
+      step = newStep;
+      steps.forEach((el) => {
+        el.classList.toggle("d-none", el.getAttribute("data-step") !== String(step));
+      });
+      prevBtn.disabled = step === 1;
+      nextBtn.classList.toggle("d-none", step === 2);
+      finishBtn.classList.toggle("d-none", step !== 2);
+      progress.style.width = `${(step / 2) * 100}%`;
+    }
+
+    prevBtn.addEventListener("click", () => showStep(step - 1));
+    nextBtn.addEventListener("click", () => showStep(step + 1));
+
+    document.querySelectorAll(".quick-name").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        deviceInput.value = btn.getAttribute("data-name");
+        checkDeviceName();
+      });
+    });
+
+    async function checkDeviceName() {
+      const name = deviceInput.value.trim();
+      if (!name) {
+        deviceConflict.classList.add("d-none");
+        return;
+      }
+      try {
+        const response = await fetch("/api/check-device-name", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        const data = await response.json();
+        deviceConflict.classList.toggle("d-none", !data.conflict);
+        if (data.suggestions && data.suggestions.length) {
+          deviceSuggestions.textContent = "Suggestions: " + data.suggestions.join(", ");
+        } else {
+          deviceSuggestions.textContent = "";
+        }
+      } catch (err) {
+        deviceConflict.classList.add("d-none");
+        deviceSuggestions.textContent = "";
+      }
+    }
+
+    deviceInput.addEventListener("input", checkDeviceName);
+
+    showStep(step);
+  });
+</script>
+{% endblock %}

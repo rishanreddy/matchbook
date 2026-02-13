@@ -1,246 +1,116 @@
-{% extends "base.html" %} {% set current_page = 'analysis' %} {% block title
-%}Team {{ team_data.team_number }} Info - Offline Scouting Manager{% endblock %}
-{% block extra_head %}
-<style>
-  table.dataTable {
-    width: 100% !important;
-    background-color: transparent;
-  }
+{% extends "base.html" %}
+{% set current_page = 'analysis' %}
+{% block title %}Team {{ team_data.team_number }} Info - Offline Scouting Manager{% endblock %}
 
-  thead th {
-    background-color: #1f2937;
-    color: #f3f4f6;
-    border-bottom: 1px solid #374151 !important;
-    font-weight: 600;
-    padding: 0.75rem !important;
-    font-size: 0.875rem;
-  }
-
-  tbody td {
-    color: #e5e7eb;
-    border-color: #1f2937 !important;
-    padding: 0.75rem !important;
-  }
-
-  table.dataTable.stripe tbody tr:nth-child(odd) {
-    background-color: #111827;
-  }
-
-  table.dataTable.stripe tbody tr:nth-child(even) {
-    background-color: #0f1419;
-  }
-
-  table.dataTable.hover tbody tr:hover {
-    background-color: #1f2937;
-  }
-
-  .dataTables_wrapper {
-    color: #9ca3af;
-  }
-
-  .dataTables_wrapper .dataTables_filter label,
-  .dataTables_wrapper .dataTables_length label {
-    font-size: 0.875rem;
-    color: #9ca3af;
-  }
-
-  .dataTables_wrapper .dataTables_filter input,
-  .dataTables_wrapper .dataTables_length select {
-    background-color: #0f1419;
-    border: 1px solid #374151;
-    border-radius: 0.25rem;
-    padding: 0.5rem;
-    color: #e5e7eb;
-    font-size: 0.875rem;
-  }
-
-  .dataTables_wrapper .dataTables_filter input:focus,
-  .dataTables_wrapper .dataTables_length select:focus {
-    outline: none;
-    border-color: #4b5563;
-  }
-
-  .dataTables_wrapper .dataTables_info {
-    font-size: 0.875rem;
-    color: #9ca3af;
-  }
-
-  .dataTables_wrapper .dataTables_paginate .paginate_button {
-    font-size: 0.875rem;
-    padding: 0.375rem 0.75rem;
-    margin: 0 0.125rem;
-    border-radius: 0.5rem;
-    border: 1px solid transparent;
-    color: #9ca3af !important;
-    background: transparent;
-  }
-
-  .dataTables_wrapper .dataTables_paginate .paginate_button.current {
-    color: #fff !important;
-    background-color: #3b82f6 !important;
-  }
-
-  .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-    color: #fff !important;
-    background-color: #2563eb !important;
-  }
-
-  .stat-card {
-    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-  }
-</style>
-{% endblock %} {% block content %}
-<section class="py-6">
-  <div class="max-w-7xl mx-auto px-4">
+{% block content %}
+<section class="py-4">
+  <div class="container">
     <!-- Header -->
-    <div class="mb-6 p-6 bg-gray-800 border border-gray-700 rounded-lg shadow">
-      <div class="flex justify-between items-start">
+    <div class="card mb-4">
+      <div class="card-body d-flex justify-content-between align-items-start">
         <div>
-          <h1 class="text-3xl font-bold text-white mb-2">
-            Team {{ team_data.team_number }}
-          </h1>
-          <p class="text-gray-400">
-            Detailed scouting information for this team
-          </p>
+          <h1 class="h3 mb-1">Team {{ team_data.team_number }}</h1>
+          <div class="small text-muted-app">Detailed scouting information for this team</div>
         </div>
-        <a
-          href="{{ url_for('analyze') }}"
-          class="text-blue-400 hover:text-blue-300 font-medium inline-flex items-center"
-        >
-          <svg
-            class="w-4 h-4 mr-1"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10 19l-7-7m0 0l7-7m-7 7h18"
-            ></path>
-          </svg>
-          Back to Analysis
-        </a>
+        <a href="{{ url_for('analyze') }}" class="btn btn-outline-secondary btn-sm">Back to Analysis</a>
       </div>
     </div>
 
     <!-- Quick Stats -->
-    <div
-      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-{{ (team_data.stats.items()|length) + 1 }} gap-4 mb-6"
-    >
-      <div class="stat-card p-6 border border-gray-700 rounded-lg text-center">
-        <dt class="mb-2 text-3xl font-extrabold text-blue-500">
-          {{ team_data.total_matches }}
-        </dt>
-        <dd class="text-gray-400 text-sm">Total Matches</dd>
-      </div>
-      {% for field_name, field_stats in team_data.stats.items() %}
-      <div class="stat-card p-6 border border-gray-700 rounded-lg text-center">
-        <dt class="mb-2 text-3xl font-extrabold text-green-500">
-          {{ field_stats.average }}
-        </dt>
-        <dd class="text-gray-400 text-sm">
-          Avg {{ field_name.replace('_', ' ').title() }}
-        </dd>
-      </div>
-      {% endfor %}
-    </div>
-
-    <!-- Performance Graphs -->
-    {% if show_trends %}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      {% for field_config in graph_fields %}
-      <div class="p-6 bg-gray-800 border border-gray-700 rounded-lg shadow">
-        <div class="flex justify-between mb-4">
-          <div>
-            <h5 class="inline-flex items-center text-gray-400 text-sm">
-              {{ field_config.label if field_config.label else
-              field_config.field.replace('_', ' ').title() }}
-            </h5>
-            <p class="text-white text-2xl font-semibold">
-              {{ team_data.stats.get(field_config.field, {}).get('average', 0)
-              }}
-            </p>
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="small text-muted-app">Total Matches</div>
+            <div class="h4 text-primary">{{ team_data.total_matches }}</div>
           </div>
         </div>
-        <canvas id="chart-{{ field_config.field }}"></canvas>
+      </div>
+      {% for field_name, field_stats in team_data.stats.items() %}
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="small text-muted-app">Avg {{ field_name.replace('_', ' ').title() }}</div>
+            <div class="h4">{{ field_stats.average }}</div>
+          </div>
+        </div>
       </div>
       {% endfor %}
     </div>
 
-    <!-- Radar Chart for Team Comparison -->
+    {% if show_trends %}
+    <!-- Performance Graphs -->
+    <div class="row g-3 mb-4">
+      {% for field_config in graph_fields %}
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div>
+                <div class="small text-muted-app">
+                  {{ field_config.label if field_config.label else field_config.field.replace('_', ' ').title() }}
+                </div>
+                <div class="h5 mb-0">{{ team_data.stats.get(field_config.field, {}).get('average', 0) }}</div>
+              </div>
+            </div>
+            <canvas id="chart-{{ field_config.field }}"></canvas>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
     {% if show_radar %}
-    <div class="mb-6 p-6 bg-gray-800 border border-gray-700 rounded-lg shadow">
-      <h5 class="text-lg font-semibold text-white mb-4">
-        Performance Overview
-      </h5>
-      <div class="mx-auto" style="max-width: 500px; max-height: 500px">
-        <canvas id="radar-chart"></canvas>
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h5">Performance Overview</h2>
+        <div class="mx-auto" style="max-width: 520px; max-height: 520px;">
+          <canvas id="radar-chart"></canvas>
+        </div>
       </div>
     </div>
-    {% endif %} {% endif %}
+    {% endif %}
+    {% endif %}
 
     <!-- Data Table -->
-    <div class="p-6 bg-gray-800 border border-gray-700 rounded-lg shadow">
-      <h5 class="text-lg font-semibold text-white mb-4">Match Records</h5>
-      <div class="relative overflow-x-auto">
-        <table id="teamMatchesTable" class="table display stripe hover w-full">
-          <thead>
-            <tr>
-              {% if team_data.matches %} {% for key in
-              team_data.matches[0].keys() %}
-              <th>{{ key.replace('_', ' ').title() }}</th>
-              {% endfor %} {% endif %}
-            </tr>
-          </thead>
-          <tbody>
-            {% for match in team_data.matches %}
-            <tr>
-              {% for value in match.values() %}
-              <td>{{ value }}</td>
+    <div class="card">
+      <div class="card-body">
+        <h2 class="h5">Match Records</h2>
+        <div class="table-responsive">
+          <table id="teamMatchesTable" class="table table-dark table-striped align-middle">
+            <thead>
+              <tr>
+                {% if team_data.matches %}
+                  {% for key in team_data.matches[0].keys() %}
+                  <th>{{ key.replace('_', ' ').title() }}</th>
+                  {% endfor %}
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for match in team_data.matches %}
+              <tr>
+                {% for value in match.values() %}
+                <td>{{ value }}</td>
+                {% endfor %}
+              </tr>
               {% endfor %}
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 </section>
-{% endblock %} {% block extra_scripts %}
+{% endblock %}
+
+{% block extra_scripts %}
 <script>
   document.addEventListener("DOMContentLoaded", function() {
-    // Initialize DataTable
-    $("#teamMatchesTable").DataTable({
-      paging: true,
-      pageLength: {{ matches_per_page }},
-      lengthChange: true,
-      ordering: true,
-      order: [[0, '{{ match_sort_order }}']],
-      info: true,
-      searching: true,
-      scrollX: true,
-      language: {
-        search: "Search:",
-        lengthMenu: "Show _MENU_",
-        info: "Showing _START_ to _END_ of _TOTAL_",
-        zeroRecords: "No matches found",
-        paginate: {
-          first: "First",
-          last: "Last",
-          previous: "Prev",
-          next: "Next",
-        },
-      },
-    });
-
     {% if show_trends %}
-    // Prepare match data
     const matches = {{ team_data.matches | tojson }};
     const matchLabels = matches.map(m => m.match || 'N/A');
 
-    // Create charts for each configured field
     {% for field_config in graph_fields %}
     const data_{{ field_config.field }} = matches.map(m => {
       const val = parseFloat(m.{{ field_config.field }});
@@ -259,61 +129,21 @@
             backgroundColor: '{{ field_config.color }}33',
             borderColor: '{{ field_config.color }}',
             borderWidth: 2,
-            {% if field_config.chart_type == 'line' %}
             tension: 0.4,
-            fill: false,
-            {% elif field_config.chart_type == 'area' %}
-            tension: 0.4,
-            fill: true,
-            {% endif %}
             pointBackgroundColor: '{{ field_config.color }}',
             pointBorderColor: '#fff',
             pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6
+            pointRadius: 3,
+            pointHoverRadius: 5
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              display: false
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              titleColor: '#fff',
-              bodyColor: '#fff',
-              borderColor: '{{ field_config.color }}',
-              borderWidth: 1
-            }
-          },
+          plugins: { legend: { display: false } },
           scales: {
-            x: {
-              grid: {
-                color: '#374151',
-                drawBorder: false
-              },
-              ticks: {
-                color: '#9ca3af',
-                font: {
-                  size: 12
-                }
-              }
-            },
-            y: {
-              beginAtZero: true,
-              grid: {
-                color: '#374151',
-                drawBorder: false
-              },
-              ticks: {
-                color: '#9ca3af',
-                font: {
-                  size: 12
-                }
-              }
-            }
+            x: { ticks: { color: '#94a3b8' } },
+            y: { beginAtZero: true, ticks: { color: '#94a3b8' } }
           }
         }
       });
@@ -321,7 +151,6 @@
     {% endfor %}
 
     {% if show_radar %}
-    // Radar Chart for overall performance
     const radarCategories = [{% for field_config in graph_fields %}{{ field_config.label | tojson }},{% endfor %}];
     const radarData = [
       {% for radar_data_point in radar_data.values() %}
@@ -344,52 +173,19 @@
             pointBackgroundColor: 'rgb(59, 130, 246)',
             pointBorderColor: '#fff',
             pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6
+            pointRadius: 3,
+            pointHoverRadius: 5
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              labels: {
-                color: '#9ca3af',
-                font: {
-                  size: 12
-                }
-              }
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              titleColor: '#fff',
-              bodyColor: '#fff',
-              borderColor: 'rgb(59, 130, 246)',
-              borderWidth: 1
-            }
-          },
+          plugins: { legend: { labels: { color: '#94a3b8' } } },
           scales: {
             r: {
               beginAtZero: true,
-              grid: {
-                color: '#374151'
-              },
-              angleLines: {
-                color: '#374151'
-              },
-              pointLabels: {
-                color: '#9ca3af',
-                font: {
-                  size: 12
-                }
-              },
-              ticks: {
-                color: '#9ca3af',
-                backdropColor: 'transparent',
-                font: {
-                  size: 10
-                }
-              }
+              pointLabels: { color: '#94a3b8' },
+              ticks: { color: '#94a3b8', backdropColor: 'transparent' }
             }
           }
         }

@@ -1,10 +1,19 @@
 """Configuration loading and device management."""
 
 import json
+import shutil
 import uuid
+from datetime import datetime
+
 import yaml
 
-from .constants import CONFIG_FILE, DEVICE_FILE, REQUIRED_FIELDS
+from .constants import (
+    CONFIG_DIR,
+    CONFIG_FILE,
+    DEVICE_FILE,
+    REQUIRED_FIELDS,
+    SECRET_FILE,
+)
 
 
 def load_config():
@@ -124,3 +133,47 @@ def validate_required_fields(fields):
     missing = [rf for rf in REQUIRED_FIELDS if rf not in field_names]
     if missing:
         raise ValueError(f"Missing required fields in config: {', '.join(missing)}")
+
+
+def backup_config():
+    """Create a timestamped backup of config.yaml before changes."""
+    if not CONFIG_FILE.exists():
+        return
+
+    backup_dir = CONFIG_DIR / "backups"
+    backup_dir.mkdir(exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    backup_path = backup_dir / f"config_{timestamp}.yaml"
+    shutil.copy(CONFIG_FILE, backup_path)
+
+    # Keep the latest 20 backups
+    backups = sorted(backup_dir.glob("config_*.yaml"))
+    for old_backup in backups[:-20]:
+        old_backup.unlink(missing_ok=True)
+
+
+def save_config(device_cfg, event_cfg, fields, analysis_cfg):
+    """Persist updated configuration to config/config.yaml."""
+    CONFIG_DIR.mkdir(exist_ok=True)
+
+    cfg = {
+        "device": device_cfg,
+        "event": event_cfg,
+        "analysis": analysis_cfg,
+        "fields": fields,
+    }
+
+    with CONFIG_FILE.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False)
+
+
+def get_secret_key() -> str:
+    """Load or generate a persistent secret key for session signing."""
+    if SECRET_FILE.exists():
+        return SECRET_FILE.read_text(encoding="utf-8").strip()
+
+    SECRET_FILE.parent.mkdir(exist_ok=True)
+    secret = uuid.uuid4().hex + uuid.uuid4().hex
+    SECRET_FILE.write_text(secret, encoding="utf-8")
+    return secret

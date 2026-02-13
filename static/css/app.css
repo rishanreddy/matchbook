@@ -1,0 +1,167 @@
+/* Custom Bootstrap theme tweaks (offline, no build step) */
+
+:root {
+  --app-bg: #0f1115;
+  --app-surface: #151922;
+  --app-surface-2: #1d2330;
+  --app-border: #2b3342;
+  --app-text: #f1f5f9;
+  --app-muted: #94a3b8;
+  --app-accent: #3b82f6;
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--app-text);
+}
+
+.text-light {
+  color: var(--app-text) !important;
+}
+
+.bg-app-surface {
+  background-color: var(--app-surface) !important;
+  color: var(--app-text);
+}
+
+.bg-app-surface-2 {
+  background-color: var(--app-surface-2) !important;
+  color: var(--app-text);
+}
+
+.border-app {
+  border-color: var(--app-border) !important;
+}
+
+.text-muted-app {
+  color: var(--app-muted) !important;
+}
+
+.btn-primary {
+  background-color: var(--app-accent);
+  border-color: var(--app-accent);
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.card {
+  background-color: var(--app-surface);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
+}
+
+.card .text-muted,
+.card .form-text,
+.card .small {
+  color: var(--app-muted) !important;
+}
+
+.form-label {
+  color: var(--app-muted);
+}
+
+.form-control,
+.form-select {
+  background-color: var(--app-surface-2);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.form-control::placeholder {
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--app-surface-2);
+  color: var(--app-text);
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2);
+}
+
+.form-select option {
+  background-color: var(--app-surface);
+  color: var(--app-text);
+}
+
+.navbar {
+  color: var(--app-text);
+}
+
+.navbar-toggler {
+  border-color: var(--app-border);
+}
+
+.nav-link {
+  color: var(--app-muted);
+}
+
+.nav-link.active,
+.nav-link:hover {
+  color: var(--app-text);
+}
+
+.nav-tabs {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.nav-tabs .nav-link {
+  border: 1px solid transparent;
+}
+
+.nav-tabs .nav-link.active {
+  background-color: var(--app-surface-2);
+  border-color: var(--app-border) var(--app-border) transparent;
+  color: var(--app-text);
+}
+
+.btn-outline-secondary,
+.btn-outline-danger,
+.btn-outline-primary {
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-primary:hover {
+  border-color: var(--app-accent);
+  color: var(--app-text);
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+.btn-outline-danger:hover {
+  border-color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.15);
+}
+
+.modal-content {
+  background-color: var(--app-surface);
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+}
+
+.table-dark {
+  --bs-table-bg: var(--app-surface-2);
+  --bs-table-striped-bg: #1a2230;
+  --bs-table-striped-color: var(--app-text);
+  --bs-table-color: var(--app-text);
+  --bs-table-border-color: var(--app-border);
+}
+
+.table thead th {
+  color: var(--app-text);
+}
+
+.table tbody td {
+  color: var(--app-text);
+}
+
+.badge-soft {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--app-muted);
+  border: 1px solid var(--app-border);
+}

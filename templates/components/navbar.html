@@ -1,69 +1,61 @@
-<nav class="bg-gray-800 border-b border-gray-700">
-  <div class="max-w-screen-2xl mx-auto px-4">
-    <div class="flex items-center justify-between h-16">
-      <div class="flex items-center gap-3">
-        <img
-          src="{{ url_for('static', filename='logo.jpg') }}"
-          alt="Logo"
-          class="h-13 w-13 rounded-md"
-        />
-        <span class="text-xl font-semibold text-white"
-          >Offline Scouting Manager</span
-        >
-        <span class="ml-3 text-sm text-gray-400">
-          {% if event and event.name %} {{ event.name }} {% if event.season %} ·
-          {{ event.season }}{% endif %} {% endif %}
-        </span>
-      </div>
+<nav class="navbar navbar-expand-lg navbar-dark border-bottom border-app bg-app-surface">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center gap-2 text-light" href="{{ url_for('show_form') }}">
+      <img
+        src="{{ url_for('static', filename='logo.jpg') }}"
+        alt="Logo"
+        class="rounded"
+        width="36"
+        height="36"
+      />
+      <span class="fw-semibold">Offline Scouting Manager</span>
+    </a>
 
-      <div class="flex items-center gap-6">
+    <button
+      class="navbar-toggler text-light border-app"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#mainNavbar"
+      aria-controls="mainNavbar"
+      aria-expanded="false"
+      aria-label="Toggle navigation"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="mainNavbar">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
         {% if device_name %}
-        <span class="text-sm text-gray-400">
-          Device: <strong class="text-white">{{ device_name }}</strong>
-        </span>
+        <li class="nav-item me-lg-2">
+          <span class="badge badge-soft">Device: {{ device_name }}</span>
+        </li>
         {% endif %}
 
-        <div class="flex items-center space-x-2">
+        <li class="nav-item">
           <a
+            class="nav-link {% if current_page == 'scouting' %}active text-light{% else %}text-muted-app{% endif %}"
             href="{{ url_for('show_form') }}"
-            class="px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out {% if current_page == 'scouting' %} bg-gray-900 text-white shadow-sm {% else %} text-gray-300 hover:text-white hover:bg-gray-700 {% endif %}"
           >
-            <svg
-              class="w-4 h-4 inline-block mr-1.5 -mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              ></path>
-            </svg>
             Scouting
           </a>
+        </li>
+        <li class="nav-item">
           <a
+            class="nav-link {% if current_page == 'analysis' %}active text-light{% else %}text-muted-app{% endif %}"
             href="{{ url_for('analyze') }}"
-            class="px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ease-in-out {% if current_page == 'analysis' %} bg-gray-900 text-white shadow-sm {% else %} text-gray-300 hover:text-white hover:bg-gray-700 {% endif %}"
           >
-            <svg
-              class="w-4 h-4 inline-block mr-1.5 -mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              ></path>
-            </svg>
             Analysis
           </a>
-        </div>
-      </div>
+        </li>
+        <li class="nav-item">
+          <a
+            class="nav-link {% if current_page == 'settings' %}active text-light{% else %}text-muted-app{% endif %}"
+            href="{{ url_for('settings') }}"
+          >
+            Settings
+          </a>
+        </li>
+      </ul>
     </div>
   </div>
 </nav>

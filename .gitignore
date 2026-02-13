@@ -7,6 +7,21 @@ wheels/
 # Virtual environments
 .venv
 
+# Node/Frontend
+node_modules/
+static/node_modules/
+
 # Application Files
 device.json
-data
+data/
+config/backups/
+data/temp_uploads/*.csv
+data/temp_exports/
+config/secret.key
+config/device_registry.json
+logs/
+
+# Build artifacts
+dist/
+build/
+*.spec
