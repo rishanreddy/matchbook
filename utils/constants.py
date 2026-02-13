@@ -1,12 +1,26 @@
 """Constants and file paths used throughout the application."""
 
 from pathlib import Path
+import sys
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent
-CONFIG_DIR = BASE_DIR / "config"
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+
+# Use a writable app data directory when running from a bundled executable
+APP_DATA_DIR = BASE_DIR
+if getattr(sys, "frozen", False) or getattr(sys, "_MEIPASS", None):
+    APP_DATA_DIR = Path.home() / ".offline_scouting_manager"
+
+APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+CONFIG_DIR = APP_DATA_DIR / "config"
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+DATA_DIR = APP_DATA_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+LOG_DIR = APP_DATA_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Temp uploads directory
 TEMP_UPLOADS_DIR = DATA_DIR / "temp_uploads"

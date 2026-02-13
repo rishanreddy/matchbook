@@ -29,6 +29,7 @@ from utils import (
     CONFIG_DIR,
     TEMP_EXPORTS_DIR,
     BACKUP_DIR,
+    LOG_DIR,
     validate_required_fields,
     calculate_team_stats,
     get_all_teams_summary,
@@ -64,9 +65,7 @@ app.config.update(
 )
 
 # Logging
-log_dir = Path("logs")
-log_dir.mkdir(exist_ok=True)
-log_file = log_dir / "app.log"
+log_file = LOG_DIR / "app.log"
 
 handler = RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3)
 handler.setLevel(logging.INFO)
@@ -96,9 +95,7 @@ def enforce_setup_wizard():
         return None
 
     device_cfg, event, _, _ = load_config()
-    if not event.get("name") or not (
-        device_cfg.get("name") or device_cfg.get("uniqueId")
-    ):
+    if not event.get("name") or not device_cfg.get("name"):
         return redirect(url_for("setup_wizard"))
     return None
 
@@ -129,9 +126,7 @@ def show_form():
     validate_required_fields(fields)
     stats = get_stats()
 
-    if not event.get("name") or not (
-        device_cfg.get("name") or device_cfg.get("uniqueId")
-    ):
+    if not event.get("name") or not device_cfg.get("name"):
         return redirect(url_for("setup_wizard"))
 
     device_name = device_cfg.get("name") or device_cfg.get("uniqueId")

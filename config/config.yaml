@@ -1,9 +1,8 @@
 device:
-  name: Scout 1
-  uniqueId: SCOUT-001
+  name: ""
 event:
-  name: Event Name
-  season: 2026-2026
+  name: ""
+  season: ""
 analysis:
   graph_fields:
   - field: auto_score

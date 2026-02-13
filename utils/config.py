@@ -8,6 +8,7 @@ from datetime import datetime
 import yaml
 
 from .constants import (
+    BASE_DIR,
     CONFIG_DIR,
     CONFIG_FILE,
     DEVICE_FILE,
@@ -42,6 +43,12 @@ def load_config():
             type: integer
             required: true
     """
+    if not CONFIG_FILE.exists():
+        template_path = BASE_DIR / "config" / "config.yaml"
+        if template_path.exists():
+            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy(template_path, CONFIG_FILE)
+
     with CONFIG_FILE.open("r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
 
