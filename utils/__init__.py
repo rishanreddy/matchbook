@@ -13,6 +13,7 @@ from .constants import (
     DEVICE_REGISTRY_FILE,
     CSV_FILE,
     SECRET_FILE,
+    APP_STATE_FILE,
     REQUIRED_FIELDS,
 )
 from .config import (
@@ -69,6 +70,7 @@ __all__ = [
     "DEVICE_REGISTRY_FILE",
     "CSV_FILE",
     "SECRET_FILE",
+    "APP_STATE_FILE",
     "REQUIRED_FIELDS",
     # Config
     "load_config",

@@ -40,6 +40,7 @@ DEVICE_FILE = CONFIG_DIR / "device.json"
 DEVICE_REGISTRY_FILE = CONFIG_DIR / "device_registry.json"
 CSV_FILE = DATA_DIR / "scouting_data.csv"
 SECRET_FILE = CONFIG_DIR / "secret.key"
+APP_STATE_FILE = CONFIG_DIR / "app_state.json"
 
 # Required field names that must exist in config
 REQUIRED_FIELDS = ["team", "auto_score", "teleop_score"]

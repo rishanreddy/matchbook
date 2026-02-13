@@ -15,6 +15,7 @@ import datetime
 import logging
 import shutil
 import re
+import json
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -48,6 +49,7 @@ from utils import (
     list_devices,
     get_expected_devices,
     set_expected_devices,
+    APP_STATE_FILE,
     check_for_updates,
     CURRENT_VERSION,
 )
@@ -82,6 +84,20 @@ def inject_version():
     return {"app_version": CURRENT_VERSION}
 
 
+def load_app_state() -> dict:
+    if APP_STATE_FILE.exists():
+        try:
+            return json.loads(APP_STATE_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def save_app_state(state: dict) -> None:
+    APP_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    APP_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
 @app.before_request
 def enforce_setup_wizard():
     if request.endpoint in {
@@ -95,6 +111,12 @@ def enforce_setup_wizard():
         return None
 
     device_cfg, event, _, _ = load_config()
+    state = load_app_state()
+    last_version = state.get("last_version")
+
+    if last_version != CURRENT_VERSION:
+        return redirect(url_for("setup_wizard"))
+
     if not event.get("name") or not device_cfg.get("name"):
         return redirect(url_for("setup_wizard"))
     return None
@@ -244,6 +266,10 @@ def settings():
 
             backup_config()
             save_config(updated_device, updated_event, new_fields, updated_analysis)
+
+            state = load_app_state()
+            state["last_version"] = CURRENT_VERSION
+            save_app_state(state)
             return redirect(url_for("settings", saved="1"))
 
     return render_template(
@@ -293,11 +319,22 @@ def setup_wizard():
     """First-time setup wizard."""
     device_cfg, event, fields, analysis_cfg = load_config()
 
-    # If already configured, skip wizard
+    # If already configured and version seen, skip wizard
     if request.method == "GET":
-        if event.get("name") and device_cfg.get("name"):
+        state = load_app_state()
+        if (
+            event.get("name")
+            and device_cfg.get("name")
+            and state.get("last_version") == CURRENT_VERSION
+        ):
             return redirect(url_for("show_form"))
-        return render_template("setup_wizard.html")
+        return render_template("setup_wizard.html", current_version=CURRENT_VERSION)
+
+    if request.form.get("skip_setup") == "1":
+        state = load_app_state()
+        state["last_version"] = CURRENT_VERSION
+        save_app_state(state)
+        return redirect(url_for("show_form"))
 
     event_name = (request.form.get("event_name") or "").strip()
     event_season = (request.form.get("season") or "").strip()
@@ -356,6 +393,10 @@ def setup_wizard():
 
     backup_config()
     save_config(updated_device, template_event, template_fields, template_analysis)
+
+    state = load_app_state()
+    state["last_version"] = CURRENT_VERSION
+    save_app_state(state)
 
     expected_devices = template_analysis.get("expected_devices", 8)
     registry = load_registry()
