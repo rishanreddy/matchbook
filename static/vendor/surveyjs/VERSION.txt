@@ -1,0 +1,7 @@
+Version: 2.5.11
+Downloaded: 2026-02-19
+Source: unpkg.com
+License: MIT (Form Library)
+Theme asset: themes/layered-dark.min.js
+Core assets: core/survey-core.min.css, core/survey.core.min.js, core/survey-js-ui.min.js
+Creator assets: creator/survey-creator-core.min.css, creator/survey-creator-core.min.js, creator/survey-creator-js.min.js, creator/survey-creator-themes-index.min.js

@@ -1,9 +1,9 @@
-<nav class="navbar navbar-expand-lg navbar-dark border-bottom border-app bg-app-surface">
+<nav class="navbar navbar-expand-lg navbar-dark border-bottom border-app bg-app-surface" role="navigation" aria-label="Main navigation">
   <div class="container">
-    <a class="navbar-brand d-flex align-items-center gap-2 text-light" href="{{ url_for('show_form') }}">
+    <a class="navbar-brand d-flex align-items-center gap-2 text-light" href="{{ url_for('show_form') }}" aria-label="Offline Scouting Manager Home">
       <img
         src="{{ url_for('static', filename='logo.jpg') }}"
-        alt="Logo"
+        alt="Offline Scouting Manager Logo"
         class="rounded"
         width="36"
         height="36"
@@ -18,7 +18,7 @@
       data-bs-target="#mainNavbar"
       aria-controls="mainNavbar"
       aria-expanded="false"
-      aria-label="Toggle navigation"
+      aria-label="Toggle navigation menu"
     >
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -27,30 +27,33 @@
       <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
         {% if device_name %}
         <li class="nav-item me-lg-2">
-          <span class="badge badge-soft">Device: {{ device_name }}</span>
+          <span class="badge badge-soft" role="status" aria-label="Current device">Device: {{ device_name }}</span>
         </li>
         {% endif %}
 
         <li class="nav-item">
           <a
-            class="nav-link {% if current_page == 'scouting' %}active text-light{% else %}text-muted-app{% endif %}"
+            class="nav-link {% if current_page == 'scouting' %}active{% endif %}"
             href="{{ url_for('show_form') }}"
+            {% if current_page == 'scouting' %}aria-current="page"{% endif %}
           >
             Scouting
           </a>
         </li>
         <li class="nav-item">
           <a
-            class="nav-link {% if current_page == 'analysis' %}active text-light{% else %}text-muted-app{% endif %}"
+            class="nav-link {% if current_page == 'analysis' %}active{% endif %}"
             href="{{ url_for('analyze') }}"
+            {% if current_page == 'analysis' %}aria-current="page"{% endif %}
           >
             Analysis
           </a>
         </li>
         <li class="nav-item">
           <a
-            class="nav-link {% if current_page == 'settings' %}active text-light{% else %}text-muted-app{% endif %}"
+            class="nav-link {% if current_page == 'settings' %}active{% endif %}"
             href="{{ url_for('settings') }}"
+            {% if current_page == 'settings' %}aria-current="page"{% endif %}
           >
             Settings
           </a>

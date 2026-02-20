@@ -10,7 +10,6 @@ from .constants import (
     LOG_DIR,
     CONFIG_FILE,
     DEVICE_FILE,
-    DEVICE_REGISTRY_FILE,
     CSV_FILE,
     SECRET_FILE,
     APP_STATE_FILE,
@@ -20,19 +19,13 @@ from .config import (
     load_config,
     get_device,
     get_event_ids,
+    collect_survey_elements,
+    get_survey_field_names,
     validate_required_fields,
     backup_config,
     save_config,
     get_secret_key,
-)
-from .device_registry import (
-    load_registry,
-    save_registry,
-    update_device,
-    register_from_rows,
-    list_devices,
-    get_expected_devices,
-    set_expected_devices,
+    get_device_names_from_csv,
 )
 from .csv_operations import (
     get_csv_header,
@@ -55,6 +48,13 @@ from .temp_uploads import (
     clear_temp_uploads,
 )
 from .version_check import check_for_updates, CURRENT_VERSION
+from .update_manager import (
+    is_packaged_mode,
+    get_update_status,
+    download_latest_release_asset,
+    apply_update_now,
+    get_update_instructions,
+)
 
 __all__ = [
     # Constants
@@ -67,7 +67,6 @@ __all__ = [
     "LOG_DIR",
     "CONFIG_FILE",
     "DEVICE_FILE",
-    "DEVICE_REGISTRY_FILE",
     "CSV_FILE",
     "SECRET_FILE",
     "APP_STATE_FILE",
@@ -76,17 +75,13 @@ __all__ = [
     "load_config",
     "get_device",
     "get_event_ids",
+    "collect_survey_elements",
+    "get_survey_field_names",
     "validate_required_fields",
     "backup_config",
     "save_config",
     "get_secret_key",
-    "load_registry",
-    "save_registry",
-    "update_device",
-    "register_from_rows",
-    "list_devices",
-    "get_expected_devices",
-    "set_expected_devices",
+    "get_device_names_from_csv",
     # CSV Operations
     "get_csv_header",
     "ensure_csv_header",
@@ -107,4 +102,10 @@ __all__ = [
     # Version Check
     "check_for_updates",
     "CURRENT_VERSION",
+    # Update Manager
+    "is_packaged_mode",
+    "get_update_status",
+    "download_latest_release_asset",
+    "apply_update_now",
+    "get_update_instructions",
 ]

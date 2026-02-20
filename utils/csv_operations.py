@@ -4,15 +4,20 @@ import csv
 import datetime
 
 from .constants import CSV_FILE
-from .config import get_device, get_event_ids
+from .config import (
+    collect_survey_elements,
+    get_device,
+    get_event_ids,
+    get_survey_field_names,
+)
 from .formatting import format_timestamp
 
 
-def get_csv_header(fields):
-    """Generate CSV header columns from field definitions.
+def get_csv_header(survey_json):
+    """Generate CSV header columns from SurveyJS elements.
 
     Args:
-        fields: List of field definition dicts
+        survey_json: SurveyJS schema dict
 
     Returns:
         List of column names including base columns and field columns
@@ -28,45 +33,46 @@ def get_csv_header(fields):
         "device_id",
         "device_name",
     ]
-    field_cols = [f["name"] for f in fields]
+    field_cols = get_survey_field_names(survey_json or {})
     return base_cols + field_cols
 
 
-def ensure_csv_header(fields):
+def ensure_csv_header(survey_json):
     """Create CSV file with header if it doesn't exist.
 
     Args:
-        fields: List of field definition dicts
+        survey_json: SurveyJS schema dict
     """
     if CSV_FILE.exists():
         return
 
-    header = get_csv_header(fields)
+    header = get_csv_header(survey_json)
     with CSV_FILE.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(header)
 
 
-def cast_value(field, raw_value: str) -> str:
+def cast_value(element, raw_value: str) -> str:
     """Convert raw form input to appropriate type for CSV storage.
 
     Args:
-        field: Field definition dict with 'type' key
+        element: SurveyJS element dict with type/inputType keys
         raw_value: Raw string value from form input
 
     Returns:
         Converted value as string for CSV storage
 
-    Supports field types: integer, text, select, textarea
+    Supports SurveyJS types: text, dropdown, comment
     If conversion fails, returns the original string.
     """
     if raw_value is None:
         return ""
 
     raw_value = raw_value.strip()
-    ftype = field.get("type", "text")
+    ftype = element.get("type", "text")
+    input_type = element.get("inputType", "")
 
-    if ftype == "integer":
+    if ftype == "text" and input_type == "number":
         if raw_value == "":
             return ""
         try:
@@ -76,23 +82,23 @@ def cast_value(field, raw_value: str) -> str:
             # Keep original string if conversion fails
             return raw_value
 
-    # text / select / textarea → return stripped string
+    # All other types -> return stripped string
     return raw_value
 
 
-def append_row(device_cfg, event_cfg, fields, form_data):
+def append_row(device_cfg, event_cfg, survey_json, form_data):
     """Append a new scouting entry to the CSV file.
 
     Args:
         device_cfg: Device configuration dict
         event_cfg: Event configuration dict
-        fields: List of field definition dicts
+        survey_json: SurveyJS schema dict
         form_data: Form data dict from request.form
 
     Creates the CSV file with headers if it doesn't exist.
     Adds metadata columns (timestamp, event, device) automatically.
     """
-    ensure_csv_header(fields)
+    ensure_csv_header(survey_json)
 
     timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     config_id, event_name, event_season = get_event_ids(event_cfg)
@@ -107,12 +113,14 @@ def append_row(device_cfg, event_cfg, fields, form_data):
         "device_name": device_name or "",
     }
 
-    for field in fields:
-        name = field["name"]
+    for element in collect_survey_elements(survey_json or {}):
+        name = element.get("name")
+        if not name:
+            continue
         raw_value = form_data.get(name, "")
-        row[name] = cast_value(field, raw_value)
+        row[name] = cast_value(element, raw_value)
 
-    header = get_csv_header(fields)
+    header = get_csv_header(survey_json)
     with CSV_FILE.open("a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writerow(row)

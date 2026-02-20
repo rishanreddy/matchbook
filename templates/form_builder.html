@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% set current_page = 'form_builder' %}
+{% import 'components/alert.html' as alert %}
+
+{% block title %}Form Builder - Offline Scouting Manager{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/surveyjs/core/survey-core.min.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/surveyjs/creator/survey-creator-core.min.css') }}">
+<script src="{{ url_for('static', filename='vendor/surveyjs/core/survey.core.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/surveyjs/core/survey-js-ui.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/surveyjs/themes/layered-dark.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/surveyjs/creator/survey-creator-core.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/surveyjs/creator/survey-creator-js.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/surveyjs/creator/survey-creator-themes-index.min.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<section class="form-builder-shell">
+  <div class="form-builder-topbar border-bottom border-app">
+    <div class="d-flex align-items-center justify-content-between px-3 py-2">
+      <div>
+        <h1 class="h6 mb-0">Survey Form Builder</h1>
+      </div>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm">Back to Settings</a>
+        <button type="button" id="graphSettingsBtn" class="btn btn-outline-primary btn-sm">Graph Settings</button>
+        <button type="button" id="saveFormBtn" class="btn btn-primary btn-sm">Save Form</button>
+      </div>
+    </div>
+    {% if saved %}
+      <div class="px-3 pb-2">{{ alert.success('Form schema saved successfully.') }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="px-3 pb-2">{{ alert.error(error) }}</div>
+    {% endif %}
+    {% if auto_added %}
+      <div class="px-3 pb-2">{{ alert.warning('Auto-added required system fields: ' + (auto_added | join(', '))) }}</div>
+    {% endif %}
+  </div>
+
+  <div id="surveyCreatorHost" class="form-builder-canvas"></div>
+
+  <form method="post" action="{{ url_for('form_builder') }}" id="formBuilderForm" class="d-none">
+    <input type="hidden" name="survey_json" id="surveyJsonInput" value="{{ survey_json_str | e }}">
+    <input type="hidden" name="graph_config_json" id="graphConfigInput" value="{{ graph_config_json | e }}">
+  </form>
+
+  <div class="modal fade" id="graphSettingsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Graph Mapping</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted-app">Choose which fields appear in analysis graphs and the chart type for each.</p>
+          <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th style="width: 120px;">Graph?</th>
+                  <th style="width: 180px;">Chart Type</th>
+                </tr>
+              </thead>
+              <tbody id="graphConfigBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <details id="jsonFallbackPanel" class="m-3 d-none">
+    <summary class="small text-muted-app">Fallback JSON editor</summary>
+    <textarea
+      id="surveyJsonEditor"
+      class="form-control font-monospace mt-2"
+      rows="16"
+      placeholder='{"elements": [{"type": "text", "name": "team", "title": "Team Number", "isRequired": true}]}'
+    >{{ survey_json_str }}</textarea>
+    <div class="form-text text-muted-app mt-2">
+      Creator failed to initialize. You can still edit JSON directly.
+    </div>
+  </details>
+  <div id="jsonValidationError" class="text-danger small mx-3 mb-3 d-none"></div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/form_builder.js') }}"></script>
+<style>
+  .form-builder-shell {
+    position: fixed;
+    inset: var(--form-builder-top, 56px) 0 0 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--app-bg);
+    z-index: 1;
+  }
+
+  .form-builder-topbar {
+    background: var(--app-surface);
+  }
+
+  .form-builder-canvas {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  #surveyCreatorHost {
+    width: 100%;
+    height: 100%;
+  }
+
+  #surveyCreatorHost .svc-creator,
+  #surveyCreatorHost .svc-full-container,
+  #surveyCreatorHost .svc-top-container,
+  #surveyCreatorHost .svc-side-bar,
+  #surveyCreatorHost .svc-property-panel,
+  #surveyCreatorHost .svc-tab-designer,
+  #surveyCreatorHost .svc-tab-logic {
+    background-color: var(--app-surface) !important;
+    color: var(--app-text) !important;
+    border-color: var(--app-border) !important;
+  }
+
+  #surveyCreatorHost .svc-creator__content-holder,
+  #surveyCreatorHost .svc-content-wrapper,
+  #surveyCreatorHost .svc-tab-preview,
+  #surveyCreatorHost .svc-surface,
+  #surveyCreatorHost .svc-page__content {
+    background-color: var(--app-bg) !important;
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .sd-page,
+  #surveyCreatorHost .sd-body,
+  #surveyCreatorHost .sd-question,
+  #surveyCreatorHost .svc-question__content {
+    background-color: var(--app-surface-2) !important;
+    color: var(--app-text) !important;
+    border-color: var(--app-border) !important;
+  }
+</style>
+{% endblock %}

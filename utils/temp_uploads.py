@@ -1,11 +1,13 @@
 """Functions for managing temporary uploaded files."""
 
 import csv
-import os
+import logging
 import re
 import uuid
 from pathlib import Path
 from .constants import TEMP_UPLOADS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def save_uploaded_file(file_content: str, original_filename: str) -> str:
@@ -58,7 +60,7 @@ def load_combined_data_from_temp(filenames: list) -> list:
                 for row in reader:
                     combined_rows.append(row)
         except Exception as e:
-            print(f"Error reading temp file {filename}: {e}")
+            logger.warning(f"Error reading temp file {filename}: {e}")
             continue
 
     return combined_rows
@@ -80,7 +82,7 @@ def clear_temp_uploads(filenames: list | None = None):
                 try:
                     file_path.unlink()
                 except Exception as e:
-                    print(f"Error deleting {filename}: {e}")
+                    logger.warning(f"Error deleting {filename}: {e}")
     else:
         # Clear all temp files
         for file_path in TEMP_UPLOADS_DIR.glob("*"):
@@ -88,4 +90,4 @@ def clear_temp_uploads(filenames: list | None = None):
                 try:
                     file_path.unlink()
                 except Exception as e:
-                    print(f"Error deleting {file_path.name}: {e}")
+                    logger.warning(f"Error deleting {file_path.name}: {e}")

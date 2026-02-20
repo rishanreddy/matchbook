@@ -26,14 +26,17 @@ Manual:
 ```bash
 uv sync
 
-# Run the app (production)
+# Run the app (production with Waitress)
 uv run main.py
 
-# Run in development mode
+# Run in development mode (auto-reload)
 uv run main.py --dev
 
-# Allow LAN access (optional)
+# Allow LAN access (bind to 0.0.0.0)
 uv run main.py --lan
+
+# Custom host/port
+uv run main.py --host 0.0.0.0 --port 8080
 ```
 
 Open `http://127.0.0.1:8080` in your browser.
@@ -56,7 +59,7 @@ Use the **Setup Wizard** at `/setup` (auto‑launches on first run) or the **Set
 
 - Event name and season
 - Device name (unique per laptop)
-- Form fields and data types
+- Survey form using SurveyJS JSON format (or import setup file)
 
 ## Usage
 
@@ -68,6 +71,20 @@ Use the **Setup Wizard** at `/setup` (auto‑launches on first run) or the **Set
 
 ## Tech Stack
 
-- Flask + Jinja2
+- Python 3.12+ with Flask + Waitress
+- SurveyJS Form Library for dynamic forms
 - Bootstrap 5 (offline local assets)
-- YAML for config
+- YAML for config, CSV for data storage
+
+## Recent Changes
+
+See `RELEASE_NOTES.md` for the latest production-ready improvements including:
+- Comprehensive code cleanup and bloat removal
+- Enhanced UI/UX with warm-dark theme
+- Improved reliability and error handling
+- Better accessibility support
+- JavaScript extracted from templates for maintainability
+
+## Development
+
+For contributing or making changes, see `AGENTS.md` for coding guidelines and `TESTING_CHECKLIST.md` for validation procedures.

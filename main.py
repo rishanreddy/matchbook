@@ -16,6 +16,8 @@ import logging
 import shutil
 import re
 import json
+import subprocess
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -23,15 +25,17 @@ import yaml
 
 from utils import (
     load_config,
+    collect_survey_elements,
+    get_survey_field_names,
     append_row,
     get_device,
     get_stats,
     CSV_FILE,
     CONFIG_DIR,
+    DATA_DIR,
     TEMP_EXPORTS_DIR,
     BACKUP_DIR,
     LOG_DIR,
-    DEVICE_REGISTRY_FILE,
     DEVICE_FILE,
     TEMP_UPLOADS_DIR,
     validate_required_fields,
@@ -45,17 +49,39 @@ from utils import (
     backup_config,
     save_config,
     get_secret_key,
-    load_registry,
-    save_registry,
-    update_device,
-    register_from_rows,
-    list_devices,
-    get_expected_devices,
-    set_expected_devices,
+    get_device_names_from_csv,
     APP_STATE_FILE,
     check_for_updates,
     CURRENT_VERSION,
+    get_update_status,
+    download_latest_release_asset,
+    apply_update_now,
+    get_update_instructions,
 )
+
+SYSTEM_FIELD_DEFAULTS = [
+    {
+        "type": "text",
+        "name": "team",
+        "title": "Team Number",
+        "inputType": "number",
+        "isRequired": True,
+    },
+    {
+        "type": "text",
+        "name": "auto_score",
+        "title": "Auto score",
+        "inputType": "number",
+        "isRequired": True,
+    },
+    {
+        "type": "text",
+        "name": "teleop_score",
+        "title": "Tele-op score",
+        "inputType": "number",
+        "isRequired": True,
+    },
+]
 
 app = Flask(__name__)
 
@@ -102,15 +128,12 @@ def save_app_state(state: dict) -> None:
 
 
 def reset_local_data() -> None:
-    """Clear local scouting data and registry files."""
+    """Clear local scouting data files."""
     if CSV_FILE.exists():
         ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         backup_path = BACKUP_DIR / f"scouting_data_{ts}.csv"
         shutil.copy(CSV_FILE, backup_path)
         CSV_FILE.unlink(missing_ok=True)
-
-    if DEVICE_REGISTRY_FILE.exists():
-        DEVICE_REGISTRY_FILE.unlink(missing_ok=True)
 
     if DEVICE_FILE.exists():
         DEVICE_FILE.unlink(missing_ok=True)
@@ -129,6 +152,11 @@ def enforce_setup_wizard():
         "static",
         "version_info",
         "check_device_name",
+        "update_check",
+        "update_download",
+        "update_apply",
+        "update_instructions",
+        "open_path",
     }:
         return None
     if request.path.startswith("/static/"):
@@ -146,20 +174,77 @@ def enforce_setup_wizard():
     return None
 
 
-# Check for updates on startup (non-blocking)
-update_info = check_for_updates()
-if update_info["update_available"]:
-    print(
-        f"\n⚠️  Update available! Current: v{CURRENT_VERSION}, Latest: v{update_info['latest_version']}"
-    )
-    print(f"   Download: {update_info['download_url']}\n")
-
-
 def sanitize_filename(value: str) -> str:
     """Sanitize a string for safe filenames."""
     text = (value or "").strip().replace(" ", "_")
     text = re.sub(r"[^A-Za-z0-9._-]", "", text)
     return text or "file"
+
+
+def ensure_system_fields(schema: dict) -> tuple[dict, list[str]]:
+    """Ensure required system fields exist in SurveyJS schema."""
+    if not isinstance(schema, dict):
+        return {"elements": []}, [item["name"] for item in SYSTEM_FIELD_DEFAULTS]
+
+    current_names = set(get_survey_field_names(schema))
+    added: list[str] = []
+
+    if isinstance(schema.get("pages"), list) and schema.get("pages"):
+        first_page = schema["pages"][0]
+        if not isinstance(first_page, dict):
+            first_page = {}
+            schema["pages"][0] = first_page
+        if not isinstance(first_page.get("elements"), list):
+            first_page["elements"] = []
+        target_elements = first_page["elements"]
+    else:
+        if not isinstance(schema.get("elements"), list):
+            schema["elements"] = []
+        target_elements = schema["elements"]
+
+    for field in SYSTEM_FIELD_DEFAULTS:
+        name = field["name"]
+        if name in current_names:
+            continue
+        target_elements.insert(0, dict(field))
+        current_names.add(name)
+        added.append(name)
+
+    return schema, added
+
+
+def sanitize_graph_field_config(
+    raw_graph_config, available_field_names: list[str]
+) -> list[dict]:
+    """Normalize graph field configuration from UI payload."""
+    if not isinstance(raw_graph_config, list):
+        return []
+
+    allowed_chart_types = {"line", "bar", "radar", "pie", "doughnut"}
+    available = set(available_field_names)
+    result = []
+    seen = set()
+
+    for item in raw_graph_config:
+        if not isinstance(item, dict):
+            continue
+
+        field = str(item.get("field") or "").strip()
+        if not field or field in seen or field not in available:
+            continue
+
+        enabled = bool(item.get("enabled", True))
+        if not enabled:
+            continue
+
+        chart_type = str(item.get("chart_type") or "line").strip().lower()
+        if chart_type not in allowed_chart_types:
+            chart_type = "line"
+
+        seen.add(field)
+        result.append({"field": field, "chart_type": chart_type})
+
+    return result
 
 
 # --- Flask routes ---
@@ -168,8 +253,18 @@ def sanitize_filename(value: str) -> str:
 @app.route("/", methods=["GET"])
 def show_form():
     """Render the scouting form page (Scouting tab)."""
-    device_cfg, event, fields, _ = load_config()
-    validate_required_fields(fields)
+    device_cfg, event, _, survey_json = load_config()
+
+    try:
+        validate_required_fields(survey_json)
+    except ValueError as e:
+        app.logger.error(f"Configuration validation failed: {e}")
+        return render_template(
+            "error.html",
+            error_code=500,
+            error_message=f"Configuration error: {str(e)}. Please update your form in Settings.",
+        ), 500
+
     stats = get_stats()
 
     if not event.get("name") or not device_cfg.get("name"):
@@ -178,20 +273,22 @@ def show_form():
     device_name = device_cfg.get("name") or device_cfg.get("uniqueId")
     data_path = str(CSV_FILE.resolve())
 
+    survey_json_str = json.dumps(survey_json) if survey_json else "{}"
+
     return render_template(
         "index.html",
         event=event,
-        fields=fields,
         stats=stats,
         device_name=device_name,
         data_path=data_path,
+        survey_json=survey_json_str,
     )
 
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
     """Settings page for configuring event, device, and form fields."""
-    device_cfg, event, fields, analysis_cfg = load_config()
+    device_cfg, event, analysis_cfg, survey_json = load_config()
 
     error = None
     saved = request.args.get("saved") == "1"
@@ -212,53 +309,7 @@ def settings():
         if expected_devices_raw.isdigit():
             expected_devices = max(1, min(50, int(expected_devices_raw)))
 
-        field_names = request.form.getlist("field_name")
-        field_labels = request.form.getlist("field_label")
-        field_types = request.form.getlist("field_type")
-        field_required_flags = request.form.getlist("field_required")
-        field_options = request.form.getlist("field_options")
-
-        new_fields = []
-        seen_names = set()
         errors = []
-
-        for i, raw_name in enumerate(field_names):
-            name = (raw_name or "").strip()
-            if not name:
-                continue
-
-            label = (field_labels[i] if i < len(field_labels) else "").strip()
-            field_type = field_types[i] if i < len(field_types) else "text"
-            required_flag = (
-                field_required_flags[i] if i < len(field_required_flags) else "false"
-            )
-            options_raw = field_options[i] if i < len(field_options) else ""
-
-            if name in seen_names:
-                errors.append(f"Duplicate field name: {name}")
-                continue
-            seen_names.add(name)
-
-            field_def = {
-                "name": name,
-                "label": label or name,
-                "type": field_type,
-                "required": required_flag == "true",
-            }
-
-            if field_type == "select":
-                options = [opt.strip() for opt in options_raw.split(",") if opt.strip()]
-                if not options:
-                    errors.append(
-                        f"Select field '{label or name}' must include options."
-                    )
-                field_def["options"] = options
-
-            new_fields.append(field_def)
-
-        missing_required = [rf for rf in REQUIRED_FIELDS if rf not in seen_names]
-        if missing_required:
-            errors.append(f"Missing required fields: {', '.join(missing_required)}")
 
         if not event_name:
             errors.append("Event name is required.")
@@ -285,30 +336,107 @@ def settings():
             updated_analysis["matches_per_page"] = matches_per_page
             updated_analysis["expected_devices"] = expected_devices
 
-            registry = load_registry()
-            registry = set_expected_devices(registry, expected_devices)
-            save_registry(registry)
-
             backup_config()
-            save_config(updated_device, updated_event, new_fields, updated_analysis)
+            save_config(
+                updated_device,
+                updated_event,
+                updated_analysis,
+                survey_json,
+            )
 
             state = load_app_state()
             state["last_version"] = CURRENT_VERSION
             save_app_state(state)
             return redirect(url_for("settings", saved="1"))
 
-        return render_template(
-            "settings.html",
-            event=event,
-            device=device_cfg,
-            device_name=device_cfg.get("name") or device_cfg.get("uniqueId"),
-            fields=fields,
-            analysis=analysis_cfg,
-            required_fields=REQUIRED_FIELDS,
-            error=error,
-            saved=saved,
-            reset_done=reset_done,
-        )
+    return render_template(
+        "settings.html",
+        event=event,
+        device=device_cfg,
+        device_name=device_cfg.get("name") or device_cfg.get("uniqueId"),
+        analysis=analysis_cfg,
+        error=error,
+        saved=saved,
+        reset_done=reset_done,
+    )
+
+
+@app.route("/settings/form-builder", methods=["GET", "POST"])
+def form_builder():
+    """Full-page SurveyJS form builder."""
+    device_cfg, event, analysis_cfg, survey_json = load_config()
+
+    error = None
+    saved = request.args.get("saved") == "1"
+    auto_added = [
+        item.strip()
+        for item in (request.args.get("auto_added") or "").split(",")
+        if item.strip()
+    ]
+
+    if request.method == "POST":
+        survey_json_raw = (request.form.get("survey_json") or "").strip()
+        graph_config_raw = (request.form.get("graph_config_json") or "").strip()
+
+        if not survey_json_raw:
+            error = "Survey JSON is required."
+        else:
+            try:
+                new_survey_json = json.loads(survey_json_raw)
+                new_survey_json, inserted_fields = ensure_system_fields(new_survey_json)
+
+                field_names = get_survey_field_names(new_survey_json)
+                if not field_names:
+                    error = "Survey JSON must include at least one field element."
+                else:
+                    missing_required = [
+                        rf for rf in REQUIRED_FIELDS if rf not in field_names
+                    ]
+                    if missing_required:
+                        error = "Missing required system fields: " + ", ".join(
+                            missing_required
+                        )
+
+                if not error:
+                    parsed_graph_config = []
+                    if graph_config_raw:
+                        try:
+                            parsed_graph_config = json.loads(graph_config_raw)
+                        except json.JSONDecodeError:
+                            parsed_graph_config = []
+
+                    updated_analysis = dict(analysis_cfg or {})
+                    updated_analysis["graph_fields"] = sanitize_graph_field_config(
+                        parsed_graph_config,
+                        field_names,
+                    )
+
+                    backup_config()
+                    save_config(device_cfg, event, updated_analysis, new_survey_json)
+                    return redirect(
+                        url_for(
+                            "form_builder",
+                            saved="1",
+                            auto_added=",".join(inserted_fields),
+                        )
+                    )
+            except json.JSONDecodeError as exc:
+                error = f"Invalid JSON syntax: {str(exc)}"
+
+    survey_json_str = (
+        json.dumps(survey_json, indent=2) if survey_json else '{"elements": []}'
+    )
+    graph_config_json = json.dumps(analysis_cfg.get("graph_fields", []))
+
+    return render_template(
+        "form_builder.html",
+        event=event,
+        survey_json_str=survey_json_str,
+        graph_config_json=graph_config_json,
+        error=error,
+        saved=saved,
+        auto_added=auto_added,
+    )
 
 
 @app.route("/settings/reset", methods=["POST"])
@@ -332,13 +460,13 @@ def settings_reset():
 @app.route("/settings/export-setup", methods=["GET"])
 def export_setup():
     """Export setup file for sharing across devices."""
-    device_cfg, event, fields, analysis_cfg = load_config()
+    _, event, analysis_cfg, survey_json = load_config()
 
     setup_data = {
         "setup_version": 1,
         "created": datetime.datetime.now().isoformat(timespec="seconds"),
         "event": event,
-        "fields": fields,
+        "survey_json": survey_json,
         "analysis": analysis_cfg,
     }
 
@@ -361,7 +489,7 @@ def export_setup():
 @app.route("/setup", methods=["GET", "POST"])
 def setup_wizard():
     """First-time setup wizard."""
-    device_cfg, event, fields, analysis_cfg = load_config()
+    device_cfg, event, analysis_cfg, survey_json = load_config()
 
     # If already configured and version seen, skip wizard
     if request.method == "GET":
@@ -415,14 +543,20 @@ def setup_wizard():
             error="Device name is required.",
         )
 
-    template_fields = fields
     template_analysis = analysis_cfg
     template_event = {"name": event_name, "season": event_season}
+    template_survey_json = survey_json
 
     if setup_payload:
         template_event = setup_payload.get("event") or template_event
-        template_fields = setup_payload.get("fields") or template_fields
+        template_survey_json = setup_payload.get("survey_json") or template_survey_json
         template_analysis = setup_payload.get("analysis") or template_analysis
+
+    if not template_survey_json or not isinstance(template_survey_json, dict):
+        return render_template(
+            "setup_wizard.html",
+            error="Setup file must include a valid survey_json schema.",
+        )
 
     event_name_value = str(template_event.get("name") or "")
     event_season_value = str(template_event.get("season") or "")
@@ -443,24 +577,16 @@ def setup_wizard():
         updated_device["uniqueId"] = str(unique_id)
 
     backup_config()
-    save_config(updated_device, template_event, template_fields, template_analysis)
+    save_config(
+        updated_device,
+        template_event,
+        template_analysis,
+        template_survey_json,
+    )
 
     state = load_app_state()
     state["last_version"] = CURRENT_VERSION
     save_app_state(state)
-
-    expected_devices = template_analysis.get("expected_devices", 8)
-    registry = load_registry()
-    registry = set_expected_devices(registry, expected_devices)
-    registry = update_device(
-        registry,
-        device_id=updated_device.get("uniqueId") or "",
-        device_name=device_name,
-        entry_count=0,
-        event=event_name_value,
-        source="setup",
-    )
-    save_registry(registry)
 
     return redirect(url_for("show_form", setup="1"))
 
@@ -474,27 +600,16 @@ def check_device_name():
     if not name:
         return jsonify({"conflict": False, "suggestions": []})
 
-    existing_names = set()
-    registry = load_registry()
-    for device in list_devices(registry):
-        device_name = (device.get("name") or "").strip()
-        if device_name:
-            existing_names.add(device_name)
-
-    if CSV_FILE.exists():
-        with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                device_name = (row.get("device_name") or "").strip()
-                if device_name:
-                    existing_names.add(device_name)
+    existing_names = get_device_names_from_csv()
 
     conflict = name in existing_names
     suggestions = []
     if conflict:
         suggestions = [f"{name} A", f"{name} B", f"{name} 2"]
 
-    expected_devices = get_expected_devices(registry)
+    # Get expected devices from config
+    _, _, analysis_cfg, _ = load_config()
+    expected_devices = analysis_cfg.get("expected_devices", 8)
     for idx in range(1, expected_devices + 1):
         candidate = f"Scout {idx}"
         if candidate not in existing_names:
@@ -512,7 +627,7 @@ def analyze():
     - We merge them and show every row in a big table.
     - Columns are built from uploaded CSV headers.
     """
-    device_cfg, event, fields, analysis_config = load_config()
+    device_cfg, event, analysis_config, survey_json = load_config()
     device_name = device_cfg.get("name") or device_cfg.get("uniqueId")
 
     table_columns = []
@@ -524,7 +639,9 @@ def analyze():
     device_statuses = []
     expected_devices = analysis_config.get("expected_devices", 8)
 
-    def prepare_analysis(rows: list, config_fields: list):
+    config_field_names = get_survey_field_names(survey_json or {})
+
+    def prepare_analysis(rows: list, expected_field_names: list):
         nonlocal warnings, table_columns, table_rows, teams_summary
         nonlocal device_statuses, expected_devices
 
@@ -546,14 +663,13 @@ def analyze():
             "device_id",
             "device_name",
         }
-        config_field_names = [f.get("name") for f in config_fields if f.get("name")]
-        missing_fields = [f for f in config_field_names if f not in all_keys]
+        missing_fields = [f for f in expected_field_names if f not in all_keys]
         if missing_fields:
             warnings.append(
                 f"Missing fields in uploaded CSVs: {', '.join(missing_fields)}"
             )
 
-        extra_fields = sorted(all_keys - base_cols - set(config_field_names))
+        extra_fields = sorted(all_keys - base_cols - set(expected_field_names))
         if extra_fields:
             warnings.append(
                 "Extra fields found in uploads (not in current config): "
@@ -595,16 +711,8 @@ def analyze():
                 stat_fields.append(field_item)
         teams_summary = get_all_teams_summary(table_rows, stat_fields)
 
-        registry = register_from_rows(
-            table_rows,
-            event.get("name") or "",
-            source="analysis",
-        )
-        expected_devices = analysis_config.get(
-            "expected_devices", get_expected_devices(registry)
-        )
-        registry = set_expected_devices(registry, expected_devices)
-        save_registry(registry)
+        # Device status tracking (CSV-derived)
+        expected_devices = analysis_config.get("expected_devices", 8)
 
         counts_by_name = {}
         for row in table_rows:
@@ -612,14 +720,12 @@ def analyze():
             counts_by_name[name] = counts_by_name.get(name, 0) + 1
 
         device_statuses = []
-        for device in list_devices(registry):
-            name = device.get("name") or device.get("device_id") or "Unknown"
+        for name, count in sorted(counts_by_name.items()):
             device_statuses.append(
                 {
                     "name": name,
-                    "entries": counts_by_name.get(name, 0),
-                    "last_seen": device.get("last_seen"),
-                    "status": "synced" if name in counts_by_name else "missing",
+                    "entries": count,
+                    "status": "synced",
                 }
             )
 
@@ -657,7 +763,7 @@ def analyze():
                     len(combined_rows),
                 )
 
-                prepare_analysis(combined_rows, fields)
+                prepare_analysis(combined_rows, config_field_names)
 
                 # Store only filenames in session (not the data!)
                 session["temp_filenames"] = saved_filenames
@@ -671,7 +777,7 @@ def analyze():
             # Load data from temp files
             combined_rows = load_combined_data_from_temp(temp_filenames)
             uploaded_filenames = session.get("uploaded_filenames", [])
-            prepare_analysis(combined_rows, fields)
+            prepare_analysis(combined_rows, config_field_names)
 
     return render_template(
         "analyze.html",
@@ -704,7 +810,7 @@ def download_sync():
     Let the user download the current CSV file.
     They can save it onto a USB drive via the browser's Save dialog.
     """
-    device_cfg, event_cfg, _, analysis_cfg = load_config()
+    device_cfg, event_cfg, analysis_cfg, _ = load_config()
     device_id, device_name = get_device(device_cfg)
 
     if not CSV_FILE.exists():
@@ -733,21 +839,6 @@ def download_sync():
                 }
                 writer.writerow(safe_row)
 
-    registry = load_registry()
-    registry = update_device(
-        registry,
-        device_id=device_id or "",
-        device_name=device_name or "",
-        entry_count=entry_count,
-        event=event_cfg.get("name") or "",
-        source="export",
-    )
-    registry = set_expected_devices(
-        registry,
-        analysis_cfg.get("expected_devices", 8),
-    )
-    save_registry(registry)
-
     app.logger.info(
         "Exported CSV: device=%s event=%s entries=%s",
         device_name or device_id,
@@ -766,27 +857,32 @@ def download_sync():
 @app.route("/submit", methods=["POST"])
 def submit_form():
     """Handle form submission and save to CSV."""
-    device_cfg, event, fields, _ = load_config()
+    device_cfg, event, _, survey_json = load_config()
+
+    elements = collect_survey_elements(survey_json or {})
 
     # Enforce system required fields
     missing = []
     for req_field in REQUIRED_FIELDS:
         if not request.form.get(req_field):
             field_label = next(
-                (f["label"] for f in fields if f["name"] == req_field), req_field
+                (e.get("title") for e in elements if e.get("name") == req_field),
+                req_field,
             )
             missing.append(field_label)
 
     # Check user-defined required fields
-    for field in fields:
-        if field.get("required") and not request.form.get(field["name"]):
-            if field["label"] not in missing:
-                missing.append(field["label"])
+    for element in elements:
+        name = element.get("name")
+        title = element.get("title") or name
+        if element.get("isRequired") and name and not request.form.get(name):
+            if title not in missing:
+                missing.append(title)
 
     if missing:
         return f"Missing required fields: {', '.join(missing)}", 400
 
-    append_row(device_cfg, event, fields, request.form)
+    append_row(device_cfg, event, survey_json, request.form)
 
     app.logger.info(
         "Entry saved: device=%s event=%s",
@@ -815,7 +911,7 @@ def clear_session():
 @app.route("/team/<int:team_number>")
 def team_info(team_number):
     """Display detailed analysis for a specific team."""
-    device_cfg, event, fields, analysis_config = load_config()
+    device_cfg, event, analysis_config, survey_json = load_config()
     device_name = device_cfg.get("name") or device_cfg.get("uniqueId")
 
     # Get analysis config with defaults
@@ -893,28 +989,18 @@ def team_info(team_number):
 @app.route("/reset", methods=["POST"])
 def reset_data():
     """Delete the local CSV so this device starts fresh."""
-    if CSV_FILE.exists():
-        try:
-            ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_path = BACKUP_DIR / f"scouting_data_{ts}.csv"
-            shutil.copy(CSV_FILE, backup_path)
-            CSV_FILE.unlink()
-        except Exception as exc:
-            app.logger.error("Reset failed: %s", exc)
-            return (
-                render_template(
-                    "error.html",
-                    title="Reset Failed",
-                    message="Unable to reset data. Please check file permissions.",
-                ),
-                500,
-            )
-
-    if DEVICE_REGISTRY_FILE.exists():
-        DEVICE_REGISTRY_FILE.unlink(missing_ok=True)
-
-    if DEVICE_FILE.exists():
-        DEVICE_FILE.unlink(missing_ok=True)
+    try:
+        reset_local_data()
+    except Exception as exc:
+        app.logger.error("Reset failed: %s", exc)
+        return (
+            render_template(
+                "error.html",
+                title="Reset Failed",
+                message="Unable to reset data. Please check file permissions.",
+            ),
+            500,
+        )
 
     return redirect(url_for("show_form", reset="1"))
 
@@ -922,7 +1008,73 @@ def reset_data():
 @app.route("/api/version")
 def version_info():
     """API endpoint to get version and update information."""
-    return check_for_updates()
+    return get_update_status()
+
+
+@app.route("/api/update/check", methods=["POST"])
+def update_check():
+    """Re-check update status and return mode details."""
+    return jsonify(get_update_status())
+
+
+@app.route("/api/update/download", methods=["POST"])
+def update_download():
+    """Download latest release asset into local staging."""
+    try:
+        result = download_latest_release_asset()
+        status = 200 if result.get("success") else 400
+        return jsonify(result), status
+    except Exception as exc:
+        app.logger.error("Update download failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/update/apply", methods=["POST"])
+def update_apply():
+    """Apply available update now when supported."""
+    try:
+        result = apply_update_now()
+        status = 200 if result.get("success") else 400
+        return jsonify(result), status
+    except Exception as exc:
+        app.logger.error("Update apply failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/update/instructions", methods=["GET"])
+def update_instructions():
+    """Return manual update instructions for current mode."""
+    return jsonify(get_update_instructions())
+
+
+@app.route("/api/open-path", methods=["POST"])
+def open_path():
+    """Open key local folders in the OS file browser."""
+    data = request.get_json(silent=True) or {}
+    target = (data.get("target") or "").strip().lower()
+
+    allowed = {
+        "config": CONFIG_DIR,
+        "data": DATA_DIR,
+        "logs": LOG_DIR,
+    }
+    folder = allowed.get(target)
+    if not folder:
+        return jsonify({"success": False, "error": "Unknown target."}), 400
+
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", str(folder)])
+        elif sys.platform.startswith("win"):
+            subprocess.Popen(["explorer", str(folder)])
+        else:
+            subprocess.Popen(["xdg-open", str(folder)])
+
+        return jsonify({"success": True, "path": str(folder.resolve())})
+    except Exception as exc:
+        app.logger.error("Open path failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @app.errorhandler(400)
@@ -975,18 +1127,32 @@ def handle_server_error(error):
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    # Default to production; use --dev for local debugging
-    dev_mode = "--dev" in sys.argv
-    lan_mode = "--lan" in sys.argv
+    parser = argparse.ArgumentParser(
+        description="Run the Offline Scouting Manager server."
+    )
+    parser.add_argument(
+        "--dev", action="store_true", help="Run with Flask debug development server."
+    )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="Bind to 0.0.0.0 for LAN access in production mode.",
+    )
+    parser.add_argument("--host", type=str, help="Explicit host override.")
+    parser.add_argument("--port", type=int, help="Explicit port override.")
+    args = parser.parse_args()
 
-    if dev_mode:
-        app.run(debug=True, host="127.0.0.1", port=5000)
+    if args.dev:
+        host = args.host if args.host else "127.0.0.1"
+        port = args.port if args.port is not None else 5000
+        app.run(debug=True, host=host, port=port)
     else:
         from waitress import serve
 
-        host = "0.0.0.0" if lan_mode else "127.0.0.1"
+        host = args.host if args.host else ("0.0.0.0" if args.lan else "127.0.0.1")
+        port = args.port if args.port is not None else 8080
         print("Starting in production mode (Waitress)...")
-        print(f"Serving on http://{host}:8080")
-        serve(app, host=host, port=8080)
+        print(f"Serving on http://{host}:{port}")
+        serve(app, host=host, port=port)

@@ -19,19 +19,19 @@
     <!-- Quick Stats -->
     <div class="row g-3 mb-4">
       <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 stats-card stat-card-gradient">
           <div class="card-body">
-            <div class="small text-muted-app">Total Matches</div>
-            <div class="h4 text-primary">{{ team_data.total_matches }}</div>
+            <div class="stats-label">Total Matches</div>
+            <div class="stats-value">{{ team_data.total_matches }}</div>
           </div>
         </div>
       </div>
       {% for field_name, field_stats in team_data.stats.items() %}
       <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 stats-card hover-lift">
           <div class="card-body">
-            <div class="small text-muted-app">Avg {{ field_name.replace('_', ' ').title() }}</div>
-            <div class="h4">{{ field_stats.average }}</div>
+            <div class="stats-label">Avg {{ field_name.replace('_', ' ').title() }}</div>
+            <div class="stats-value">{{ field_stats.average }}</div>
           </div>
         </div>
       </div>
@@ -77,12 +77,12 @@
       <div class="card-body">
         <h2 class="h5">Match Records</h2>
         <div class="table-responsive">
-          <table id="teamMatchesTable" class="table table-dark table-striped align-middle">
+          <table id="teamMatchesTable" class="table table-dark table-striped align-middle" role="table">
             <thead>
               <tr>
                 {% if team_data.matches %}
                   {% for key in team_data.matches[0].keys() %}
-                  <th>{{ key.replace('_', ' ').title() }}</th>
+                  <th scope="col">{{ key.replace('_', ' ').title() }}</th>
                   {% endfor %}
                 {% endif %}
               </tr>
@@ -106,93 +106,13 @@
 
 {% block extra_scripts %}
 <script>
-  document.addEventListener("DOMContentLoaded", function() {
-    {% if show_trends %}
-    const matches = {{ team_data.matches | tojson }};
-    const matchLabels = matches.map(m => m.match || 'N/A');
-
-    {% for field_config in graph_fields %}
-    const data_{{ field_config.field }} = matches.map(m => {
-      const val = parseFloat(m.{{ field_config.field }});
-      return isNaN(val) ? 0 : val;
-    });
-
-    const ctx_{{ field_config.field }} = document.getElementById('chart-{{ field_config.field }}');
-    if (ctx_{{ field_config.field }}) {
-      new Chart(ctx_{{ field_config.field }}, {
-        type: '{{ field_config.chart_type }}',
-        data: {
-          labels: matchLabels,
-          datasets: [{
-            label: {{ field_config.label | tojson }},
-            data: data_{{ field_config.field }},
-            backgroundColor: '{{ field_config.color }}33',
-            borderColor: '{{ field_config.color }}',
-            borderWidth: 2,
-            tension: 0.4,
-            pointBackgroundColor: '{{ field_config.color }}',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 5
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { color: '#94a3b8' } },
-            y: { beginAtZero: true, ticks: { color: '#94a3b8' } }
-          }
-        }
-      });
-    }
-    {% endfor %}
-
-    {% if show_radar %}
-    const radarCategories = [{% for field_config in graph_fields %}{{ field_config.label | tojson }},{% endfor %}];
-    const radarData = [
-      {% for radar_data_point in radar_data.values() %}
-      {{ radar_data_point }},
-      {% endfor %}
-    ];
-
-    const ctxRadar = document.getElementById('radar-chart');
-    if (ctxRadar) {
-      new Chart(ctxRadar, {
-        type: 'radar',
-        data: {
-          labels: radarCategories,
-          datasets: [{
-            label: 'Relative Score',
-            data: radarData,
-            backgroundColor: 'rgba(59, 130, 246, 0.2)',
-            borderColor: 'rgb(59, 130, 246)',
-            borderWidth: 2,
-            pointBackgroundColor: 'rgb(59, 130, 246)',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 5
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: { legend: { labels: { color: '#94a3b8' } } },
-          scales: {
-            r: {
-              beginAtZero: true,
-              pointLabels: { color: '#94a3b8' },
-              ticks: { color: '#94a3b8', backdropColor: 'transparent' }
-            }
-          }
-        }
-      });
-    }
-    {% endif %}
-    {% endif %}
-  });
+  window.teamInfoData = {
+    showTrends: {{ show_trends | tojson }},
+    matches: {{ team_data.matches | tojson }},
+    graphFields: {{ graph_fields | tojson }},
+    showRadar: {{ show_radar | tojson }},
+    radarDataValues: {{ radar_data.values() | list | tojson }}
+  };
 </script>
+<script src="{{ url_for('static', filename='js/team_info.js') }}"></script>
 {% endblock %}

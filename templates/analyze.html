@@ -18,14 +18,21 @@
             <label
               for="fileInput"
               id="dropZone"
-              class="w-100 border border-app rounded p-4 text-center bg-app-surface-2"
-              style="cursor: pointer;"
+              class="upload-zone w-100"
+              role="button"
+              tabindex="0"
+              aria-label="Click or drag files to upload CSV files"
             >
+              <div class="upload-zone-icon">
+                <svg width="32" height="32" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"/>
+                </svg>
+              </div>
               <div class="mb-2">
                 <strong>Click to upload</strong> or drag and drop
               </div>
               <div class="small text-muted-app">CSV files only</div>
-              <input id="fileInput" type="file" name="csv_files" multiple accept=".csv" class="d-none" />
+              <input id="fileInput" type="file" name="csv_files" multiple accept=".csv" class="d-none" aria-describedby="dropZone" />
             </label>
           </div>
 
@@ -77,25 +84,13 @@
     {% if device_statuses %}
     <div class="card mb-4">
       <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <div>
-            <h2 class="h6 mb-0">Device Sync Status</h2>
-            <div class="small text-muted-app">
-              {{ device_statuses|length }} of {{ expected_devices }} devices synced
-            </div>
-          </div>
-          {% if expected_devices > device_statuses|length %}
-          <div class="small text-muted-app">
-            Missing: {{ expected_devices - device_statuses|length }}
-          </div>
-          {% endif %}
-        </div>
+        <h2 class="h6 mb-3">Devices Contributing Data</h2>
         <div class="d-flex flex-wrap gap-2">
           {% for device in device_statuses %}
-            <span class="badge {% if device.status == 'synced' %}bg-success{% else %}bg-secondary{% endif %}">
+            <span class="badge bg-success">
               {{ device.name }}
               {% if device.entries %}
-                · {{ device.entries }}
+                · {{ device.entries }} entries
               {% endif %}
             </span>
           {% endfor %}
@@ -107,34 +102,34 @@
     <!-- Stats Row -->
     <div class="row g-3 mb-4">
       <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 stats-card stat-card-gradient">
           <div class="card-body">
-            <div class="small text-muted-app">Total Entries</div>
-            <div class="h4 text-primary">{{ table_rows|length }}</div>
+            <div class="stats-label">Total Entries</div>
+            <div class="stats-value">{{ table_rows|length }}</div>
           </div>
         </div>
       </div>
       <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 stats-card">
           <div class="card-body">
-            <div class="small text-muted-app">Unique Teams</div>
-            <div class="h4">{{ teams_summary|length }}</div>
+            <div class="stats-label">Unique Teams</div>
+            <div class="stats-value" style="background: linear-gradient(135deg, #3b82f6, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">{{ teams_summary|length }}</div>
           </div>
         </div>
       </div>
       <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 stats-card">
           <div class="card-body">
-            <div class="small text-muted-app">Unique Matches</div>
-            <div class="h4" id="uniqueMatches">—</div>
+            <div class="stats-label">Unique Matches</div>
+            <div class="stats-value" style="background: linear-gradient(135deg, #10b981, #059669); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;" id="uniqueMatches">—</div>
           </div>
         </div>
       </div>
       <div class="col-md-3">
-        <div class="card h-100">
+        <div class="card h-100 stats-card">
           <div class="card-body">
-            <div class="small text-muted-app">Data Sources</div>
-            <div class="h4">{{ uploaded_filenames|length if uploaded_filenames else 0 }}</div>
+            <div class="stats-label">Data Sources</div>
+            <div class="stats-value" style="background: linear-gradient(135deg, #a855f7, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">{{ uploaded_filenames|length if uploaded_filenames else 0 }}</div>
           </div>
         </div>
       </div>
@@ -177,11 +172,11 @@
       <!-- Raw Data Tab -->
       <div class="tab-pane fade" id="raw" role="tabpanel">
         <div class="table-responsive">
-          <table id="combinedTable" class="table table-dark table-striped align-middle">
+          <table id="combinedTable" class="table table-dark table-striped align-middle" role="table">
             <thead>
               <tr>
                 {% for col in table_columns %}
-                <th>{{ col.label }}</th>
+                <th scope="col">{{ col.label }}</th>
                 {% endfor %}
               </tr>
             </thead>
@@ -217,89 +212,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const dropZone = document.getElementById("dropZone");
-    const fileInput = document.getElementById("fileInput");
-    const fileList = document.getElementById("fileList");
-    const fileListContainer = document.getElementById("fileListContainer");
-    const submitBtn = document.getElementById("submitBtn");
-    const clearBtn = document.getElementById("clearBtn");
-
-    if (dropZone) {
-      dropZone.addEventListener("click", () => fileInput.click());
-
-      ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
-        dropZone.addEventListener(eventName, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        });
-      });
-
-      dropZone.addEventListener("drop", (e) => {
-        const dt = e.dataTransfer;
-        fileInput.files = dt.files;
-        handleFiles(dt.files);
-      });
-
-      fileInput.addEventListener("change", (e) => handleFiles(e.target.files));
-
-      function handleFiles(files) {
-        if (files.length === 0) {
-          fileListContainer.classList.add("d-none");
-          submitBtn.disabled = true;
-          clearBtn.classList.add("d-none");
-          return;
-        }
-
-        fileList.innerHTML = "";
-        Array.from(files).forEach((file) => {
-          const item = document.createElement("div");
-          item.className = "small";
-          item.textContent = `${file.name} (${formatFileSize(file.size)})`;
-          fileList.appendChild(item);
-        });
-
-        fileListContainer.classList.remove("d-none");
-        submitBtn.disabled = false;
-        clearBtn.classList.remove("d-none");
-      }
-
-      function formatFileSize(bytes) {
-        if (bytes === 0) return "0 Bytes";
-        const k = 1024;
-        const sizes = ["Bytes", "KB", "MB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-      }
-
-      clearBtn.addEventListener("click", () => {
-        fileInput.value = "";
-        fileList.innerHTML = "";
-        fileListContainer.classList.add("d-none");
-        submitBtn.disabled = true;
-        clearBtn.classList.add("d-none");
-      });
-    }
-
-    const tableEl = document.getElementById("combinedTable");
-    if (tableEl) {
-      const headers = Array.from(tableEl.querySelectorAll("thead th")).map((th) =>
-        th.textContent.trim().toLowerCase()
-      );
-      const matchIndex = headers.findIndex((h) => h.includes("match"));
-      if (matchIndex >= 0) {
-        const unique = new Set();
-        Array.from(tableEl.querySelectorAll("tbody tr")).forEach((row) => {
-          const cell = row.children[matchIndex];
-          if (cell && cell.textContent.trim()) {
-            unique.add(cell.textContent.trim());
-          }
-        });
-        const uniqueMatchesEl = document.getElementById("uniqueMatches");
-        if (uniqueMatchesEl) uniqueMatchesEl.textContent = unique.size;
-      }
-    }
-  });
-</script>
+<script src="{{ url_for('static', filename='js/analyze.js') }}"></script>
 {% endblock %}

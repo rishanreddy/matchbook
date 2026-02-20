@@ -14,7 +14,11 @@ def get_team_data(team_number, temp_filenames=None):
     Returns:
         List of match dicts for the specified team
     """
-    all_rows = load_all_rows() if temp_filenames is None else load_combined_data_from_temp(temp_filenames)
+    all_rows = (
+        load_all_rows()
+        if temp_filenames is None
+        else load_combined_data_from_temp(temp_filenames)
+    )
     team_matches = [
         row for row in all_rows if str(row.get("team", "")) == str(team_number)
     ]
@@ -159,15 +163,21 @@ def get_all_teams_summary(rows, stat_fields=None):
     )
     return summaries
 
+
 def get_all_teams(temp_filenames=None):
     """Returns a list of all unique team numbers from the CSV data."""
-    all_rows = load_all_rows() if temp_filenames is None else load_combined_data_from_temp(temp_filenames)
+    all_rows = (
+        load_all_rows()
+        if temp_filenames is None
+        else load_combined_data_from_temp(temp_filenames)
+    )
     teams = set()
     for row in all_rows:
         team = str(row.get("team", ""))
         if team.isdigit():
             teams.add(int(team))
     return teams
+
 
 def get_radar_data(team_number, stat_fields, temp_filenames=None):
     """Generates scores for given fields relative to the best team in the field for the radar graph."""
@@ -182,7 +192,13 @@ def get_radar_data(team_number, stat_fields, temp_filenames=None):
         for other in get_all_teams(temp_filenames):
             other_data = calculate_team_stats(other, stat_fields, temp_filenames)
             best = max(best, other_data["stats"][field]["average"])
-            
-        radar_data[field] = round(team_data["stats"][field]["average"] / best * 100, 2)
+
+        # Avoid divide-by-zero when no team has scored in this field
+        if best > 0:
+            radar_data[field] = round(
+                team_data["stats"][field]["average"] / best * 100, 2
+            )
+        else:
+            radar_data[field] = 0
 
     return radar_data

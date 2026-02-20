@@ -37,7 +37,6 @@ BACKUP_DIR.mkdir(exist_ok=True)
 # File paths
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 DEVICE_FILE = CONFIG_DIR / "device.json"
-DEVICE_REGISTRY_FILE = CONFIG_DIR / "device_registry.json"
 CSV_FILE = DATA_DIR / "scouting_data.csv"
 SECRET_FILE = CONFIG_DIR / "secret.key"
 APP_STATE_FILE = CONFIG_DIR / "app_state.json"

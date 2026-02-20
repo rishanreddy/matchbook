@@ -34,6 +34,19 @@
       </div>
     </div>
 
+    <div class="card mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-2">Open Local Folders</h2>
+        <p class="small text-muted-app mb-3">Quickly open config, data, or log folders on this machine.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="config">Open Config</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="data">Open Data</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="logs">Open Logs</button>
+        </div>
+        <div id="openPathMessage" class="small mt-2 text-muted-app"></div>
+      </div>
+    </div>
+
     <form method="post" action="{{ url_for('settings') }}" id="settingsForm" class="d-grid gap-4">
       <!-- Setup Export -->
       <div class="card">
@@ -54,20 +67,23 @@
           <h2 class="h5">Event Information</h2>
           <div class="row g-3 mt-1">
             <div class="col-md-6">
-              <label class="form-label">Event Name</label>
+              <label for="event_name" class="form-label">Event Name</label>
               <input
                 type="text"
+                id="event_name"
                 name="event_name"
                 class="form-control"
                 value="{{ event.name if event else '' }}"
                 placeholder="e.g., Rebuilt Regional"
                 required
+                aria-required="true"
               />
             </div>
             <div class="col-md-6">
-              <label class="form-label">Season</label>
+              <label for="event_season" class="form-label">Season</label>
               <input
                 type="text"
+                id="event_season"
                 name="event_season"
                 class="form-control"
                 value="{{ event.season if event else '' }}"
@@ -84,138 +100,32 @@
           <h2 class="h5">Device</h2>
           <div class="row g-3 mt-1">
             <div class="col-md-6">
-              <label class="form-label">Device Name</label>
+              <label for="device_name" class="form-label">Device Name</label>
               <input
                 type="text"
+                id="device_name"
                 name="device_name"
                 class="form-control"
                 value="{{ device.name if device else '' }}"
                 placeholder="e.g., Scout 1"
                 required
+                aria-required="true"
+                aria-describedby="device-name-help"
               />
-              <div class="form-text text-muted-app">Use a unique name for each scouting device.</div>
+              <div id="device-name-help" class="form-text text-muted-app">Use a unique name for each scouting device.</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Fields -->
+      <!-- Survey Schema -->
       <div class="card">
         <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between">
-            <h2 class="h5 mb-0">Scouting Fields</h2>
-            <button type="button" id="addFieldBtn" class="btn btn-outline-primary btn-sm">Add Field</button>
-          </div>
-          <p class="small text-muted-app mt-2">
-            Customize the form fields scouts will fill out. Required system fields cannot be removed.
+          <h2 class="h5 mb-1">Survey Form Builder</h2>
+          <p class="small text-muted-app mb-3">
+            Open the full-page builder to edit your scouting schema.
           </p>
-
-          <div id="fieldsContainer" class="d-grid gap-3 mt-3">
-            {% for field in fields %}
-            <div class="field-row border border-app rounded p-3 bg-app-surface-2">
-              <div class="row g-3">
-                <div class="col-lg-3">
-                  <label class="form-label">Label</label>
-                  <input type="text" name="field_label" class="form-control" value="{{ field.label }}" required />
-                </div>
-                <div class="col-lg-3">
-                  <label class="form-label">Field Name</label>
-                  {% if field.name in required_fields %}
-                    <input type="hidden" name="field_name" value="{{ field.name }}" />
-                    <input type="text" class="form-control" value="{{ field.name }}" disabled />
-                  {% else %}
-                    <input type="text" name="field_name" class="form-control" value="{{ field.name }}" required />
-                  {% endif %}
-                </div>
-                <div class="col-lg-2">
-                  <label class="form-label">Type</label>
-                  {% if field.name in required_fields %}
-                    <input type="hidden" name="field_type" value="{{ field.type }}" />
-                    <select class="form-select" disabled>
-                      <option selected>{{ field.type }}</option>
-                    </select>
-                  {% else %}
-                    <select name="field_type" class="form-select">
-                      <option value="text" {% if field.type == 'text' %}selected{% endif %}>Text</option>
-                      <option value="integer" {% if field.type == 'integer' %}selected{% endif %}>Number</option>
-                      <option value="select" {% if field.type == 'select' %}selected{% endif %}>Select</option>
-                      <option value="textarea" {% if field.type == 'textarea' %}selected{% endif %}>Textarea</option>
-                    </select>
-                  {% endif %}
-                </div>
-                <div class="col-lg-2 options-field {% if field.type != 'select' %}d-none{% endif %}">
-                  <label class="form-label">Options</label>
-                  <input
-                    type="text"
-                    name="field_options"
-                    class="form-control"
-                    value="{{ field.options | join(', ') if field.options else '' }}"
-                    placeholder="Red, Blue"
-                  />
-                </div>
-                <div class="col-lg-1">
-                  <label class="form-label">Required</label>
-                  {% if field.name in required_fields %}
-                    <input type="hidden" name="field_required" value="true" />
-                    <select class="form-select" disabled>
-                      <option selected>Required</option>
-                    </select>
-                  {% else %}
-                    <select name="field_required" class="form-select">
-                      <option value="true" {% if field.required %}selected{% endif %}>Yes</option>
-                      <option value="false" {% if not field.required %}selected{% endif %}>No</option>
-                    </select>
-                  {% endif %}
-                </div>
-                <div class="col-lg-1 d-flex align-items-end">
-                  {% if field.name not in required_fields %}
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-field">Remove</button>
-                  {% else %}
-                    <span class="small text-muted-app">System</span>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-            {% endfor %}
-          </div>
-
-          <template id="fieldRowTemplate">
-            <div class="field-row border border-app rounded p-3 bg-app-surface-2">
-              <div class="row g-3">
-                <div class="col-lg-3">
-                  <label class="form-label">Label</label>
-                  <input type="text" name="field_label" class="form-control" required />
-                </div>
-                <div class="col-lg-3">
-                  <label class="form-label">Field Name</label>
-                  <input type="text" name="field_name" class="form-control" required />
-                </div>
-                <div class="col-lg-2">
-                  <label class="form-label">Type</label>
-                  <select name="field_type" class="form-select">
-                    <option value="text" selected>Text</option>
-                    <option value="integer">Number</option>
-                    <option value="select">Select</option>
-                    <option value="textarea">Textarea</option>
-                  </select>
-                </div>
-                <div class="col-lg-2 options-field d-none">
-                  <label class="form-label">Options</label>
-                  <input type="text" name="field_options" class="form-control" placeholder="Red, Blue" />
-                </div>
-                <div class="col-lg-1">
-                  <label class="form-label">Required</label>
-                  <select name="field_required" class="form-select">
-                    <option value="true">Yes</option>
-                    <option value="false" selected>No</option>
-                  </select>
-                </div>
-                <div class="col-lg-1 d-flex align-items-end">
-                  <button type="button" class="btn btn-outline-danger btn-sm remove-field">Remove</button>
-                </div>
-              </div>
-            </div>
-          </template>
+          <a href="{{ url_for('form_builder') }}" class="btn btn-outline-primary btn-sm">Open Form Builder</a>
         </div>
       </div>
 
@@ -225,9 +135,10 @@
           <h2 class="h5">Analysis Settings</h2>
           <div class="row g-3 mt-1">
             <div class="col-md-4">
-              <label class="form-label">Matches per page</label>
+              <label for="matches_per_page" class="form-label">Matches per page</label>
               <input
                 type="number"
+                id="matches_per_page"
                 name="matches_per_page"
                 class="form-control"
                 value="{{ analysis.matches_per_page if analysis and analysis.matches_per_page else 25 }}"
@@ -236,9 +147,10 @@
               />
             </div>
             <div class="col-md-4">
-              <label class="form-label">Expected devices</label>
+              <label for="expected_devices" class="form-label">Expected devices</label>
               <input
                 type="number"
+                id="expected_devices"
                 name="expected_devices"
                 class="form-control"
                 value="{{ analysis.expected_devices if analysis and analysis.expected_devices else 8 }}"
@@ -282,36 +194,26 @@
 {% block extra_scripts %}
 <script>
   document.addEventListener("DOMContentLoaded", () => {
-    const addBtn = document.getElementById("addFieldBtn");
-    const container = document.getElementById("fieldsContainer");
-    const template = document.getElementById("fieldRowTemplate");
-
-    function bindRow(row) {
-      const removeBtn = row.querySelector(".remove-field");
-      if (removeBtn) {
-        removeBtn.addEventListener("click", () => row.remove());
-      }
-
-      const typeSelect = row.querySelector("select[name='field_type']");
-      const optionsField = row.querySelector(".options-field");
-      if (typeSelect && optionsField) {
-        typeSelect.addEventListener("change", () => {
-          if (typeSelect.value === "select") {
-            optionsField.classList.remove("d-none");
+    const openPathMessage = document.getElementById("openPathMessage");
+    document.querySelectorAll(".open-path-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const target = btn.getAttribute("data-target");
+        try {
+          const response = await fetch("/api/open-path", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target }),
+          });
+          const payload = await response.json();
+          if (payload.success) {
+            openPathMessage.textContent = `Opened: ${payload.path}`;
           } else {
-            optionsField.classList.add("d-none");
+            openPathMessage.textContent = payload.error || "Could not open path.";
           }
-        });
-      }
-    }
-
-    container.querySelectorAll(".field-row").forEach(bindRow);
-
-    addBtn.addEventListener("click", () => {
-      const clone = template.content.cloneNode(true);
-      const row = clone.querySelector(".field-row");
-      container.appendChild(clone);
-      if (row) bindRow(row);
+        } catch (_error) {
+          openPathMessage.textContent = "Could not open path.";
+        }
+      });
     });
   });
 </script>

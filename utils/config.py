@@ -17,11 +17,57 @@ from .constants import (
 )
 
 
+def collect_survey_elements(node) -> list[dict]:
+    """Collect all survey elements from SurveyJS schema recursively."""
+    elements: list[dict] = []
+
+    def _walk(value) -> None:
+        if isinstance(value, list):
+            for item in value:
+                _walk(item)
+            return
+
+        if not isinstance(value, dict):
+            return
+
+        current_elements = value.get("elements")
+        if isinstance(current_elements, list):
+            for item in current_elements:
+                if isinstance(item, dict):
+                    elements.append(item)
+                _walk(item)
+
+        pages = value.get("pages")
+        if isinstance(pages, list):
+            for page in pages:
+                _walk(page)
+
+        template_elements = value.get("templateElements")
+        if isinstance(template_elements, list):
+            for item in template_elements:
+                _walk(item)
+
+    _walk(node)
+    return elements
+
+
+def get_survey_field_names(survey_json: dict) -> list[str]:
+    """Return ordered unique field names from SurveyJS schema."""
+    names: list[str] = []
+    seen = set()
+    for element in collect_survey_elements(survey_json):
+        name = element.get("name")
+        if isinstance(name, str) and name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
 def load_config():
-    """Load device, event, fields, and analysis config from config/config.yaml.
+    """Load device, event, analysis config, and SurveyJS schema.
 
     Returns:
-        Tuple of (device_cfg, event_cfg, fields, analysis_cfg)
+        Tuple of (device_cfg, event_cfg, analysis_cfg, survey_json)
 
     Expected YAML structure:
         device:
@@ -37,11 +83,12 @@ def load_config():
           graph_fields: [...]
           matches_per_page: 25
 
-        fields:
-          - name: match
-            label: "Match #"
-            type: integer
-            required: true
+        survey_json:
+          elements:
+            - type: text
+              name: team
+              title: "Team Number"
+              isRequired: true
     """
     if not CONFIG_FILE.exists():
         template_path = BASE_DIR / "config" / "config.yaml"
@@ -49,15 +96,17 @@ def load_config():
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             shutil.copy(template_path, CONFIG_FILE)
 
-    with CONFIG_FILE.open("r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
+    try:
+        with CONFIG_FILE.open("r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except Exception:
+        cfg = {}
 
     device = cfg.get("device", {}) or {}
     event = cfg.get("event", {}) or {}
-    fields = cfg.get("fields", []) or []
     analysis = cfg.get("analysis", {}) or {}
-
-    return device, event, fields, analysis
+    survey_json = cfg.get("survey_json") or {"elements": []}
+    return device, event, analysis, survey_json
 
 
 def get_device(device_cfg):
@@ -127,16 +176,16 @@ def get_event_ids(event_cfg):
     return config_id, event_name, event_season
 
 
-def validate_required_fields(fields):
-    """Ensure required fields exist in the field configuration.
+def validate_required_fields(survey_json):
+    """Ensure required system fields exist in SurveyJS schema.
 
     Args:
-        fields: List of field definition dicts from config.yaml
+        survey_json: SurveyJS schema dict from config.yaml
 
     Raises:
         ValueError: If any required fields are missing
     """
-    field_names = [f["name"] for f in fields]
+    field_names = get_survey_field_names(survey_json or {})
     missing = [rf for rf in REQUIRED_FIELDS if rf not in field_names]
     if missing:
         raise ValueError(f"Missing required fields in config: {', '.join(missing)}")
@@ -160,16 +209,24 @@ def backup_config():
         old_backup.unlink(missing_ok=True)
 
 
-def save_config(device_cfg, event_cfg, fields, analysis_cfg):
-    """Persist updated configuration to config/config.yaml."""
+def save_config(device_cfg, event_cfg, analysis_cfg, survey_json):
+    """Persist updated configuration to config/config.yaml.
+
+    Args:
+        device_cfg: Device configuration dict
+        event_cfg: Event configuration dict
+        analysis_cfg: Analysis settings dict
+        survey_json: SurveyJS schema
+    """
     CONFIG_DIR.mkdir(exist_ok=True)
 
     cfg = {
         "device": device_cfg,
         "event": event_cfg,
         "analysis": analysis_cfg,
-        "fields": fields,
     }
+
+    cfg["survey_json"] = survey_json or {"elements": []}
 
     with CONFIG_FILE.open("w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, sort_keys=False)
@@ -184,3 +241,25 @@ def get_secret_key() -> str:
     secret = uuid.uuid4().hex + uuid.uuid4().hex
     SECRET_FILE.write_text(secret, encoding="utf-8")
     return secret
+
+
+def get_device_names_from_csv() -> set[str]:
+    """Extract unique device names from CSV data."""
+    from .constants import CSV_FILE
+    import csv
+
+    device_names = set()
+    if not CSV_FILE.exists():
+        return device_names
+
+    try:
+        with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                device_name = (row.get("device_name") or "").strip()
+                if device_name:
+                    device_names.add(device_name)
+    except Exception:
+        pass
+
+    return device_names
