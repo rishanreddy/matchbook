@@ -1,8 +1,8 @@
 device:
-  name: ""
+  name: Scout 1
 event:
-  name: ""
-  season: ""
+  name: Rebuilt
+  season: 2025-2026
 analysis:
   graph_fields:
   - field: team

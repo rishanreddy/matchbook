@@ -497,6 +497,13 @@ def setup_wizard():
         return render_template("setup_wizard.html", current_version=CURRENT_VERSION)
 
     if request.form.get("skip_setup") == "1":
+        # Skip wizard requires existing event and device configuration
+        if not event.get("name") or not device_cfg.get("name"):
+            return render_template(
+                "setup_wizard.html",
+                current_version=CURRENT_VERSION,
+                error="Skip wizard requires existing event and device settings. Please enter values or import a setup file to continue.",
+            )
         data_action = (request.form.get("data_action") or "keep").strip()
         if data_action == "reset":
             reset_local_data()
@@ -543,7 +550,26 @@ def setup_wizard():
 
     if setup_payload:
         template_event = setup_payload.get("event") or template_event
-        template_survey_json = setup_payload.get("survey_json") or template_survey_json
+        imported_survey_json = setup_payload.get("survey_json")
+        if not isinstance(imported_survey_json, dict):
+            return render_template(
+                "setup_wizard.html",
+                error=(
+                    "Setup file must include a valid survey_json object with required fields: "
+                    "team, auto_score, teleop_score."
+                ),
+            )
+        try:
+            validate_required_fields(imported_survey_json)
+        except ValueError:
+            return render_template(
+                "setup_wizard.html",
+                error=(
+                    "Setup file survey_json is missing required fields. "
+                    "Please include: team, auto_score, teleop_score."
+                ),
+            )
+        template_survey_json = imported_survey_json
         template_analysis = setup_payload.get("analysis") or template_analysis
 
     if not template_survey_json or not isinstance(template_survey_json, dict):

@@ -118,34 +118,264 @@
     height: 100%;
   }
 
+  /* SurveyJS Creator Core Elements - Dark Theme */
   #surveyCreatorHost .svc-creator,
   #surveyCreatorHost .svc-full-container,
-  #surveyCreatorHost .svc-top-container,
-  #surveyCreatorHost .svc-side-bar,
-  #surveyCreatorHost .svc-property-panel,
-  #surveyCreatorHost .svc-tab-designer,
-  #surveyCreatorHost .svc-tab-logic {
-    background-color: var(--app-surface) !important;
-    color: var(--app-text) !important;
-    border-color: var(--app-border) !important;
-  }
-
-  #surveyCreatorHost .svc-creator__content-holder,
-  #surveyCreatorHost .svc-content-wrapper,
-  #surveyCreatorHost .svc-tab-preview,
-  #surveyCreatorHost .svc-surface,
-  #surveyCreatorHost .svc-page__content {
+  #surveyCreatorHost .svc-creator__area {
     background-color: var(--app-bg) !important;
     color: var(--app-text) !important;
   }
 
-  #surveyCreatorHost .sd-page,
-  #surveyCreatorHost .sd-body,
+  /* Top navigation and tabs */
+  #surveyCreatorHost .svc-top-container,
+  #surveyCreatorHost .svc-tabbed-menu,
+  #surveyCreatorHost .svc-tabs {
+    background-color: var(--app-surface) !important;
+    border-color: var(--app-border) !important;
+  }
+
+  /* Tab buttons */
+  #surveyCreatorHost .svc-tabbed-menu-item,
+  #surveyCreatorHost .sv-action-bar-item {
+    color: var(--app-muted) !important;
+    background-color: transparent !important;
+  }
+
+  #surveyCreatorHost .svc-tabbed-menu-item--selected,
+  #surveyCreatorHost .svc-tabbed-menu-item:hover,
+  #surveyCreatorHost .sv-action-bar-item--pressed,
+  #surveyCreatorHost .sv-action-bar-item:hover {
+    color: var(--app-text) !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+  }
+
+  /* Left sidebar (toolbox) */
+  #surveyCreatorHost .svc-side-bar,
+  #surveyCreatorHost .svc-toolbox,
+  #surveyCreatorHost .svc-toolbox__panel {
+    background-color: var(--app-surface) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-text) !important;
+  }
+
+  /* Toolbox items */
+  #surveyCreatorHost .svc-toolbox__item,
+  #surveyCreatorHost .sv-list__item {
+    background-color: var(--app-surface-2) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .svc-toolbox__item:hover,
+  #surveyCreatorHost .sv-list__item:hover {
+    background-color: var(--app-surface-3) !important;
+    border-color: var(--app-accent) !important;
+  }
+
+  /* Right property panel */
+  #surveyCreatorHost .svc-property-panel,
+  #surveyCreatorHost .svc-flex-column,
+  #surveyCreatorHost .spg-root-modern {
+    background-color: var(--app-surface) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-text) !important;
+  }
+
+  /* Property panel inputs */
+  #surveyCreatorHost .spg-input,
+  #surveyCreatorHost .sv-text,
+  #surveyCreatorHost .spg-dropdown,
+  #surveyCreatorHost .sv-dropdown {
+    background-color: var(--app-surface-2) !important;
+    border: 1px solid var(--app-border) !important;
+    color: var(--app-text) !important;
+    border-radius: var(--radius-md);
+  }
+
+  #surveyCreatorHost .spg-input:focus,
+  #surveyCreatorHost .sv-text:focus,
+  #surveyCreatorHost .spg-dropdown:focus,
+  #surveyCreatorHost .sv-dropdown:focus {
+    border-color: var(--app-accent) !important;
+    box-shadow: 0 0 0 2px var(--app-accent-dim) !important;
+  }
+
+  /* Property panel labels */
+  #surveyCreatorHost .spg-title,
+  #surveyCreatorHost .spg-question__title,
+  #surveyCreatorHost .sv-string-viewer {
+    color: var(--app-text) !important;
+  }
+
+  /* Designer canvas area */
+  #surveyCreatorHost .svc-tab-designer,
+  #surveyCreatorHost .svc-creator__content-holder,
+  #surveyCreatorHost .svc-content-wrapper {
+    background-color: var(--app-bg) !important;
+  }
+
+  /* Survey page in designer */
+  #surveyCreatorHost .svc-page,
+  #surveyCreatorHost .svc-page__content {
+    background-color: var(--app-surface) !important;
+    border-color: var(--app-border) !important;
+  }
+
+  /* Questions in designer */
+  #surveyCreatorHost .svc-question__content,
   #surveyCreatorHost .sd-question,
-  #surveyCreatorHost .svc-question__content {
+  #surveyCreatorHost .sd-page,
+  #surveyCreatorHost .sd-body {
+    background-color: var(--app-surface-2) !important;
+    border: 1px solid var(--app-border) !important;
+    color: var(--app-text) !important;
+    border-radius: var(--radius-md);
+  }
+
+  #surveyCreatorHost .svc-question__content:hover {
+    border-color: var(--app-accent) !important;
+    box-shadow: 0 0 0 2px var(--app-accent-dim) !important;
+  }
+
+  /* Question titles and text */
+  #surveyCreatorHost .sd-question__title,
+  #surveyCreatorHost .sd-element__title,
+  #surveyCreatorHost .sd-title,
+  #surveyCreatorHost .sv-title {
+    color: var(--app-text) !important;
+  }
+
+  /* Buttons in creator */
+  #surveyCreatorHost .sv-btn,
+  #surveyCreatorHost .sd-btn,
+  #surveyCreatorHost .svc-btn {
+    background: linear-gradient(135deg, var(--app-accent), var(--app-accent-hover)) !important;
+    border-color: var(--app-accent) !important;
+    color: white !important;
+    border-radius: var(--radius-md);
+  }
+
+  #surveyCreatorHost .sv-btn:hover,
+  #surveyCreatorHost .sd-btn:hover,
+  #surveyCreatorHost .svc-btn:hover {
+    background: linear-gradient(135deg, var(--app-accent-hover), #0b5ed7) !important;
+  }
+
+  /* Action buttons (add, delete, etc.) */
+  #surveyCreatorHost .svc-action-button,
+  #surveyCreatorHost .sv-action__content {
+    background-color: var(--app-surface-2) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .svc-action-button:hover,
+  #surveyCreatorHost .sv-action__content:hover {
+    background-color: var(--app-surface-3) !important;
+    border-color: var(--app-accent) !important;
+  }
+
+  /* Dropdown menus and popups */
+  #surveyCreatorHost .sv-popup,
+  #surveyCreatorHost .sv-popup__container,
+  #surveyCreatorHost .sv-list,
+  #surveyCreatorHost .sv-list__container {
+    background-color: var(--app-surface) !important;
+    border: 1px solid var(--app-border) !important;
+    color: var(--app-text) !important;
+    box-shadow: var(--shadow-lg) !important;
+  }
+
+  #surveyCreatorHost .sv-list__item-body {
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .sv-list__item:hover {
+    background-color: var(--app-surface-3) !important;
+  }
+
+  /* Logic tab */
+  #surveyCreatorHost .svc-tab-logic,
+  #surveyCreatorHost .svc-logic-tab {
+    background-color: var(--app-bg) !important;
+    color: var(--app-text) !important;
+  }
+
+  /* Preview tab */
+  #surveyCreatorHost .svc-tab-preview,
+  #surveyCreatorHost .svc-preview {
+    background-color: var(--app-bg) !important;
+  }
+
+  /* JSON editor tab */
+  #surveyCreatorHost .svc-json-editor-tab,
+  #surveyCreatorHost .svc-json-editor-area {
+    background-color: var(--app-surface) !important;
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab__content-area {
+    background-color: var(--app-surface-2) !important;
+    border-color: var(--app-border) !important;
+  }
+
+  /* Scrollbars in creator */
+  #surveyCreatorHost ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  #surveyCreatorHost ::-webkit-scrollbar-track {
+    background: var(--app-surface);
+  }
+
+  #surveyCreatorHost ::-webkit-scrollbar-thumb {
+    background: var(--app-surface-3);
+    border-radius: var(--radius-sm);
+  }
+
+  #surveyCreatorHost ::-webkit-scrollbar-thumb:hover {
+    background: var(--app-border-hover);
+  }
+
+  /* Remove any conflicting light theme defaults */
+  #surveyCreatorHost * {
+    border-color: var(--app-border);
+  }
+
+  /* Panel headers */
+  #surveyCreatorHost .spg-panel__title,
+  #surveyCreatorHost .spg-row__title {
     background-color: var(--app-surface-2) !important;
     color: var(--app-text) !important;
     border-color: var(--app-border) !important;
+  }
+
+  /* Checkboxes and radio buttons */
+  #surveyCreatorHost .sv-checkbox,
+  #surveyCreatorHost .sv-radio,
+  #surveyCreatorHost .sd-checkbox,
+  #surveyCreatorHost .sd-radio {
+    background-color: var(--app-surface-2) !important;
+    border-color: var(--app-border) !important;
+  }
+
+  #surveyCreatorHost .sv-checkbox:checked,
+  #surveyCreatorHost .sv-radio:checked {
+    background-color: var(--app-accent) !important;
+    border-color: var(--app-accent) !important;
+  }
+
+  /* Separators and dividers */
+  #surveyCreatorHost .sv-action-bar-separator,
+  #surveyCreatorHost .svc-separator {
+    background-color: var(--app-border) !important;
+  }
+
+  /* Icons */
+  #surveyCreatorHost .sv-svg-icon,
+  #surveyCreatorHost use {
+    fill: currentColor;
   }
 </style>
 {% endblock %}
