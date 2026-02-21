@@ -300,14 +300,9 @@ def settings():
         device_name = (request.form.get("device_name") or "").strip()
 
         matches_per_page_raw = (request.form.get("matches_per_page") or "").strip()
-        expected_devices_raw = (request.form.get("expected_devices") or "").strip()
         matches_per_page = analysis_cfg.get("matches_per_page", 25)
         if matches_per_page_raw.isdigit():
             matches_per_page = max(5, min(500, int(matches_per_page_raw)))
-
-        expected_devices = analysis_cfg.get("expected_devices", 8)
-        if expected_devices_raw.isdigit():
-            expected_devices = max(1, min(50, int(expected_devices_raw)))
 
         errors = []
 
@@ -334,7 +329,6 @@ def settings():
 
             updated_analysis = dict(analysis_cfg or {})
             updated_analysis["matches_per_page"] = matches_per_page
-            updated_analysis["expected_devices"] = expected_devices
 
             backup_config()
             save_config(
@@ -606,15 +600,11 @@ def check_device_name():
     suggestions = []
     if conflict:
         suggestions = [f"{name} A", f"{name} B", f"{name} 2"]
-
-    # Get expected devices from config
-    _, _, analysis_cfg, _ = load_config()
-    expected_devices = analysis_cfg.get("expected_devices", 8)
-    for idx in range(1, expected_devices + 1):
-        candidate = f"Scout {idx}"
-        if candidate not in existing_names:
-            suggestions.append(candidate)
-            break
+        for idx in range(1, 21):
+            candidate = f"Scout {idx}"
+            if candidate not in existing_names:
+                suggestions.append(candidate)
+                break
 
     return jsonify({"conflict": conflict, "suggestions": suggestions})
 
@@ -637,13 +627,12 @@ def analyze():
     warnings = []
     uploaded_filenames = []
     device_statuses = []
-    expected_devices = analysis_config.get("expected_devices", 8)
 
     config_field_names = get_survey_field_names(survey_json or {})
 
     def prepare_analysis(rows: list, expected_field_names: list):
         nonlocal warnings, table_columns, table_rows, teams_summary
-        nonlocal device_statuses, expected_devices
+        nonlocal device_statuses
 
         if not rows:
             table_columns = []
@@ -710,9 +699,6 @@ def analyze():
             else:
                 stat_fields.append(field_item)
         teams_summary = get_all_teams_summary(table_rows, stat_fields)
-
-        # Device status tracking (CSV-derived)
-        expected_devices = analysis_config.get("expected_devices", 8)
 
         counts_by_name = {}
         for row in table_rows:
@@ -790,7 +776,6 @@ def analyze():
         warnings=warnings,
         uploaded_filenames=uploaded_filenames,
         device_statuses=device_statuses,
-        expected_devices=expected_devices,
     )
 
 

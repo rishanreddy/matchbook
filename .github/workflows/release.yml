@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to upload assets to (example: v0.1.6)"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -17,6 +23,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve release tag
+        id: resolve_tag
+        shell: bash
+        run: |
+          INPUT_TAG="${{ github.event.inputs.release_tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            echo "release_tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "workflow_dispatch requires release_tag when not running on a tag ref"
+          exit 1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -27,12 +51,18 @@ jobs:
 
       - name: Build executable (windows)
         shell: cmd
+        env:
+          GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
         run: scripts\build_executable.bat
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: "dist/OfflineScoutingManager-${{ github.ref_name }}.exe"
+          files: |
+            dist/OfflineScoutingManager-${{ steps.resolve_tag.outputs.release_tag }}.exe
+            dist/install_windows.bat
+          tag_name: ${{ steps.resolve_tag.outputs.release_tag }}
+          fail_on_unmatched_files: true
           draft: false
           prerelease: false
           generate_release_notes: true

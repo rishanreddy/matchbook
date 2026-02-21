@@ -9,7 +9,8 @@ wheels/
 
 # Application Files
 data/
-config/
+config/*
+!config/config.yaml
 logs/
 
 # Build artifacts

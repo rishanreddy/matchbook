@@ -26,7 +26,7 @@
       <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
           <h2 class="h5 mb-1">Reset Local Data</h2>
-          <p class="small text-muted-app mb-0">Clears CSV data and device tracking on this laptop.</p>
+          <p class="small text-muted-app mb-0">Clears scouting data and local setup on this laptop.</p>
         </div>
         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#resetDataModal">
           Clear local data
@@ -146,18 +146,6 @@
                 max="500"
               />
             </div>
-            <div class="col-md-4">
-              <label for="expected_devices" class="form-label">Expected devices</label>
-              <input
-                type="number"
-                id="expected_devices"
-                name="expected_devices"
-                class="form-control"
-                value="{{ analysis.expected_devices if analysis and analysis.expected_devices else 8 }}"
-                min="1"
-                max="50"
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -175,7 +163,7 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <p>This will delete scouting data and device tracking on this laptop.</p>
+            <p>This will delete scouting data and local setup on this laptop.</p>
             <p class="small text-muted-app">A backup CSV will be saved in the backups folder.</p>
           </div>
           <div class="modal-footer">

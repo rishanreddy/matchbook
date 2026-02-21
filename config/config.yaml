@@ -5,49 +5,103 @@ event:
   season: ""
 analysis:
   graph_fields:
+  - field: team
+    chart_type: line
   - field: auto_score
     chart_type: line
   - field: teleop_score
     chart_type: bar
   matches_per_page: 25
-  expected_devices: 8
-fields:
-- name: match
-  label: 'Match #'
-  type: integer
-  required: true
-- name: team
-  label: Team Number
-  type: integer
-  required: true
-- name: scout_name
-  label: Scout name
-  type: text
-  required: true
-- name: alliance_color
-  label: Alliance
-  type: select
-  required: true
-  options:
-  - Red
-  - Blue
-- name: auto_score
-  label: Auto score
-  type: integer
-  required: true
-- name: teleop_score
-  label: Tele-op score
-  type: integer
-  required: true
-- name: endgame
-  label: Endgame status
-  type: select
-  required: true
-  options:
-  - Failed
-  - Partial
-  - Complete
-- name: notes
-  label: Notes
-  type: textarea
-  required: false
+survey_json:
+  pages:
+  - name: page1
+    elements:
+    - type: text
+      name: match
+      title: 'Match #'
+      isRequired: true
+      inputType: number
+    - type: text
+      name: team
+      startWithNewLine: false
+      title: Team Number
+      isRequired: true
+      inputType: number
+    - type: text
+      name: scout_name
+      title: Scout name
+      isRequired: true
+    - type: dropdown
+      name: alliance_color
+      title: Alliance Color
+      isRequired: true
+      choices:
+      - Red
+      - Blue
+    - type: text
+      name: auto_score
+      visibleIf: '{alliance_color} = ''Red'''
+      title: Auto score
+      isRequired: true
+      inputType: number
+    - type: text
+      name: teleop_score
+      title: Tele-op score
+      isRequired: true
+      inputType: number
+    - type: rating
+      name: fuel_accuracy
+      title: Fuel Accuracy
+      isRequired: true
+      autoGenerate: false
+      rateCount: 3
+      rateValues:
+      - value: 1
+        text: Low
+      - value: 2
+        text: Medium
+      - value: 3
+        text: High
+    - type: rating
+      name: defense
+      title: Defense
+      isRequired: true
+      rateType: stars
+      autoGenerate: false
+      rateValues:
+      - value: 1
+        text: Low
+      - value: 2
+        text: Medium
+      - value: 3
+        text: High
+      - 4
+      - 5
+    - type: dropdown
+      name: overall_role
+      title: Overall Role
+      isRequired: true
+      choices:
+      - value: 1
+        text: Primary Scorer
+      - value: 2
+        text: Secondary Scorer
+      - value: 3
+        text: Support Bot
+      - value: 4
+        text: Defender
+    - type: dropdown
+      name: endgame
+      title: Endgame status
+      isRequired: true
+      choices:
+      - Failed
+      - Partial
+      - Complete
+    - type: text
+      name: endgame_strat
+      title: Endgame Strat
+      isRequired: true
+    - type: comment
+      name: notes
+      title: Notes

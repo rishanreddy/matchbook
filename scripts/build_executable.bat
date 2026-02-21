@@ -12,7 +12,11 @@ uv sync
 uv pip install pillow pyinstaller
 
 for /f "usebackq tokens=*" %%v in (`uv run python scripts\get_version.py`) do set VERSION=%%v
-set NAME=OfflineScoutingManager-v%VERSION%
+if defined GITHUB_REF_NAME (
+    set NAME=OfflineScoutingManager-%GITHUB_REF_NAME%
+) else (
+    set NAME=OfflineScoutingManager-v%VERSION%
+)
 
 uv run python scripts\make_icon.py
 
@@ -26,5 +30,12 @@ uv run pyinstaller ^
   --icon "build\icon.ico" ^
   main.py
 
+copy /Y scripts\install_windows.bat dist\install_windows.bat >nul
+if %errorlevel% neq 0 (
+    echo Failed to copy installer script to dist folder.
+    exit /b 1
+)
+
 echo Build complete: dist\%NAME%.exe
-pause
+echo Installer script: dist\install_windows.bat
+if not defined CI pause
