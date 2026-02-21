@@ -35,8 +35,9 @@ if not exist "%EXE_PATH%" (
 set "INSTALL_DIR=%LOCALAPPDATA%\OfflineScoutingManager"
 set "START_MENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Offline Scouting Manager"
 set "INSTALLED_EXE=%INSTALL_DIR%\OfflineScoutingManager.exe"
-set "DESKTOP_LAUNCHER=%USERPROFILE%\Desktop\Offline Scouting Manager.bat"
-set "START_MENU_LAUNCHER=%START_MENU_DIR%\Offline Scouting Manager.bat"
+set "DESKTOP_SHORTCUT=%USERPROFILE%\Desktop\Offline Scouting Manager.lnk"
+set "START_MENU_SHORTCUT=%START_MENU_DIR%\Offline Scouting Manager.lnk"
+set "VBSCRIPT=%INSTALL_DIR%\create_shortcut.vbs"
 
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 if not exist "%START_MENU_DIR%" mkdir "%START_MENU_DIR%"
@@ -48,20 +49,66 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-> "%DESKTOP_LAUNCHER%" (
+REM Copy VBScript helper for creating shortcuts
+set "VBSCRIPT_SOURCE=%SCRIPT_DIR%create_shortcut.vbs"
+if not exist "%VBSCRIPT_SOURCE%" (
+    echo WARNING: create_shortcut.vbs not found, using fallback method
+    goto :fallback_shortcuts
+)
+
+copy /Y "%VBSCRIPT_SOURCE%" "%VBSCRIPT%" >nul
+if %errorlevel% neq 0 (
+    echo WARNING: Failed to copy VBScript helper, using fallback method
+    goto :fallback_shortcuts
+)
+
+REM Create proper .lnk shortcuts with icons
+cscript //nologo "%VBSCRIPT%" "%INSTALLED_EXE%" "%DESKTOP_SHORTCUT%" "Offline Scouting Manager" >nul 2>&1
+cscript //nologo "%VBSCRIPT%" "%INSTALLED_EXE%" "%START_MENU_SHORTCUT%" "Offline Scouting Manager" >nul 2>&1
+
+if exist "%DESKTOP_SHORTCUT%" (
+    echo Created desktop shortcut: "%DESKTOP_SHORTCUT%"
+) else (
+    echo WARNING: Failed to create desktop shortcut
+)
+
+if exist "%START_MENU_SHORTCUT%" (
+    echo Created Start Menu shortcut: "%START_MENU_SHORTCUT%"
+) else (
+    echo WARNING: Failed to create Start Menu shortcut
+)
+
+goto :post_shortcuts
+
+:fallback_shortcuts
+REM Fallback: create .bat launchers if VBScript method fails
+> "%USERPROFILE%\Desktop\Offline Scouting Manager.bat" (
     echo @echo off
     echo start "" "%INSTALLED_EXE%" %%*
 )
 
-> "%START_MENU_LAUNCHER%" (
+> "%START_MENU_DIR%\Offline Scouting Manager.bat" (
     echo @echo off
     echo start "" "%INSTALLED_EXE%" %%*
 )
+
+echo Created fallback batch launchers
+
+:post_shortcuts
+
 
 echo.
 echo Installed to: "%INSTALL_DIR%"
-echo Desktop launcher: "%DESKTOP_LAUNCHER%"
-echo Start Menu launcher: "%START_MENU_LAUNCHER%"
+if exist "%DESKTOP_SHORTCUT%" (
+    echo Desktop shortcut: "%DESKTOP_SHORTCUT%"
+) else if exist "%USERPROFILE%\Desktop\Offline Scouting Manager.bat" (
+    echo Desktop launcher: "%USERPROFILE%\Desktop\Offline Scouting Manager.bat"
+)
+if exist "%START_MENU_SHORTCUT%" (
+    echo Start Menu shortcut: "%START_MENU_SHORTCUT%"
+) else if exist "%START_MENU_DIR%\Offline Scouting Manager.bat" (
+    echo Start Menu launcher: "%START_MENU_DIR%\Offline Scouting Manager.bat"
+)
 echo.
 
 choice /M "Launch Offline Scouting Manager now"
