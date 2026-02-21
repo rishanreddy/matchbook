@@ -195,11 +195,21 @@ def _launch_apply_script(script_path: Path) -> None:
 
 
 def get_update_status() -> dict:
-    """Return update check data plus local updater state."""
+    """Return update check data plus local updater state.
+
+    Auto-update is only supported in packaged mode (EXE).
+    Source mode returns update_available=False to disable prompts.
+    """
     check = check_for_updates()
     state = _read_state()
-    check["mode"] = "packaged" if is_packaged_mode() else "source"
+    mode = "packaged" if is_packaged_mode() else "source"
+    check["mode"] = mode
     check["state"] = state
+
+    # Disable update prompts in source mode
+    if mode == "source":
+        check["update_available"] = False
+
     return check
 
 
@@ -275,161 +285,103 @@ def download_latest_release_asset() -> dict:
 def apply_update_now() -> dict:
     """Apply update immediately when safe.
 
-    In source mode, runs git pull + uv sync.
-    In packaged mode, applies downloaded executable replacement via helper script.
+    Auto-update is only supported in packaged mode (EXE).
+    Source mode updates must be done manually via git pull.
     """
+    if not is_packaged_mode():
+        return {
+            "success": False,
+            "error": "Auto-update is only available when running the packaged EXE. Use 'git pull' to update from source.",
+            "mode": "source",
+        }
+
     check = check_for_updates()
     if not check.get("update_available"):
         return {"success": False, "error": "No update available."}
 
-    if is_packaged_mode():
-        state = _read_state()
-        asset_path_str = state.get("asset_path")
-        asset_path = Path(asset_path_str) if asset_path_str else None
+    # Packaged mode: apply executable replacement
+    state = _read_state()
+    asset_path_str = state.get("asset_path")
+    asset_path = Path(asset_path_str) if asset_path_str else None
 
-        if not asset_path or not asset_path.exists():
-            try:
-                download = download_latest_release_asset()
-            except Exception as exc:
-                return {
-                    "success": False,
-                    "error": f"Failed to stage release asset: {exc}",
-                    "mode": "packaged",
-                }
-            if not download.get("success"):
-                return {
-                    "success": False,
-                    "error": download.get("error") or "Failed to stage release asset.",
-                    "mode": "packaged",
-                }
-            asset_path_str = download.get("asset_path")
-            asset_path = Path(asset_path_str) if asset_path_str else None
-            if not asset_path or not asset_path.exists():
-                return {
-                    "success": False,
-                    "error": "Downloaded update asset path is invalid.",
-                    "mode": "packaged",
-                }
-
-        asset_name = asset_path.name.lower()
-        if asset_name.endswith((".zip", ".tar.gz", ".dmg")):
-            return {
-                "success": False,
-                "error": "Downloaded asset is an archive/installer and cannot be auto-applied.",
-                "mode": "packaged",
-                "asset_path": str(asset_path),
-            }
-        if not _is_direct_executable_asset(asset_path):
-            return {
-                "success": False,
-                "error": "Downloaded asset is not a direct executable for auto-apply.",
-                "mode": "packaged",
-                "asset_path": str(asset_path),
-            }
-
-        exe_path = Path(sys.executable)
-        if not exe_path.exists():
-            return {
-                "success": False,
-                "error": "Current executable path is missing.",
-                "mode": "packaged",
-                "exe_path": str(exe_path),
-            }
-
-        script_ext = ".bat" if platform.system().lower() == "windows" else ".sh"
-        script_path = UPDATES_DIR / f"apply_update_{os.getpid()}{script_ext}"
+    if not asset_path or not asset_path.exists():
         try:
-            _write_apply_script(script_path, os.getpid(), exe_path, asset_path)
-            _launch_apply_script(script_path)
+            download = download_latest_release_asset()
         except Exception as exc:
             return {
                 "success": False,
-                "error": f"Failed to launch update helper: {exc}",
+                "error": f"Failed to stage release asset: {exc}",
                 "mode": "packaged",
-                "asset_path": str(asset_path),
-                "exe_path": str(exe_path),
+            }
+        if not download.get("success"):
+            return {
+                "success": False,
+                "error": download.get("error") or "Failed to stage release asset.",
+                "mode": "packaged",
+            }
+        asset_path_str = download.get("asset_path")
+        asset_path = Path(asset_path_str) if asset_path_str else None
+        if not asset_path or not asset_path.exists():
+            return {
+                "success": False,
+                "error": "Downloaded update asset path is invalid.",
+                "mode": "packaged",
             }
 
-        _write_state(
-            {
-                "status": "applying",
-                "mode": "packaged",
-                "asset_path": str(asset_path),
-                "exe_path": str(exe_path),
-                "latest_version": check.get("latest_version"),
-            }
-        )
+    asset_name = asset_path.name.lower()
+    if asset_name.endswith((".zip", ".tar.gz", ".dmg")):
         return {
-            "success": True,
+            "success": False,
+            "error": "Downloaded asset is an archive/installer and cannot be auto-applied.",
+            "mode": "packaged",
+            "asset_path": str(asset_path),
+        }
+    if not _is_direct_executable_asset(asset_path):
+        return {
+            "success": False,
+            "error": "Downloaded asset is not a direct executable for auto-apply.",
+            "mode": "packaged",
+            "asset_path": str(asset_path),
+        }
+
+    exe_path = Path(sys.executable)
+    if not exe_path.exists():
+        return {
+            "success": False,
+            "error": "Current executable path is missing.",
+            "mode": "packaged",
+            "exe_path": str(exe_path),
+        }
+
+    script_ext = ".bat" if platform.system().lower() == "windows" else ".sh"
+    script_path = UPDATES_DIR / f"apply_update_{os.getpid()}{script_ext}"
+    try:
+        _write_apply_script(script_path, os.getpid(), exe_path, asset_path)
+        _launch_apply_script(script_path)
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": f"Failed to launch update helper: {exc}",
             "mode": "packaged",
             "asset_path": str(asset_path),
             "exe_path": str(exe_path),
-            "message": "Update is being applied now. The app will restart automatically.",
-        }
-
-    git_dir = BASE_DIR / ".git"
-    if not git_dir.exists():
-        return {
-            "success": False,
-            "error": "Source update requires a git checkout.",
-            "mode": "source",
-        }
-
-    status = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=BASE_DIR,
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
-    if status.stdout.strip():
-        return {
-            "success": False,
-            "error": "Working tree has local changes. Commit/stash before auto-update.",
-            "mode": "source",
-        }
-
-    pull = subprocess.run(
-        ["git", "pull", "--ff-only"],
-        cwd=BASE_DIR,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if pull.returncode != 0:
-        return {
-            "success": False,
-            "error": f"git pull failed: {pull.stderr.strip() or pull.stdout.strip()}",
-            "mode": "source",
-        }
-
-    sync = subprocess.run(
-        ["uv", "sync"],
-        cwd=BASE_DIR,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    if sync.returncode != 0:
-        return {
-            "success": False,
-            "error": f"uv sync failed: {sync.stderr.strip() or sync.stdout.strip()}",
-            "mode": "source",
         }
 
     _write_state(
         {
-            "status": "applied",
-            "mode": "source",
-            "from_version": CURRENT_VERSION,
+            "status": "applying",
+            "mode": "packaged",
+            "asset_path": str(asset_path),
+            "exe_path": str(exe_path),
             "latest_version": check.get("latest_version"),
         }
     )
     return {
         "success": True,
-        "mode": "source",
-        "message": "Update applied. Restart the app to run the new version.",
-        "latest_version": check.get("latest_version"),
+        "mode": "packaged",
+        "asset_path": str(asset_path),
+        "exe_path": str(exe_path),
+        "message": "Update is being applied now. The app will restart automatically.",
     }
 
 
