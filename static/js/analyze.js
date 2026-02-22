@@ -1,5 +1,6 @@
 /* Manages analysis upload interactions and table stats. */
 document.addEventListener("DOMContentLoaded", () => {
+  const uploadForm = document.getElementById("uploadForm");
   const dropZone = document.getElementById("dropZone");
   const fileInput = document.getElementById("fileInput");
   const fileList = document.getElementById("fileList");
@@ -8,7 +9,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearBtn = document.getElementById("clearBtn");
 
   if (dropZone) {
-    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
 
     ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
       dropZone.addEventListener(eventName, (e) => {
@@ -43,6 +49,7 @@ document.addEventListener("DOMContentLoaded", () => {
         fileListContainer.classList.add("d-none");
         submitBtn.disabled = true;
         clearBtn.classList.add("d-none");
+        console.debug("[Analyze] Cleared file selection");
         return;
       }
 
@@ -57,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
       fileListContainer.classList.remove("d-none");
       submitBtn.disabled = false;
       clearBtn.classList.remove("d-none");
+      console.debug("[Analyze] Selected files", files.length);
     }
 
     function formatFileSize(bytes) {
@@ -73,6 +81,22 @@ document.addEventListener("DOMContentLoaded", () => {
       fileListContainer.classList.add("d-none");
       submitBtn.disabled = true;
       clearBtn.classList.add("d-none");
+      console.debug("[Analyze] File selection reset by user");
+    });
+  }
+
+  if (uploadForm && submitBtn) {
+    uploadForm.addEventListener("submit", () => {
+      submitBtn.disabled = true;
+      submitBtn.classList.add("loading");
+      submitBtn.textContent = "Loading data...";
+
+      if (clearBtn) {
+        clearBtn.disabled = true;
+      }
+
+      submitBtn.setAttribute("aria-busy", "true");
+      submitBtn.setAttribute("aria-label", "Loading data");
     });
   }
 

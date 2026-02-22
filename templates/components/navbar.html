@@ -27,7 +27,7 @@
       <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
         {% if device_name %}
         <li class="nav-item me-lg-2">
-          <span class="badge badge-soft" role="status" aria-label="Current device">Device: {{ device_name }}</span>
+          <span class="badge badge-soft" role="status" aria-label="Current device" title="{{ device_name }}">Device: {{ format_device_id(device_name, True) }}</span>
         </li>
         {% endif %}
 

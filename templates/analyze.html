@@ -135,6 +135,57 @@
       </div>
     </div>
 
+    {% if analysis_insights and analysis_insights.quality %}
+    <div class="row g-3 mb-4">
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Data Quality</h2>
+            <div class="small">Rows loaded: <strong>{{ analysis_insights.quality.rows_loaded }}</strong></div>
+            <div class="small">Rows kept: <strong>{{ analysis_insights.quality.rows_kept }}</strong></div>
+            <div class="small">Duplicates removed: <strong>{{ analysis_insights.quality.duplicates_removed }}</strong></div>
+            <div class="small">Missing team rows: <strong>{{ analysis_insights.quality.missing_team_rows }}</strong></div>
+            <div class="small">Missing match rows: <strong>{{ analysis_insights.quality.missing_match_rows }}</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Top Teams by Metric</h2>
+            {% if analysis_insights.leaders %}
+              {% for item in analysis_insights.leaders %}
+              <div class="small mb-2">
+                <div class="fw-semibold">{{ item.label }}</div>
+                <div class="text-muted-app">Team {{ item.team }} · Avg {{ item.value }}</div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="small text-muted-app">Not enough numeric data yet.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Most Consistent Teams</h2>
+            {% if analysis_insights.consistency %}
+              {% for item in analysis_insights.consistency %}
+              <div class="small mb-2">
+                <div class="fw-semibold">{{ item.label }}</div>
+                <div class="text-muted-app">Team {{ item.team }} · Range {{ item.range }}</div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="small text-muted-app">Not enough match depth for consistency insights.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Tabs -->
     <ul class="nav nav-tabs border-app" id="analysisTabs" role="tablist">
       <li class="nav-item" role="presentation">

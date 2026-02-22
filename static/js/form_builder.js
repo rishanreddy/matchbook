@@ -1,16 +1,31 @@
-/* Initializes SurveyJS form builder and graph mapping settings. */
+/* Initializes SurveyJS form builder. */
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("formBuilderForm");
   const saveBtn = document.getElementById("saveFormBtn");
   const hiddenJsonInput = document.getElementById("surveyJsonInput");
-  const graphConfigInput = document.getElementById("graphConfigInput");
-  const graphConfigBody = document.getElementById("graphConfigBody");
-  const graphSettingsBtn = document.getElementById("graphSettingsBtn");
-  const graphSettingsModalEl = document.getElementById("graphSettingsModal");
+  const propertyPanelToggleBtn = document.getElementById("propertyPanelToggleBtn");
+  const saveStatus = document.getElementById("saveStatus");
   const jsonEditor = document.getElementById("surveyJsonEditor");
   const fallbackPanel = document.getElementById("jsonFallbackPanel");
   const jsonError = document.getElementById("jsonValidationError");
   const creatorHost = document.getElementById("surveyCreatorHost");
+  const requiredFieldGroupsData = document.getElementById("requiredFieldGroupsData");
+  const strictRequiredFieldsData = document.getElementById("strictRequiredFieldsData");
+
+  const parseJsonScript = (el, fallback) => {
+    if (!el || !el.textContent) {
+      return fallback;
+    }
+    try {
+      const parsed = JSON.parse(el.textContent);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch (_error) {
+      return fallback;
+    }
+  };
+
+  const requiredGroupsFromConfig = parseJsonScript(requiredFieldGroupsData, []);
+  const strictRequiredFromConfig = parseJsonScript(strictRequiredFieldsData, []);
 
   const setBuilderOffset = () => {
     const nav = document.querySelector(".navbar");
@@ -28,81 +43,28 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  const parseGraphConfig = () => {
-    try {
-      const parsed = JSON.parse(graphConfigInput.value || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (_err) {
-      return [];
+  const setSaveStatus = (state) => {
+    if (!saveStatus) {
+      return;
     }
-  };
-
-  const collectFieldInfo = (schemaObject) => {
-    const names = new Set();
-    return collectElements(schemaObject)
-      .map((el) => ({
-        name: el && el.name,
-        title: (el && el.title) || (el && el.name),
-      }))
-      .filter((item) => item.name && !names.has(item.name) && names.add(item.name));
-  };
-
-  const syncGraphTable = (schemaObject) => {
-    const fields = collectFieldInfo(schemaObject || {});
-    const config = parseGraphConfig();
-    const configByField = {};
-    config.forEach((item) => {
-      if (item && item.field) {
-        configByField[item.field] = item;
-      }
-    });
-
-    graphConfigBody.innerHTML = "";
-    fields.forEach((field) => {
-      const existing = configByField[field.name] || {};
-      const row = document.createElement("tr");
-      row.setAttribute("data-field", field.name);
-
-      const isSystemField = ["team", "auto_score", "teleop_score"].includes(field.name);
-      const enabled = isSystemField ? true : existing.chart_type !== undefined;
-      const chartType = (existing.chart_type || "line").toLowerCase();
-
-      row.innerHTML = `
-          <td>
-            <div class="fw-semibold">${field.title || field.name}</div>
-            <div class="small text-muted-app"><code>${field.name}</code>${isSystemField ? " · system" : ""}</div>
-          </td>
-          <td>
-            <input class="form-check-input graph-enabled" type="checkbox" ${enabled ? "checked" : ""} ${isSystemField ? "disabled" : ""}>
-          </td>
-          <td>
-            <select class="form-select form-select-sm graph-type" ${enabled ? "" : "disabled"}>
-              <option value="line" ${chartType === "line" ? "selected" : ""}>Line</option>
-              <option value="bar" ${chartType === "bar" ? "selected" : ""}>Bar</option>
-              <option value="radar" ${chartType === "radar" ? "selected" : ""}>Radar</option>
-              <option value="pie" ${chartType === "pie" ? "selected" : ""}>Pie</option>
-              <option value="doughnut" ${chartType === "doughnut" ? "selected" : ""}>Doughnut</option>
-            </select>
-          </td>
-        `;
-
-      graphConfigBody.appendChild(row);
-    });
-  };
-
-  const syncGraphConfigInput = () => {
-    const rows = [...graphConfigBody.querySelectorAll("tr[data-field]")];
-    const payload = rows
-      .map((row) => {
-        const field = row.getAttribute("data-field") || "";
-        const enabled = row.querySelector(".graph-enabled")?.checked;
-        const chartType = row.querySelector(".graph-type")?.value || "line";
-        return { field, enabled, chart_type: chartType };
-      })
-      .filter((item) => item.field && item.enabled)
-      .map((item) => ({ field: item.field, chart_type: item.chart_type }));
-
-    graphConfigInput.value = JSON.stringify(payload);
+    saveStatus.classList.remove("is-unsaved", "is-saving", "is-saved", "is-error");
+    if (state === "unsaved") {
+      saveStatus.textContent = "Unsaved";
+      saveStatus.classList.add("is-unsaved");
+      return;
+    }
+    if (state === "saving") {
+      saveStatus.textContent = "Saving";
+      saveStatus.classList.add("is-saving");
+      return;
+    }
+    if (state === "error") {
+      saveStatus.textContent = "Autosave Error";
+      saveStatus.classList.add("is-error");
+      return;
+    }
+    saveStatus.textContent = "Saved";
+    saveStatus.classList.add("is-saved");
   };
 
   const showValidationError = (message) => {
@@ -112,6 +74,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const clearValidationError = () => {
     jsonError.classList.add("d-none");
+  };
+
+  const debounce = (fn, delayMs) => {
+    let timer = null;
+    return (...args) => {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+      timer = window.setTimeout(() => {
+        timer = null;
+        fn(...args);
+      }, delayMs);
+    };
   };
 
   const collectElements = (node) => {
@@ -157,10 +132,67 @@ document.addEventListener("DOMContentLoaded", () => {
     if (fieldNames.length === 0) {
       return "Survey JSON must include at least one field element.";
     }
+
+    const normalized = new Set(fieldNames.map((name) => String(name).trim().toLowerCase()));
+    const requiredGroups = requiredGroupsFromConfig
+      .filter((group) => group && typeof group === "object")
+      .map((group) => ({
+        label: String(group.label || "").trim(),
+        aliases: Array.isArray(group.aliases) ? group.aliases.map((alias) => String(alias || "").trim().toLowerCase()).filter(Boolean) : [],
+      }))
+      .filter((group) => group.label && group.aliases.length > 0);
+
+    const missing = requiredGroups
+      .filter((group) => !group.aliases.some((alias) => normalized.has(alias)))
+      .map((group) => group.label);
+
+    if (missing.length > 0) {
+      return `Missing required fields: ${missing.join(", ")}`;
+    }
+
+    const strictRequired = strictRequiredFromConfig
+      .map((field) => String(field || "").trim().toLowerCase())
+      .filter(Boolean);
+    const strictMissing = strictRequired.filter((field) => !normalized.has(field));
+    if (strictMissing.length > 0) {
+      return `Missing required system fields: ${strictMissing.join(", ")}`;
+    }
+
     return null;
   };
 
   let creator = null;
+  let autosaveRevision = 0;
+  let lastSavedRevision = 0;
+
+  const postAutosave = async (schemaObject, revision) => {
+    setSaveStatus("saving");
+    try {
+      const response = await fetch("/api/form-builder/autosave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ survey_json: schemaObject || { elements: [] } }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      if (revision >= lastSavedRevision) {
+        lastSavedRevision = revision;
+      }
+      if (autosaveRevision === lastSavedRevision) {
+        setSaveStatus("saved");
+      }
+    } catch (_error) {
+      if (revision === autosaveRevision) {
+        setSaveStatus("error");
+      }
+    }
+  };
+
+  const debouncedAutosave = debounce((schemaObject, revision) => {
+    postAutosave(schemaObject, revision);
+  }, 1000);
+
   try {
     if (!window.SurveyCreator || !window.SurveyCreator.SurveyCreator) {
       throw new Error("Survey Creator scripts not loaded");
@@ -169,6 +201,26 @@ document.addEventListener("DOMContentLoaded", () => {
     creator = new SurveyCreator.SurveyCreator({
       autoSaveEnabled: false,
       collapseOnDrag: true,
+      showPropertyGrid: false,
+    });
+    creator.showPropertyGrid = false;
+
+    const updatePropertyButtonLabel = () => {
+      if (!propertyPanelToggleBtn || !creator) {
+        return;
+      }
+      const isPressed = creator.showPropertyGrid;
+      propertyPanelToggleBtn.textContent = isPressed ? "Hide Properties" : "Show Properties";
+      propertyPanelToggleBtn.setAttribute("aria-pressed", isPressed ? "true" : "false");
+    };
+
+    propertyPanelToggleBtn?.addEventListener("click", () => {
+      if (!creator) {
+        return;
+      }
+      creator.showPropertyGrid = !creator.showPropertyGrid;
+      updatePropertyButtonLabel();
+      console.debug("[FormBuilder] Toggled property panel", creator.showPropertyGrid ? "visible" : "hidden");
     });
 
     if (window.SurveyCreatorCore && window.SurveyCreatorTheme) {
@@ -221,34 +273,40 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     creator.render(creatorHost);
+    updatePropertyButtonLabel();
     syncJsonInput(creator.JSON || { elements: [] });
-    syncGraphTable(creator.JSON || { elements: [] });
+    setSaveStatus("saved");
 
     if (creator.onModified && creator.onModified.add) {
       creator.onModified.add(() => {
-        syncGraphTable(creator.JSON || { elements: [] });
+        const schemaObject = creator.JSON || { elements: [] };
+        syncJsonInput(schemaObject);
+        autosaveRevision += 1;
+        setSaveStatus("unsaved");
+        debouncedAutosave(schemaObject, autosaveRevision);
       });
     }
   } catch (_error) {
+    console.error("[FormBuilder] Survey Creator failed to initialize", _error);
     fallbackPanel?.classList.remove("d-none");
     if (creatorHost) {
       creatorHost.innerHTML =
         '<div class="p-3 small text-warning">Survey Creator failed to load. Using JSON fallback editor.</div>';
     }
+    setSaveStatus("unsaved");
   }
 
   const runSave = (e) => {
     try {
       if (creator) {
         syncJsonInput(creator.JSON || { elements: [] });
-        syncGraphTable(creator.JSON || { elements: [] });
       } else if (jsonEditor) {
         syncJsonInput(JSON.parse(jsonEditor.value.trim() || "{}"));
-        syncGraphTable(JSON.parse(jsonEditor.value.trim() || "{}"));
       }
     } catch (err) {
       if (e) e.preventDefault();
       showValidationError(`Invalid JSON: ${err.message}`);
+      console.warn("[FormBuilder] JSON parse failed before save", err);
       jsonEditor?.focus();
       return;
     }
@@ -259,72 +317,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (errorMessage) {
         if (e) e.preventDefault();
         showValidationError(errorMessage);
+        console.warn("[FormBuilder] Validation error", errorMessage);
         jsonEditor?.focus();
         return;
       }
       clearValidationError();
-      syncGraphConfigInput();
+      console.debug("[FormBuilder] Submitting schema save");
       form.submit();
     } catch (err) {
       if (e) e.preventDefault();
       showValidationError(`Invalid JSON: ${err.message}`);
+      console.warn("[FormBuilder] JSON parse failed", err);
       jsonEditor?.focus();
     }
   };
 
   saveBtn?.addEventListener("click", runSave);
-
-  graphConfigBody?.addEventListener("change", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      return;
-    }
-
-    if (target.classList.contains("graph-enabled")) {
-      const row = target.closest("tr[data-field]");
-      const typeInput = row?.querySelector(".graph-type");
-      if (typeInput instanceof HTMLSelectElement) {
-        typeInput.disabled = !(target instanceof HTMLInputElement && target.checked);
-      }
-    }
-
-    syncGraphConfigInput();
-  });
-
-  graphConfigBody?.addEventListener("input", () => {
-    syncGraphConfigInput();
-  });
-
-  if (graphSettingsModalEl && window.bootstrap && window.bootstrap.Modal) {
-    const graphSettingsModal = window.bootstrap.Modal.getOrCreateInstance(graphSettingsModalEl);
-
-    graphSettingsBtn?.addEventListener("click", () => {
-      let schema = {};
-      try {
-        schema = creator ? creator.JSON : JSON.parse(hiddenJsonInput.value || "{}");
-      } catch (_error) {
-        schema = {};
-      }
-      syncGraphTable(schema || {});
-      syncGraphConfigInput();
-      graphSettingsModal.show();
-    });
-
-    graphSettingsModalEl.addEventListener("hidden.bs.modal", () => {
-      syncGraphConfigInput();
-    });
-  } else {
-    graphSettingsBtn?.addEventListener("click", () => {
-      let schema = {};
-      try {
-        schema = creator ? creator.JSON : JSON.parse(hiddenJsonInput.value || "{}");
-      } catch (_error) {
-        schema = {};
-      }
-      syncGraphTable(schema || {});
-      syncGraphConfigInput();
-    });
-  }
 
   jsonEditor?.addEventListener("input", () => {
     clearValidationError();

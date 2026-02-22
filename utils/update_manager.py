@@ -4,23 +4,20 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import platform
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
 
-from .constants import APP_DATA_DIR, BASE_DIR
-from .version_check import (
-    CURRENT_VERSION,
-    GITHUB_REPO,
-    RELEASES_URL,
-    check_for_updates,
-)
+from .constants import APP_DATA_DIR
+from .version_check import CURRENT_VERSION, RELEASES_URL, check_for_updates
 
 ALLOWED_HOSTS = {
     "api.github.com",
@@ -31,6 +28,10 @@ ALLOWED_HOSTS = {
 UPDATES_DIR = APP_DATA_DIR / "updates"
 UPDATES_DIR.mkdir(parents=True, exist_ok=True)
 UPDATE_STATE_FILE = UPDATES_DIR / "state.json"
+NETWORK_RETRIES = 3
+NETWORK_BACKOFF_SECONDS = 1.0
+
+logger = logging.getLogger(__name__)
 
 
 def _is_allowed_url(url: str) -> bool:
@@ -52,6 +53,36 @@ def _read_state() -> dict:
         return json.loads(UPDATE_STATE_FILE.read_text(encoding="utf-8"))
     except Exception:
         return {"status": "idle"}
+
+
+def _get_with_retries(url: str, timeout: int = 10) -> requests.Response:
+    """Perform GET with retries and exponential backoff."""
+    last_error: Exception | None = None
+
+    for attempt in range(1, NETWORK_RETRIES + 1):
+        try:
+            response = requests.get(url, timeout=timeout)
+            response.raise_for_status()
+            if attempt > 1:
+                logger.info(
+                    "[Update] Request succeeded after retry attempt %s: %s",
+                    attempt,
+                    url,
+                )
+            return response
+        except requests.RequestException as exc:
+            last_error = exc
+            logger.warning(
+                "[Update] Request attempt %s/%s failed for %s: %s",
+                attempt,
+                NETWORK_RETRIES,
+                url,
+                exc,
+            )
+            if attempt < NETWORK_RETRIES:
+                time.sleep(NETWORK_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+
+    raise last_error or RuntimeError("Unknown network error")
 
 
 def is_packaged_mode() -> bool:
@@ -98,16 +129,86 @@ def _pick_release_asset(assets: list[dict]) -> dict | None:
     return None
 
 
-def _download_file(url: str, dest: Path, timeout: int = 20) -> None:
+def _download_file(
+    url: str,
+    dest: Path,
+    timeout: int = 30,
+    *,
+    version: str,
+    asset_name: str,
+) -> None:
     if not _is_allowed_url(url):
         raise ValueError("Download URL is not in allowed host list")
 
-    with requests.get(url, timeout=timeout, stream=True) as response:
-        response.raise_for_status()
-        with dest.open("wb") as f:
-            for chunk in response.iter_content(chunk_size=64 * 1024):
-                if chunk:
-                    f.write(chunk)
+    for attempt in range(1, NETWORK_RETRIES + 1):
+        downloaded_bytes = 0
+        last_reported_progress = -1
+        try:
+            with requests.get(url, timeout=timeout, stream=True) as response:
+                response.raise_for_status()
+                total_bytes = int(response.headers.get("Content-Length") or 0)
+
+                with dest.open("wb") as f:
+                    for chunk in response.iter_content(chunk_size=64 * 1024):
+                        if not chunk:
+                            continue
+
+                        f.write(chunk)
+                        downloaded_bytes += len(chunk)
+
+                        progress_percent = 0
+                        if total_bytes > 0:
+                            progress_percent = int(
+                                (downloaded_bytes / total_bytes) * 100
+                            )
+
+                        if (
+                            total_bytes > 0
+                            and progress_percent // 5 > last_reported_progress // 5
+                        ):
+                            last_reported_progress = progress_percent
+                            _write_state(
+                                {
+                                    "status": "downloading",
+                                    "version": version,
+                                    "asset_name": asset_name,
+                                    "downloaded_bytes": downloaded_bytes,
+                                    "total_bytes": total_bytes,
+                                    "progress_percent": max(
+                                        0, min(progress_percent, 100)
+                                    ),
+                                }
+                            )
+
+                _write_state(
+                    {
+                        "status": "downloading",
+                        "version": version,
+                        "asset_name": asset_name,
+                        "downloaded_bytes": downloaded_bytes,
+                        "total_bytes": total_bytes,
+                        "progress_percent": 100 if total_bytes > 0 else None,
+                    }
+                )
+                return
+        except requests.RequestException as exc:
+            logger.warning(
+                "[Update] Download attempt %s/%s failed for %s: %s",
+                attempt,
+                NETWORK_RETRIES,
+                asset_name,
+                exc,
+            )
+            try:
+                if dest.exists():
+                    dest.unlink()
+            except Exception:
+                pass
+
+            if attempt < NETWORK_RETRIES:
+                time.sleep(NETWORK_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+            else:
+                raise
 
 
 def _sha256(path: Path) -> str:
@@ -210,76 +311,117 @@ def get_update_status() -> dict:
     if mode == "source":
         check["update_available"] = False
 
+    logger.debug(
+        "[Update] Status checked: mode=%s available=%s latest=%s state=%s",
+        mode,
+        check.get("update_available"),
+        check.get("latest_version"),
+        state.get("status"),
+    )
     return check
 
 
 def download_latest_release_asset() -> dict:
     """Download the latest matching release asset into local update staging dir."""
-    check = check_for_updates()
-    if not check.get("update_available"):
-        return {
-            "success": False,
-            "error": "No update available.",
-            "current_version": CURRENT_VERSION,
-        }
+    try:
+        check = check_for_updates()
+        if not check.get("update_available"):
+            return {
+                "success": False,
+                "error": "No update available.",
+                "current_version": CURRENT_VERSION,
+            }
 
-    response = requests.get(RELEASES_URL, timeout=10)
-    response.raise_for_status()
-    releases = response.json() or []
-    if not releases:
-        return {"success": False, "error": "No releases found."}
+        response = _get_with_retries(RELEASES_URL, timeout=10)
+        releases = response.json() or []
+        if not releases:
+            return {"success": False, "error": "No releases found."}
 
-    release = releases[0]
-    latest_version = (release.get("tag_name") or "").lstrip("v")
-    assets = release.get("assets") or []
-    asset = _pick_release_asset(assets)
-    if not asset:
+        release = releases[0]
+        latest_version = (release.get("tag_name") or "").lstrip("v")
+        assets = release.get("assets") or []
+        asset = _pick_release_asset(assets)
+        if not asset:
+            return {
+                "success": False,
+                "error": "No matching release asset found for this platform.",
+                "latest_version": latest_version,
+            }
+
+        asset_name = asset.get("name") or "update.bin"
+        asset_url = asset.get("browser_download_url") or ""
+        if not asset_url:
+            return {"success": False, "error": "Release asset has no download URL."}
+
+        logger.info(
+            "[Update] Starting asset download: version=%s asset=%s",
+            latest_version,
+            asset_name,
+        )
+
+        target_dir = UPDATES_DIR / latest_version
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / asset_name
+        temp_file = target_file.with_suffix(target_file.suffix + ".tmp")
+
+        _write_state(
+            {
+                "status": "downloading",
+                "version": latest_version,
+                "asset_name": asset_name,
+                "progress_percent": 0,
+            }
+        )
+
+        _download_file(
+            asset_url,
+            temp_file,
+            timeout=30,
+            version=latest_version,
+            asset_name=asset_name,
+        )
+        temp_file.replace(target_file)
+
+        checksum = _sha256(target_file)
+        _write_state(
+            {
+                "status": "downloaded",
+                "version": latest_version,
+                "asset_name": asset_name,
+                "asset_path": str(target_file),
+                "sha256": checksum,
+                "release_url": release.get("html_url"),
+                "progress_percent": 100,
+            }
+        )
+
+        logger.info(
+            "[Update] Download complete: version=%s asset=%s sha256=%s",
+            latest_version,
+            asset_name,
+            checksum[:12],
+        )
         return {
-            "success": False,
-            "error": "No matching release asset found for this platform.",
+            "success": True,
             "latest_version": latest_version,
-        }
-
-    asset_name = asset.get("name") or "update.bin"
-    asset_url = asset.get("browser_download_url") or ""
-    if not asset_url:
-        return {"success": False, "error": "Release asset has no download URL."}
-
-    target_dir = UPDATES_DIR / latest_version
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_file = target_dir / asset_name
-    temp_file = target_file.with_suffix(target_file.suffix + ".tmp")
-
-    _write_state(
-        {
-            "status": "downloading",
-            "version": latest_version,
-            "asset_name": asset_name,
-        }
-    )
-    _download_file(asset_url, temp_file)
-    temp_file.replace(target_file)
-
-    checksum = _sha256(target_file)
-    _write_state(
-        {
-            "status": "downloaded",
-            "version": latest_version,
             "asset_name": asset_name,
             "asset_path": str(target_file),
             "sha256": checksum,
             "release_url": release.get("html_url"),
         }
-    )
-
-    return {
-        "success": True,
-        "latest_version": latest_version,
-        "asset_name": asset_name,
-        "asset_path": str(target_file),
-        "sha256": checksum,
-        "release_url": release.get("html_url"),
-    }
+    except Exception as exc:
+        logger.error("[Update] Download failed: %s", exc)
+        _write_state(
+            {
+                "status": "error",
+                "error": f"Download failed: {exc}",
+            }
+        )
+        return {
+            "success": False,
+            "error": f"Failed to download update: {exc}",
+            "current_version": CURRENT_VERSION,
+        }
 
 
 def apply_update_now() -> dict:
@@ -308,6 +450,7 @@ def apply_update_now() -> dict:
         try:
             download = download_latest_release_asset()
         except Exception as exc:
+            logger.error("[Update] Failed to stage release asset: %s", exc)
             return {
                 "success": False,
                 "error": f"Failed to stage release asset: {exc}",
@@ -358,7 +501,14 @@ def apply_update_now() -> dict:
     try:
         _write_apply_script(script_path, os.getpid(), exe_path, asset_path)
         _launch_apply_script(script_path)
+        logger.info(
+            "[Update] Launched apply helper: script=%s exe=%s asset=%s",
+            script_path,
+            exe_path,
+            asset_path,
+        )
     except Exception as exc:
+        logger.error("[Update] Failed to launch update helper: %s", exc)
         return {
             "success": False,
             "error": f"Failed to launch update helper: {exc}",
@@ -376,6 +526,7 @@ def apply_update_now() -> dict:
             "latest_version": check.get("latest_version"),
         }
     )
+    logger.info("[Update] Applying update now: latest=%s", check.get("latest_version"))
     return {
         "success": True,
         "mode": "packaged",

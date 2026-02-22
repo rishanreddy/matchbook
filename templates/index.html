@@ -36,7 +36,7 @@
             {% if device_name %}
             <div class="mb-3">
               <div class="text-uppercase small text-muted-app">Current device</div>
-              <div class="fw-semibold">{{ device_name }}</div>
+              <div class="fw-semibold" title="{{ device_name }}">{{ format_device_id(device_name, True) }}</div>
             </div>
             {% endif %}
 
@@ -90,9 +90,6 @@
       <div class="col-lg-8">
         <div class="card">
           <div class="card-body">
-            <h2 class="h4">Scouting Form</h2>
-            <p class="small text-muted-app">Required fields are marked.</p>
-
             {% if request.args.get('success') == '1' %}
               {{ alert.success(
                 'Entry saved at ' + stats.last_timestamp + '.' if stats and stats.last_timestamp else 'Entry saved.',

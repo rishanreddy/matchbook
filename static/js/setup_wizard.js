@@ -1,4 +1,4 @@
-/* Controls setup wizard steps and device-name conflict checks. */
+/* Controls setup wizard steps and review state. */
 document.addEventListener("DOMContentLoaded", () => {
   let step = 1;
   const totalSteps = 3;
@@ -12,22 +12,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("setupForm");
 
   const eventNameInput = document.getElementById("eventNameInput");
-
-  const deviceInput = document.getElementById("deviceNameInput");
-  const deviceConflict = document.getElementById("deviceConflict");
-  const deviceSuggestions = document.getElementById("deviceSuggestions");
   const setupFileInput = document.getElementById("setupFileInput");
   const dataKeep = document.getElementById("dataKeep");
   const dataReset = document.getElementById("dataReset");
+  const deviceIdPreview = document.getElementById("deviceIdPreview");
 
   const reviewEventName = document.getElementById("reviewEventName");
   const reviewSeason = document.getElementById("reviewSeason");
   const reviewSetupFile = document.getElementById("reviewSetupFile");
-  const reviewDeviceName = document.getElementById("reviewDeviceName");
+  const reviewDeviceId = document.getElementById("reviewDeviceId");
   const reviewDataAction = document.getElementById("reviewDataAction");
-
-  let conflictRequestId = 0;
-  let conflictDebounceTimer = null;
 
   function stepTitle(stepEl) {
     const heading = stepEl ? stepEl.querySelector(".setup-step-title") : null;
@@ -46,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const focusTarget = stepEl.querySelector(
-      "input:not([type='hidden']), button:not([disabled]), select, textarea"
+      "input:not([type='hidden']):not([disabled]), button:not([disabled]), select, textarea"
     );
     if (focusTarget) {
       focusTarget.focus();
@@ -57,19 +51,28 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!reviewEventName) {
       return;
     }
-    const seasonInput = form ? form.querySelector("input[name='season']") : null;
-    const checkedDataAction = form ? form.querySelector("input[name='data_action']:checked") : null;
 
-    reviewEventName.textContent = eventNameInput && eventNameInput.value.trim() ? eventNameInput.value.trim() : "-";
-    reviewSeason.textContent = seasonInput && seasonInput.value.trim() ? seasonInput.value.trim() : "-";
+    const seasonInput = form ? form.querySelector("input[name='season']") : null;
+    const checkedDataAction = form
+      ? form.querySelector("input[name='data_action']:checked")
+      : null;
+
+    reviewEventName.textContent =
+      eventNameInput && eventNameInput.value.trim() ? eventNameInput.value.trim() : "-";
+    reviewSeason.textContent =
+      seasonInput && seasonInput.value.trim() ? seasonInput.value.trim() : "-";
     reviewSetupFile.textContent =
       setupFileInput && setupFileInput.files && setupFileInput.files[0]
         ? setupFileInput.files[0].name
         : "None selected";
-    reviewDeviceName.textContent = deviceInput && deviceInput.value.trim() ? deviceInput.value.trim() : "-";
-    reviewDataAction.textContent = checkedDataAction && checkedDataAction.value === "reset"
-      ? "Start fresh (clears all local data on this device)"
-      : "Keep existing data";
+    reviewDeviceId.textContent =
+      deviceIdPreview && deviceIdPreview.textContent.trim()
+        ? deviceIdPreview.textContent.trim()
+        : "-";
+    reviewDataAction.textContent =
+      checkedDataAction && checkedDataAction.value === "reset"
+        ? "Start fresh (clears all local data on this device)"
+        : "Keep existing data";
   }
 
   function validateStep(currentStep) {
@@ -80,15 +83,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return false;
       }
     }
-
-    if (currentStep === 2 && deviceInput) {
-      if (!deviceInput.value.trim()) {
-        deviceInput.reportValidity();
-        deviceInput.focus();
-        return false;
-      }
-    }
-
     return true;
   }
 
@@ -96,6 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (newStep < 1 || newStep > totalSteps) {
       return;
     }
+
     step = newStep;
     let activeStepEl = null;
 
@@ -129,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     announceStep(activeStepEl);
     focusStep(activeStepEl);
+    console.debug("[SetupWizard] Showing step", step);
   }
 
   prevBtn.addEventListener("click", () => showStep(step - 1));
@@ -139,101 +135,38 @@ document.addEventListener("DOMContentLoaded", () => {
     showStep(step + 1);
   });
 
-  document.querySelectorAll(".quick-name").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      deviceInput.value = btn.getAttribute("data-name");
-      scheduleDeviceCheck();
-    });
-  });
-
-  async function checkDeviceName(requestId) {
-    if (dataReset && dataReset.checked) {
-      deviceConflict.classList.add("d-none");
-      deviceSuggestions.textContent = "";
-      return;
-    }
-    const name = deviceInput.value.trim();
-    if (!name) {
-      deviceConflict.classList.add("d-none");
-      return;
-    }
-    try {
-      const response = await fetch("/api/check-device-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = await response.json();
-
-      if (requestId !== conflictRequestId) {
-        return;
-      }
-
-      deviceConflict.classList.toggle("d-none", !data.conflict);
-      if (data.suggestions && data.suggestions.length) {
-        deviceSuggestions.textContent = "Suggestions: " + data.suggestions.join(", ");
-      } else {
-        deviceSuggestions.textContent = "";
-      }
-    } catch (_err) {
-      if (requestId !== conflictRequestId) {
-        return;
-      }
-      deviceConflict.classList.add("d-none");
-      deviceSuggestions.textContent = "";
-    }
-  }
-
-  function scheduleDeviceCheck() {
-    if (conflictDebounceTimer) {
-      window.clearTimeout(conflictDebounceTimer);
-    }
-    conflictDebounceTimer = window.setTimeout(() => {
-      conflictRequestId += 1;
-      checkDeviceName(conflictRequestId);
-    }, 250);
-  }
-
   if (eventNameInput) {
     eventNameInput.addEventListener("input", updateReview);
   }
-  if (deviceInput) {
-    deviceInput.addEventListener("input", () => {
-      updateReview();
-      scheduleDeviceCheck();
-    });
-  }
+
   if (setupFileInput) {
     setupFileInput.addEventListener("change", () => {
       updateReview();
       updateFileDisplay();
+      if (setupFileInput.files && setupFileInput.files[0]) {
+        console.debug("[SetupWizard] Setup file selected", setupFileInput.files[0].name);
+      }
     });
   }
+
   if (dataKeep) {
-    dataKeep.addEventListener("change", () => {
-      updateReview();
-      scheduleDeviceCheck();
-    });
+    dataKeep.addEventListener("change", updateReview);
   }
+
   if (dataReset) {
-    dataReset.addEventListener("change", () => {
-      updateReview();
-      scheduleDeviceCheck();
-    });
+    dataReset.addEventListener("change", updateReview);
   }
 
   if (form) {
     form.addEventListener("submit", (event) => {
       if (event.submitter && event.submitter.name === "skip_setup") {
+        console.debug("[SetupWizard] Skip setup submitted");
         return;
       }
-      if (!validateStep(1) || !validateStep(2)) {
+
+      if (!validateStep(1)) {
         event.preventDefault();
-        if (!validateStep(1)) {
-          showStep(1);
-        } else {
-          showStep(2);
-        }
+        showStep(1);
       }
     });
   }
@@ -244,6 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!setupFileInput || !placeholder || !selected) {
       return;
     }
+
     if (setupFileInput.files && setupFileInput.files[0]) {
       placeholder.classList.add("d-none");
       selected.classList.remove("d-none");
@@ -258,4 +192,35 @@ document.addEventListener("DOMContentLoaded", () => {
   updateFileDisplay();
   updateReview();
   showStep(step);
+  
+  // Device ID copy functionality
+  const copyBtnWizard = document.querySelector(".device-id-copy-btn-wizard");
+  if (copyBtnWizard) {
+    copyBtnWizard.addEventListener("click", async () => {
+      const idToCopy = copyBtnWizard.getAttribute("data-device-id") || "";
+      if (!idToCopy || idToCopy === "Generating...") {
+        return;
+      }
+      
+      try {
+        await navigator.clipboard.writeText(idToCopy);
+        copyBtnWizard.classList.add("copied");
+        copyBtnWizard.setAttribute("title", "Copied!");
+        setTimeout(() => {
+          copyBtnWizard.classList.remove("copied");
+          copyBtnWizard.setAttribute("title", "Copy full device ID");
+        }, 2000);
+      } catch (error) {
+        console.error("[SetupWizard] Failed to copy device ID:", error);
+      }
+    });
+  }
+  
+  const deviceIdPreviewEl = document.getElementById("deviceIdPreview");
+  if (deviceIdPreviewEl) {
+    const fullId = deviceIdPreviewEl.getAttribute("data-full-id") || "";
+    if (fullId && fullId !== "Generating...") {
+      deviceIdPreviewEl.setAttribute("title", fullId);
+    }
+  }
 });

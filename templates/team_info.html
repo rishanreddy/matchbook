@@ -64,6 +64,7 @@
     <div class="card mb-4">
       <div class="card-body">
         <h2 class="h5">Performance Overview</h2>
+        <p class="small text-muted-app mb-3">Radar scores are normalized against the best observed team average (0-100).</p>
         <div class="mx-auto" style="max-width: 520px; max-height: 520px;">
           <canvas id="radar-chart"></canvas>
         </div>
@@ -80,15 +81,15 @@
           <table id="teamMatchesTable" class="table table-dark table-striped align-middle" role="table">
             <thead>
               <tr>
-                {% if team_data.matches %}
-                  {% for key in team_data.matches[0].keys() %}
+                {% if team_matches_display %}
+                  {% for key in team_matches_display[0].keys() %}
                   <th scope="col">{{ key.replace('_', ' ').title() }}</th>
                   {% endfor %}
                 {% endif %}
               </tr>
             </thead>
             <tbody>
-              {% for match in team_data.matches %}
+              {% for match in team_matches_display %}
               <tr>
                 {% for value in match.values() %}
                 <td>{{ value }}</td>
@@ -107,10 +108,15 @@
 {% block extra_scripts %}
 <script>
   window.teamInfoData = {
+    teamNumber: {{ team_data.team_number | tojson }},
     showTrends: {{ show_trends | tojson }},
     matches: {{ team_data.matches | tojson }},
+    choiceLabelMaps: {{ choice_label_maps | tojson }},
+    choiceDisplayEntries: {{ choice_display_entries | tojson }},
+    fieldTypes: {{ field_types | tojson }},
     graphFields: {{ graph_fields | tojson }},
     showRadar: {{ show_radar | tojson }},
+    radarDataByField: {{ radar_data | tojson }},
     radarDataValues: {{ radar_data.values() | list | tojson }}
   };
 </script>

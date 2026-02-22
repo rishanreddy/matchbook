@@ -2,6 +2,8 @@
 
 import csv
 import datetime
+import logging
+import re
 
 from .constants import CSV_FILE
 from .config import (
@@ -11,6 +13,8 @@ from .config import (
     get_survey_field_names,
 )
 from .formatting import format_timestamp
+
+logger = logging.getLogger(__name__)
 
 
 def get_csv_header(survey_json):
@@ -50,6 +54,9 @@ def ensure_csv_header(survey_json):
     with CSV_FILE.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(header)
+    logger.info(
+        "[CSV] Initialized file with header (%s columns): %s", len(header), CSV_FILE
+    )
 
 
 def cast_value(element, raw_value: str) -> str:
@@ -86,6 +93,46 @@ def cast_value(element, raw_value: str) -> str:
     return raw_value
 
 
+def parse_numeric_value(raw_value) -> float | None:
+    """Parse numeric-like values from strings and primitive values.
+
+    Handles plain numerics ("12", "4.5") and embedded numerics ("Level 3").
+    Returns None when no numeric meaning can be inferred.
+    """
+    if raw_value is None:
+        return None
+
+    if isinstance(raw_value, bool):
+        return 1.0 if raw_value else 0.0
+
+    if isinstance(raw_value, (int, float)):
+        return float(raw_value)
+
+    text = str(raw_value).strip()
+    if not text:
+        return None
+
+    try:
+        return float(text)
+    except ValueError:
+        pass
+
+    lowered = text.lower()
+    if lowered in {"yes", "y", "true", "pass", "complete", "completed"}:
+        return 1.0
+    if lowered in {"no", "n", "false", "fail", "failed", "incomplete"}:
+        return 0.0
+
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if match:
+        try:
+            return float(match.group(0))
+        except ValueError:
+            return None
+
+    return None
+
+
 def append_row(device_cfg, event_cfg, survey_json, form_data):
     """Append a new scouting entry to the CSV file.
 
@@ -102,7 +149,7 @@ def append_row(device_cfg, event_cfg, survey_json, form_data):
 
     timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     config_id, event_name, event_season = get_event_ids(event_cfg)
-    device_id, device_name = get_device(device_cfg)
+    device_id = get_device(device_cfg)
 
     row = {
         "timestamp": timestamp,
@@ -110,7 +157,8 @@ def append_row(device_cfg, event_cfg, survey_json, form_data):
         "event_season": event_season,
         "config_id": config_id,
         "device_id": device_id,
-        "device_name": device_name or "",
+        # Keep legacy column for compatibility with historical CSV imports.
+        "device_name": device_id,
     }
 
     for element in collect_survey_elements(survey_json or {}):
@@ -124,6 +172,14 @@ def append_row(device_cfg, event_cfg, survey_json, form_data):
     with CSV_FILE.open("a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writerow(row)
+
+    logger.info(
+        "[CSV] Appended row: event=%s season=%s device_id=%s fields=%s",
+        event_name,
+        event_season,
+        device_id,
+        len(header),
+    )
 
 
 def get_stats():
@@ -159,6 +215,12 @@ def load_all_rows():
     """
     if not CSV_FILE.exists():
         return []
-    with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        return list(reader)
+    try:
+        with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            logger.debug("[CSV] Loaded %s rows from %s", len(rows), CSV_FILE)
+            return rows
+    except Exception as exc:
+        logger.warning("[CSV] Failed to load rows from %s: %s", CSV_FILE, exc)
+        return []

@@ -4,11 +4,14 @@ import requests
 from packaging import version
 import logging
 import sys
+import time
 import tomllib
 from importlib import metadata
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+NETWORK_RETRIES = 3
+NETWORK_BACKOFF_SECONDS = 0.75
 
 
 def _read_version_from_pyproject() -> str:
@@ -68,8 +71,27 @@ def check_for_updates():
     }
 
     try:
-        # Make request to GitHub API with timeout
-        response = requests.get(RELEASES_URL, timeout=5)
+        response = None
+        last_error = None
+        for attempt in range(1, NETWORK_RETRIES + 1):
+            try:
+                response = requests.get(RELEASES_URL, timeout=5)
+                break
+            except requests.RequestException as exc:
+                last_error = exc
+                logger.warning(
+                    "Version check attempt %s/%s failed: %s",
+                    attempt,
+                    NETWORK_RETRIES,
+                    exc,
+                )
+                if attempt < NETWORK_RETRIES:
+                    time.sleep(NETWORK_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+
+        if response is None:
+            if last_error is not None:
+                raise last_error
+            raise requests.RequestException("Unknown network error")
 
         if response.status_code == 200:
             releases = response.json()
@@ -91,6 +113,11 @@ def check_for_updates():
                             CURRENT_VERSION
                         ):
                             result["update_available"] = True
+                            logger.info(
+                                "Update available: current=%s latest=%s",
+                                CURRENT_VERSION,
+                                latest_version,
+                            )
                     except Exception as e:
                         logger.warning(f"Could not parse version numbers: {e}")
             else:

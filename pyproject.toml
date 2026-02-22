@@ -1,6 +1,6 @@
 [project]
 name = "offline-scouting-manager"
-version = "0.1.8"
+version = "0.1.9"
 description = "A Flask-based application for managing offline scouting data and operations for robotics outreach teams"
 readme = "README.md"
 requires-python = ">=3.12"

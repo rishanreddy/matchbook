@@ -41,5 +41,78 @@ CSV_FILE = DATA_DIR / "scouting_data.csv"
 SECRET_FILE = CONFIG_DIR / "secret.key"
 APP_STATE_FILE = CONFIG_DIR / "app_state.json"
 
-# Required field names that must exist in config
-REQUIRED_FIELDS = ["team", "auto_score", "teleop_score"]
+# Single source of truth for system scouting fields.
+SYSTEM_FIELD_SPECS = [
+    {
+        "name": "match",
+        "label": "Match #",
+        "aliases": ["match", "match_number"],
+        "type": "text",
+        "inputType": "number",
+        "isRequired": True,
+        "required_in_schema": True,
+        "strict_required": False,
+    },
+    {
+        "name": "team",
+        "label": "Team Number",
+        "aliases": ["team", "team_number"],
+        "type": "text",
+        "inputType": "number",
+        "isRequired": True,
+        "required_in_schema": True,
+        "strict_required": True,
+    },
+    {
+        "name": "alliance_color",
+        "label": "Alliance Color",
+        "aliases": ["alliance_color", "alliance"],
+        "type": "dropdown",
+        "isRequired": True,
+        "choices": ["Red", "Blue"],
+        "required_in_schema": True,
+        "strict_required": False,
+    },
+    {
+        "name": "auto_score",
+        "label": "Auto Score",
+        "aliases": ["auto_score", "auto"],
+        "type": "text",
+        "inputType": "number",
+        "isRequired": True,
+        "required_in_schema": True,
+        "strict_required": True,
+    },
+    {
+        "name": "teleop_score",
+        "label": "Teleop Score",
+        "aliases": ["teleop_score", "teleop", "tele_op_score"],
+        "type": "text",
+        "inputType": "number",
+        "isRequired": True,
+        "required_in_schema": True,
+        "strict_required": True,
+    },
+]
+
+SYSTEM_FIELD_DEFAULTS = [
+    {
+        key: value
+        for key, value in spec.items()
+        if key in {"type", "name", "label", "inputType", "isRequired", "choices"}
+    }
+    for spec in SYSTEM_FIELD_SPECS
+]
+for field in SYSTEM_FIELD_DEFAULTS:
+    field["title"] = field.pop("label")
+
+REQUIRED_SURVEY_FIELD_GROUPS = [
+    {"label": spec["label"], "aliases": spec["aliases"]}
+    for spec in SYSTEM_FIELD_SPECS
+    if spec.get("required_in_schema")
+]
+
+# Required field names that must exist in config and submit payload.
+REQUIRED_FIELDS = [
+    spec["name"] for spec in SYSTEM_FIELD_SPECS if spec.get("strict_required")
+]

@@ -1,107 +1,329 @@
 device:
-  name: Scout 1
+  uniqueId: osm_did_v2_dzeiwf6sz6e5r66o5agmyuuwmy
 event:
   name: Rebuilt
   season: 2025-2026
 analysis:
   graph_fields:
+  - field: match
+    enabled: false
+    chart_type: bar
   - field: team
-    chart_type: line
+    enabled: true
+    chart_type: pie
+  - field: alliance_color
+    enabled: true
+    chart_type: pie
   - field: auto_score
+    enabled: true
     chart_type: line
   - field: teleop_score
+    enabled: true
+    chart_type: bar
+  - field: notes
+    enabled: false
     chart_type: bar
   matches_per_page: 25
 survey_json:
+  title: FRC 2026  Scouting
+  description: Designed for the REBUILT  season
   pages:
-  - name: page1
+  - name: pre_match
     elements:
     - type: text
       name: match
       title: 'Match #'
       isRequired: true
+      validators:
+      - type: numeric
+        minValue: 1
+        maxValue: 200
       inputType: number
     - type: text
       name: team
-      startWithNewLine: false
       title: Team Number
       isRequired: true
+      validators:
+      - type: numeric
+        minValue: 1
+        maxValue: 99999
       inputType: number
-    - type: text
-      name: scout_name
-      title: Scout name
-      isRequired: true
     - type: dropdown
       name: alliance_color
       title: Alliance Color
       isRequired: true
       choices:
-      - Red
-      - Blue
+      - value: red
+        text: Red
+      - value: blue
+        text: Blue
+    - type: boolean
+      name: robot_showed_up
+      title: Robot Present and Enabled?
+      isRequired: true
+      labelTrue: 'Yes'
+      labelFalse: 'No'
+      valueTrue: 'yes'
+      valueFalse: 'no'
+    - type: expression
+      name: status_note
+      title: Status
+      expression: iif({robot_showed_up} = 'no', 'Robot unavailable - continue for
+        notes only', 'Robot active')
+    title: Pre-Match
+  - name: auto
+    elements:
     - type: text
       name: auto_score
-      visibleIf: '{alliance_color} = ''Red'''
-      title: Auto score
+      title: Auto Score
       isRequired: true
+      validators:
+      - type: numeric
+        minValue: 0
+        maxValue: 200
       inputType: number
+    - type: slider
+      name: auto_fuel_scored
+      title: Auto Fuel Scored
+      defaultValue: 0
+      max: 40
+    - type: boolean
+      name: auto_leave
+      title: Left Starting Zone?
+      labelTrue: 'Yes'
+      labelFalse: 'No'
+      valueTrue: 'yes'
+      valueFalse: 'no'
+    - type: boolean
+      name: auto_level1_climb
+      title: Auto Level 1 Climb Achieved?
+      labelTrue: 'Yes'
+      labelFalse: 'No'
+      valueTrue: 'yes'
+      valueFalse: 'no'
+    - type: rating
+      name: auto_consistency
+      title: Auto Consistency
+      autoGenerate: false
+      rateValues:
+      - value: 1
+        text: 1 - never consistent
+      - value: 2
+        text: 2 - low consistency
+      - value: 3
+        text: 3 - average consistency
+      - value: 4
+        text: 4 - usually consistent
+      - value: 5
+        text: 5 - very consistent
+    title: Autonomous (0:20)
+  - name: teleop
+    elements:
     - type: text
       name: teleop_score
-      title: Tele-op score
+      title: Tele-op Score
       isRequired: true
+      validators:
+      - type: numeric
+        minValue: 0
+        maxValue: 300
       inputType: number
+    - type: slider
+      name: teleop_fuel_scored_active
+      title: Teleop Fuel Scored While Hub Active
+      defaultValue: 0
+      max: 120
+    - type: slider
+      name: teleop_fuel_attempted_active
+      title: Teleop Fuel Attempted While Hub Active
+      defaultValue: 0
+      max: 140
+    - type: slider
+      name: teleop_fuel_scored_inactive
+      title: Fuel Scored During Inactive Hub Windows
+      description: Tracks wasted cycles during alternating hub windows.
+      defaultValue: 0
+      max: 60
     - type: rating
-      name: fuel_accuracy
-      title: Fuel Accuracy
-      isRequired: true
+      name: shift_awareness
+      title: Shift Awareness
+      description: How well did they adapt to active/inactive hub windows?
       autoGenerate: false
-      rateCount: 3
       rateValues:
       - value: 1
-        text: Low
+        text: 1 - ignored shifts
       - value: 2
-        text: Medium
+        text: 2 - late adaptation
       - value: 3
-        text: High
-    - type: rating
-      name: defense
-      title: Defense
-      isRequired: true
-      rateType: stars
-      autoGenerate: false
-      rateValues:
-      - value: 1
-        text: Low
-      - value: 2
-        text: Medium
-      - value: 3
-        text: High
-      - 4
-      - 5
-    - type: dropdown
-      name: overall_role
-      title: Overall Role
-      isRequired: true
-      choices:
-      - value: 1
-        text: Primary Scorer
-      - value: 2
-        text: Secondary Scorer
-      - value: 3
-        text: Support Bot
+        text: 3 - mixed adaptation
       - value: 4
-        text: Defender
+        text: 4 - good adaptation
+      - value: 5
+        text: 5 - excellent adaptation
     - type: dropdown
-      name: endgame
-      title: Endgame status
+      name: primary_role
+      title: Primary Role
       isRequired: true
       choices:
-      - Failed
-      - Partial
-      - Complete
-    - type: text
-      name: endgame_strat
-      title: Endgame Strat
+      - value: cycle_scorer
+        text: Cycle Scorer
+      - value: hybrid
+        text: Hybrid
+      - value: defense
+        text: Defense
+      - value: climb_specialist
+        text: Climb Specialist
+    - type: tagbox
+      name: teleop_strengths
+      title: Observed Strengths
+      choices:
+      - value: fast_cycles
+        text: Fast cycles
+      - value: smart_retarget
+        text: Smart hub retargeting
+      - value: clean_pickups
+        text: Clean pickups
+      - value: traffic_navigation
+        text: Good traffic navigation
+      - value: defense_break
+        text: Escapes defense pressure
+      maxSelectedChoices: 4
+    title: Teleop + Shift Awareness
+  - name: endgame_and_risk
+    elements:
+    - type: dropdown
+      name: endgame_result
+      title: Endgame Result
       isRequired: true
+      choices:
+      - value: none
+        text: No climb
+      - value: l1
+        text: Level 1
+      - value: l2
+        text: Level 2
+      - value: l3
+        text: Level 3
+      - value: failed
+        text: Attempted but failed
+    - type: rating
+      name: climb_reliability
+      visibleIf: '{endgame_result} != ''none'''
+      title: Climb Reliability
+      requiredIf: '{endgame_result} != ''none'' and {endgame_result} != ''failed'''
+      autoGenerate: false
+      rateValues:
+      - value: 1
+        text: 1 - rarely successful
+      - value: 2
+        text: 2 - low reliability
+      - value: 3
+        text: 3 - moderate reliability
+      - value: 4
+        text: 4 - reliable
+      - value: 5
+        text: 5 - highly reliable
+    - type: slider
+      name: climb_start_time_left
+      visibleIf: '{endgame_result} != ''none'''
+      title: Seconds Left When Climb Started
+      defaultValue: 0
+      max: 30
+    - type: matrix
+      name: driver_eval
+      title: Driver Evaluation
+      columns:
+      - value: 1
+        text: Poor
+      - value: 2
+        text: Fair
+      - value: 3
+        text: Good
+      - value: 4
+        text: Great
+      rows:
+      - value: pathing
+        text: Pathing
+      - value: decision_making
+        text: Decision making
+      - value: under_pressure
+        text: Under pressure
+      eachRowRequired: true
+    - type: paneldynamic
+      name: penalties
+      title: Penalties / Incidents
+      templateElements:
+      - type: dropdown
+        name: incident_type
+        title: Incident Type
+        choices:
+        - value: minor
+          text: Minor foul
+        - value: major
+          text: Major foul
+        - value: yellow
+          text: Yellow card
+        - value: red
+          text: Red card
+        - value: damage_risk
+          text: Dangerous contact
+      - type: comment
+        name: incident_note
+        title: Details
+        rows: 2
+      templateTitle: 'Incident #{panelIndex}'
+      maxPanelCount: 8
+    - type: expression
+      name: fuel_efficiency_est
+      title: Approx Active Fuel Efficiency
+      expression: iif({teleop_fuel_attempted_active} > 0, round(({teleop_fuel_scored_active}
+        / {teleop_fuel_attempted_active}) * 100), 0)
+    title: Endgame + Risk
+  - name: post_match
+    elements:
+    - type: dropdown
+      name: playoff_fit_role
+      title: Playoff Fit Role
+      isRequired: true
+      choices:
+      - value: primary_scorer
+        text: Primary scorer
+      - value: secondary_scorer
+        text: Secondary scorer
+      - value: utility
+        text: Utility/hybrid
+      - value: defense_specialist
+        text: Defense specialist
+      - value: climb_closer
+        text: Endgame closer
+    - type: rating
+      name: overall_impact
+      title: Overall Match Impact
+      isRequired: true
+      rateCount: 10
+      rateMax: 10
+    - type: ranking
+      name: top_pick_traits
+      title: Rank Top Pick Traits
+      choices:
+      - value: fuel_rate
+        text: Fuel throughput
+      - value: shift_awareness
+        text: Shift awareness
+      - value: climb_reliability
+        text: Climb reliability
+      - value: low_foul_risk
+        text: Low foul risk
+      - value: driver_quality
+        text: Driver quality
     - type: comment
       name: notes
-      title: Notes
+      title: Scout Notes
+      maxLength: 1200
+      rows: 6
+      placeholder: What would matter for alliance selection and playoff strategy?
+    title: Post-Match Summary
+  showProgressBar: true
+  progressBarLocation: top
+  clearInvisibleValues: onHiddenContainer
+  checkErrorsMode: onValueChanged

@@ -60,7 +60,6 @@ jobs:
         with:
           files: |
             dist/OfflineScoutingManager-${{ steps.resolve_tag.outputs.release_tag }}.exe
-            dist/install_windows.bat
           tag_name: ${{ steps.resolve_tag.outputs.release_tag }}
           fail_on_unmatched_files: true
           draft: false

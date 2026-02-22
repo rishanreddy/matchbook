@@ -87,23 +87,29 @@
 
           <!-- Step 2 -->
           <div class="wizard-step d-none" data-step="2">
-            <h2 class="h5 setup-step-title">Device Identity and Data Actions</h2>
-            <p class="small text-muted-app">Set a unique device name, then choose how local scouting data should be handled.</p>
+            <h2 class="h5 setup-step-title">Device ID and Data Actions</h2>
+            <p class="small text-muted-app">Your device ID is generated automatically and stays stable across app restarts and data clears.</p>
 
-            <div class="d-flex flex-wrap gap-2 mb-3">
-              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 1">Scout 1</button>
-              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 2">Scout 2</button>
-              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 3">Scout 3</button>
-              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Scout 4">Scout 4</button>
-              <button type="button" class="btn btn-outline-primary btn-sm quick-name" data-name="Pit Scout">Pit Scout</button>
+            <div class="card bg-app-surface-2 border-app mb-3">
+              <div class="card-body p-3">
+                <div class="small text-muted-app mb-1">Auto-generated Device ID</div>
+                <div class="device-id-preview-wrapper">
+                  <code class="device-id-preview" id="deviceIdPreview" data-full-id="{{ device_id_preview if device_id_preview else 'Generating...' }}">{{ format_device_id(device_id_preview) if device_id_preview else 'Generating...' }}</code>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-link device-id-copy-btn-wizard"
+                    title="Copy full device ID"
+                    aria-label="Copy full device ID to clipboard"
+                    data-device-id="{{ device_id_preview if device_id_preview else '' }}"
+                  >
+                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                      <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
-
-            <label class="form-label">Device Name</label>
-            <input type="text" name="device_name" id="deviceNameInput" class="form-control" placeholder="e.g., Scout 1" required>
-            <div id="deviceConflict" class="small text-warning mt-2 d-none" role="status" aria-live="polite">
-              This name already exists in your data. Consider using a different name.
-            </div>
-            <div id="deviceSuggestions" class="small text-muted-app mt-1" aria-live="polite"></div>
 
             <div class="mt-4">
               <label class="form-label">Data for this version</label>
@@ -139,8 +145,8 @@
                   <dd class="col-7 mb-2" id="reviewSeason">-</dd>
                   <dt class="col-5 text-muted-app">Setup File</dt>
                   <dd class="col-7 mb-2" id="reviewSetupFile">None selected</dd>
-                  <dt class="col-5 text-muted-app">Device Name</dt>
-                  <dd class="col-7 mb-2" id="reviewDeviceName">-</dd>
+                  <dt class="col-5 text-muted-app">Device ID</dt>
+                  <dd class="col-7 mb-2" id="reviewDeviceId">{{ format_device_id(device_id_preview) if device_id_preview else '-' }}</dd>
                   <dt class="col-5 text-muted-app">Data Action</dt>
                   <dd class="col-7 mb-0" id="reviewDataAction">Keep existing data</dd>
                 </dl>

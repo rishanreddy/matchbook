@@ -22,9 +22,10 @@
       <div>
         <h1 class="h6 mb-0">Survey Form Builder</h1>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <span id="saveStatus" class="save-status is-saved" role="status" aria-live="polite">Saved</span>
         <a href="{{ url_for('settings') }}" class="btn btn-outline-secondary btn-sm">Back to Settings</a>
-        <button type="button" id="graphSettingsBtn" class="btn btn-outline-primary btn-sm">Graph Settings</button>
+        <button type="button" id="propertyPanelToggleBtn" class="btn btn-outline-secondary btn-sm" aria-pressed="false">Show Properties</button>
         <button type="button" id="saveFormBtn" class="btn btn-primary btn-sm">Save Form</button>
       </div>
     </div>
@@ -43,37 +44,7 @@
 
   <form method="post" action="{{ url_for('form_builder') }}" id="formBuilderForm" class="d-none">
     <input type="hidden" name="survey_json" id="surveyJsonInput" value="{{ survey_json_str | e }}">
-    <input type="hidden" name="graph_config_json" id="graphConfigInput" value="{{ graph_config_json | e }}">
   </form>
-
-  <div class="modal fade" id="graphSettingsModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Graph Mapping</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p class="small text-muted-app">Choose which fields appear in analysis graphs and the chart type for each.</p>
-          <div class="table-responsive">
-            <table class="table table-striped table-hover table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Field</th>
-                  <th style="width: 120px;">Graph?</th>
-                  <th style="width: 180px;">Chart Type</th>
-                </tr>
-              </thead>
-              <tbody id="graphConfigBody"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <details id="jsonFallbackPanel" class="m-3 d-none">
     <summary class="small text-muted-app">Fallback JSON editor</summary>
@@ -92,6 +63,8 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<script id="requiredFieldGroupsData" type="application/json">{{ required_field_groups | tojson | safe }}</script>
+<script id="strictRequiredFieldsData" type="application/json">{{ strict_required_fields | tojson | safe }}</script>
 <script src="{{ url_for('static', filename='js/form_builder.js') }}"></script>
 <style>
   .form-builder-shell {
@@ -116,6 +89,36 @@
   #surveyCreatorHost {
     width: 100%;
     height: 100%;
+  }
+
+  .save-status {
+    font-size: 0.78rem;
+    line-height: 1;
+    padding: 0.32rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--app-border);
+    color: var(--app-muted);
+    background: var(--app-surface-2);
+  }
+
+  .save-status.is-unsaved {
+    color: #f0ad4e;
+    border-color: rgba(240, 173, 78, 0.45);
+  }
+
+  .save-status.is-saving {
+    color: #6ea8fe;
+    border-color: rgba(110, 168, 254, 0.45);
+  }
+
+  .save-status.is-saved {
+    color: #75b798;
+    border-color: rgba(117, 183, 152, 0.45);
+  }
+
+  .save-status.is-error {
+    color: #ea868f;
+    border-color: rgba(234, 134, 143, 0.45);
   }
 
   /* SurveyJS Creator Core Elements - Dark Theme */
@@ -319,6 +322,77 @@
     border-color: var(--app-border) !important;
   }
 
+  #surveyCreatorHost .svc-json-editor-tab textarea,
+  #surveyCreatorHost .svc-json-editor-tab pre,
+  #surveyCreatorHost .svc-json-editor-tab code,
+  #jsonFallbackPanel #surveyJsonEditor {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+    font-size: 13px !important;
+    line-height: 1.55 !important;
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab textarea {
+    background-color: var(--app-surface-2) !important;
+    caret-color: var(--app-text) !important;
+    opacity: 1 !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-code,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-lines,
+  #surveyCreatorHost .svc-json-editor-tab .cm-editor,
+  #surveyCreatorHost .svc-json-editor-tab .cm-scroller,
+  #surveyCreatorHost .svc-json-editor-tab .cm-content,
+  #surveyCreatorHost .svc-json-editor-tab .monaco-editor,
+  #surveyCreatorHost .svc-json-editor-tab .monaco-editor .view-lines,
+  #surveyCreatorHost .svc-json-editor-tab .ace_editor,
+  #surveyCreatorHost .svc-json-editor-tab .ace_content,
+  #surveyCreatorHost .svc-json-editor-tab .ace_text-layer {
+    background-color: var(--app-surface-2) !important;
+    color: var(--app-text) !important;
+    opacity: 1 !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-line,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-linenumber,
+  #surveyCreatorHost .svc-json-editor-tab .cm-line,
+  #surveyCreatorHost .svc-json-editor-tab .cm-gutters,
+  #surveyCreatorHost .svc-json-editor-tab .cm-activeLine,
+  #surveyCreatorHost .svc-json-editor-tab .cm-activeLineGutter,
+  #surveyCreatorHost .svc-json-editor-tab .monaco-editor .mtk1,
+  #surveyCreatorHost .svc-json-editor-tab .ace_line,
+  #surveyCreatorHost .svc-json-editor-tab .ace_gutter-cell {
+    color: var(--app-text) !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab .svc-json-editor-tab__content-area,
+  #surveyCreatorHost .svc-json-editor-tab .svc-json-editor-tab__content-area * {
+    opacity: 1 !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab .ace_string,
+  #surveyCreatorHost .svc-json-editor-tab .cm-string,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-string {
+    color: #a5d6a7 !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab .ace_variable,
+  #surveyCreatorHost .svc-json-editor-tab .ace_property,
+  #surveyCreatorHost .svc-json-editor-tab .cm-property,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-property {
+    color: #90caf9 !important;
+  }
+
+  #surveyCreatorHost .svc-json-editor-tab .ace_constant.ace_numeric,
+  #surveyCreatorHost .svc-json-editor-tab .ace_constant.ace_language.ace_boolean,
+  #surveyCreatorHost .svc-json-editor-tab .cm-number,
+  #surveyCreatorHost .svc-json-editor-tab .cm-atom,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-number,
+  #surveyCreatorHost .svc-json-editor-tab .CodeMirror-atom {
+    color: #ffab91 !important;
+  }
+
   /* Scrollbars in creator */
   #surveyCreatorHost ::-webkit-scrollbar {
     width: 12px;
@@ -336,11 +410,6 @@
 
   #surveyCreatorHost ::-webkit-scrollbar-thumb:hover {
     background: var(--app-border-hover);
-  }
-
-  /* Remove any conflicting light theme defaults */
-  #surveyCreatorHost * {
-    border-color: var(--app-border);
   }
 
   /* Panel headers */

@@ -629,12 +629,18 @@ body {
 /* 4. Table Improvements */
 .table-responsive {
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-sm);
+  /* Ensure container doesn't break card layout */
+  max-width: 100%;
 }
 
 .table {
   margin-bottom: 0;
+  /* Prevent table collapse on narrow screens */
+  min-width: 600px;
+  width: 100%;
 }
 
 .table-dark {
@@ -659,6 +665,8 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  /* Prevent header text wrapping */
+  white-space: nowrap;
 }
 
 .table tbody td {
@@ -666,6 +674,8 @@ body {
   padding: var(--space-4);
   border-top: 1px solid var(--app-border);
   transition: background-color var(--duration-fast) var(--ease-out);
+  /* Prevent cell text wrapping for numeric data */
+  white-space: nowrap;
 }
 
 .table tbody tr:hover {
@@ -699,6 +709,18 @@ canvas {
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   border: 1px solid var(--app-border);
+}
+
+/* Chart fallback notification */
+.chart-fallback-note {
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 2px solid var(--app-accent);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--app-muted);
+  line-height: 1.4;
 }
 
 /* 6. Modal Polish (Bootstrap-first) */
@@ -1114,6 +1136,166 @@ footer {
   .navbar-brand {
     font-size: var(--text-base);
   }
+  
+  /* Enhanced table scroll on mobile */
+  .table-responsive {
+    margin: 0 calc(-1 * var(--space-4));
+    border-radius: 0;
+    padding: 0 var(--space-4);
+  }
+  
+  .table thead th,
+  .table tbody td {
+    padding: var(--space-3);
+    font-size: var(--text-sm);
+  }
+}
+
+/* ============================================
+   DEVICE ID DISPLAY COMPONENTS
+   ============================================ */
+
+/* Device ID input group (Settings page) */
+.device-id-display-group {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.device-id-short {
+  flex: 1;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  background-color: var(--app-surface-3);
+  border: 1px solid var(--app-border);
+  color: var(--app-accent-light);
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+
+.device-id-short:focus {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 3px var(--app-accent-dim);
+  background-color: var(--app-surface-2);
+}
+
+/* Copy and expand buttons */
+.device-id-copy-btn,
+.device-id-expand-btn {
+  flex-shrink: 0;
+  min-width: 44px;
+  padding: var(--space-2) var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-color: var(--app-border);
+  color: var(--app-muted);
+  background-color: var(--app-surface-2);
+  transition: all var(--duration-base) var(--ease-out);
+}
+
+.device-id-copy-btn:hover,
+.device-id-expand-btn:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent-light);
+  background-color: var(--app-surface-3);
+  transform: none;
+}
+
+.device-id-copy-btn:active,
+.device-id-expand-btn:active {
+  transform: scale(0.95);
+}
+
+.device-id-copy-btn.copied {
+  border-color: var(--app-success);
+  color: var(--app-success);
+  background-color: var(--app-success-dim);
+}
+
+.device-id-expand-btn[aria-expanded="true"] .device-id-expand-icon {
+  display: none;
+}
+
+.device-id-expand-btn[aria-expanded="true"] .device-id-collapse-icon {
+  display: inline-block;
+}
+
+/* Device ID preview (Setup Wizard) */
+.device-id-preview-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.device-id-preview {
+  flex: 1;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Courier New', monospace;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  background-color: var(--app-surface-3);
+  border: 1px solid var(--app-border);
+  color: var(--app-accent-light);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  font-weight: 500;
+}
+
+.device-id-copy-btn-wizard {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--app-muted);
+  text-decoration: none;
+  transition: all var(--duration-base) var(--ease-out);
+  min-width: 32px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.device-id-copy-btn-wizard:hover {
+  color: var(--app-accent-light);
+  text-decoration: none;
+  transform: scale(1.1);
+}
+
+.device-id-copy-btn-wizard:active {
+  transform: scale(0.95);
+}
+
+.device-id-copy-btn-wizard.copied {
+  color: var(--app-success);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .device-id-display-group {
+    gap: var(--space-1);
+  }
+  
+  .device-id-short {
+    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-3);
+  }
+  
+  .device-id-copy-btn,
+  .device-id-expand-btn {
+    min-width: 40px;
+    padding: var(--space-2);
+  }
+  
+  .device-id-preview {
+    font-size: var(--text-xs);
+    padding: var(--space-2);
+  }
 }
 
 /* ============================================
@@ -1476,12 +1658,6 @@ footer {
 .setup-review dd {
   color: var(--app-text);
   font-weight: 500;
-}
-
-/* Quick name buttons */
-.quick-name {
-  font-size: var(--text-sm);
-  padding: var(--space-2) var(--space-4);
 }
 
 /* Mobile responsive */

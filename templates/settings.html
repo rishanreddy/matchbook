@@ -26,7 +26,7 @@
       <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
         <div>
           <h2 class="h5 mb-1">Reset Local Data</h2>
-          <p class="small text-muted-app mb-0">Clears scouting data and local setup on this laptop.</p>
+          <p class="small text-muted-app mb-0">Clears scouting data and temp files on this laptop. Device ID is preserved.</p>
         </div>
         <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#resetDataModal">
           Clear local data
@@ -97,22 +97,50 @@
       <!-- Device -->
       <div class="card">
         <div class="card-body">
-          <h2 class="h5">Device</h2>
+          <h2 class="h5">Device Identity</h2>
           <div class="row g-3 mt-1">
             <div class="col-md-6">
-              <label for="device_name" class="form-label">Device Name</label>
-              <input
-                type="text"
-                id="device_name"
-                name="device_name"
-                class="form-control"
-                value="{{ device.name if device else '' }}"
-                placeholder="e.g., Scout 1"
-                required
-                aria-required="true"
-                aria-describedby="device-name-help"
-              />
-              <div id="device-name-help" class="form-text text-muted-app">Use a unique name for each scouting device.</div>
+              <label for="device_id" class="form-label">Device ID</label>
+              <div class="device-id-display-group">
+                <input
+                  type="text"
+                  id="device_id"
+                  class="form-control device-id-short"
+                  value="{{ format_device_id(device_id) if device_id else '' }}"
+                  readonly
+                  aria-describedby="device-id-help"
+                  data-full-id="{{ device_id if device_id else '' }}"
+                  data-short-id="{{ format_device_id(device_id) if device_id else '' }}"
+                />
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary btn-sm device-id-copy-btn"
+                  title="Copy full device ID"
+                  aria-label="Copy full device ID to clipboard"
+                  data-device-id="{{ device_id if device_id else '' }}"
+                >
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                    <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary btn-sm device-id-expand-btn"
+                  title="Show full device ID"
+                  aria-label="Toggle full device ID visibility"
+                  aria-expanded="false"
+                  aria-controls="device_id"
+                >
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" class="device-id-expand-icon">
+                    <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                  </svg>
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" class="device-id-collapse-icon d-none">
+                    <path fill-rule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708l6-6z"/>
+                  </svg>
+                </button>
+              </div>
+              <div id="device-id-help" class="form-text text-muted-app">Auto-generated and stable across restarts and data resets.</div>
             </div>
           </div>
         </div>
@@ -147,10 +175,44 @@
               />
             </div>
           </div>
+          <hr class="my-4" />
+          <h3 class="h6 mb-2">Graph Field Settings</h3>
+          <p class="small text-muted-app mb-3" id="graph-config-help">
+            Choose which survey fields appear in charts and how they render. These settings affect Analysis and Team charts.
+          </p>
+          <input
+            type="hidden"
+            id="graph_config_json"
+            name="graph_config_json"
+            value="{{ graph_config_json if graph_config_json else '' }}"
+          />
+          <div class="table-responsive graph-config-wrap">
+            <table class="table table-sm align-middle mb-0 graph-config-table" aria-describedby="graph-config-help">
+              <thead>
+                <tr>
+                  <th scope="col">Field</th>
+                  <th scope="col">Include</th>
+                  <th scope="col">Chart Type</th>
+                </tr>
+              </thead>
+              <tbody
+                id="graphSettingsRows"
+                data-graph-field-options='{{ (graph_field_options if graph_field_options else []) | tojson | e }}'
+                data-legacy-graph-fields='{{ (analysis.graph_fields if analysis and analysis.graph_fields else []) | tojson | e }}'
+              ></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div class="d-flex justify-content-end">
+      <div class="d-flex flex-wrap align-items-center justify-content-end gap-2">
+        <span
+          id="autosaveStatus"
+          class="small text-muted-app"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >Autosave on</span>
         <button type="submit" class="btn btn-primary">Save Settings</button>
       </div>
     </form>
@@ -163,7 +225,7 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
-            <p>This will delete scouting data and local setup on this laptop.</p>
+            <p>This will delete scouting data and temp sync files on this laptop.</p>
             <p class="small text-muted-app">A backup CSV will be saved in the backups folder.</p>
           </div>
           <div class="modal-footer">
@@ -180,8 +242,316 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<style>
+  .graph-config-wrap {
+    border: 1px solid var(--app-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .graph-config-table {
+    background-color: var(--app-surface-2);
+    color: var(--app-text);
+    border-color: var(--app-border);
+    margin-bottom: 0;
+  }
+
+  .graph-config-table thead th {
+    background-color: var(--app-surface);
+    color: var(--app-text);
+    border-bottom: 1px solid var(--app-border);
+    text-transform: uppercase;
+    font-size: var(--text-xs);
+    letter-spacing: 0.04em;
+  }
+
+  .graph-config-table tbody td {
+    background-color: var(--app-surface-2);
+    color: var(--app-text);
+    border-top: 1px solid var(--app-border);
+  }
+
+  .graph-config-table tbody tr:hover td {
+    background-color: rgba(13, 110, 253, 0.08);
+  }
+
+  .graph-config-table .form-check-input {
+    background-color: var(--app-surface-3);
+    border-color: var(--app-border);
+  }
+
+  .graph-config-table .form-check-input:checked {
+    background-color: var(--app-accent);
+    border-color: var(--app-accent);
+  }
+
+  .graph-config-table .form-select {
+    background-color: var(--app-surface-3);
+    color: var(--app-text);
+    border-color: var(--app-border);
+  }
+
+  .graph-config-table .form-select:disabled {
+    background-color: var(--app-surface-2);
+    color: var(--app-muted-dark);
+    opacity: 1;
+  }
+
+  .graph-config-table .form-select option {
+    background-color: var(--app-surface);
+    color: var(--app-text);
+  }
+</style>
 <script>
   document.addEventListener("DOMContentLoaded", () => {
+    const chartTypes = ["line", "bar", "radar", "pie", "doughnut"];
+
+    const settingsForm = document.getElementById("settingsForm");
+    const autosaveStatus = document.getElementById("autosaveStatus");
+    const graphConfigInput = document.getElementById("graph_config_json");
+    const graphSettingsRows = document.getElementById("graphSettingsRows");
+    const eventNameInput = document.getElementById("event_name");
+    const eventSeasonInput = document.getElementById("event_season");
+    const matchesPerPageInput = document.getElementById("matches_per_page");
+    const graphFieldOptions = JSON.parse(graphSettingsRows?.dataset.graphFieldOptions || "[]");
+    const graphConfigRaw = graphConfigInput ? graphConfigInput.value : "";
+    const legacyGraphFields = JSON.parse(graphSettingsRows?.dataset.legacyGraphFields || "[]");
+
+    let autosaveTimer = null;
+    let suppressAutosave = false;
+
+    const setAutosaveStatus = (state, errorMessage = "") => {
+      if (!autosaveStatus) {
+        return;
+      }
+      if (state === "saving") {
+        autosaveStatus.textContent = "Saving";
+        autosaveStatus.className = "small text-muted-app";
+      } else if (state === "saved") {
+        autosaveStatus.textContent = "Saved";
+        autosaveStatus.className = "small text-success";
+      } else if (state === "error") {
+        autosaveStatus.textContent = errorMessage ? `Error: ${errorMessage}` : "Error";
+        autosaveStatus.className = "small text-danger";
+      } else if (state === "unsaved") {
+        autosaveStatus.textContent = "Unsaved changes";
+        autosaveStatus.className = "small text-warning";
+      } else {
+        autosaveStatus.textContent = "Autosave on";
+        autosaveStatus.className = "small text-muted-app";
+      }
+    };
+
+    const parseExistingGraphConfig = () => {
+      if (!graphConfigRaw) {
+        return [];
+      }
+      try {
+        const parsed = JSON.parse(graphConfigRaw);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_error) {
+        return [];
+      }
+    };
+
+    const buildInitialGraphConfig = () => {
+      const existingConfig = parseExistingGraphConfig();
+      const existingByName = new Map();
+      existingConfig.forEach((item) => {
+        if (item && item.name) {
+          existingByName.set(item.name, item);
+        }
+      });
+      const legacyIncluded = new Set(
+        (Array.isArray(legacyGraphFields) ? legacyGraphFields : [])
+          .map((item) => {
+            if (item && typeof item === "object") {
+              if (item.enabled === false) {
+                return "";
+              }
+              return item.field;
+            }
+            return item;
+          })
+          .filter((value) => typeof value === "string" && value)
+      );
+
+      return graphFieldOptions.map((field) => {
+        const existing = existingByName.get(field.name);
+        const includeFromLegacy = legacyIncluded.has(field.name);
+        const include = existing && typeof existing.include === "boolean"
+          ? existing.include
+          : includeFromLegacy || Boolean(field.enabled_default);
+        const chartType = existing && chartTypes.includes(existing.chart_type)
+          ? existing.chart_type
+          : "bar";
+
+        return {
+          name: field.name,
+          title: field.title || field.name,
+          include,
+          chart_type: chartType,
+        };
+      });
+    };
+
+    const collectGraphConfigFromUI = () => {
+      if (!graphSettingsRows) {
+        return [];
+      }
+
+      const rows = graphSettingsRows.querySelectorAll("tr[data-field-name]");
+      return Array.from(rows).map((row) => {
+        const name = row.getAttribute("data-field-name") || "";
+        const title = row.getAttribute("data-field-title") || name;
+        const includeInput = row.querySelector('input[type="checkbox"]');
+        const chartTypeInput = row.querySelector("select");
+        return {
+          name,
+          title,
+          include: Boolean(includeInput && includeInput.checked),
+          chart_type: chartTypeInput && chartTypes.includes(chartTypeInput.value) ? chartTypeInput.value : "bar",
+        };
+      });
+    };
+
+    const syncGraphConfigInput = () => {
+      if (!graphConfigInput) {
+        return;
+      }
+      const graphConfig = collectGraphConfigFromUI();
+      graphConfigInput.value = JSON.stringify(graphConfig);
+    };
+
+    const renderGraphConfigRows = () => {
+      if (!graphSettingsRows) {
+        return;
+      }
+
+      const initialConfig = buildInitialGraphConfig();
+      graphSettingsRows.innerHTML = "";
+
+      initialConfig.forEach((item) => {
+        const row = document.createElement("tr");
+        row.setAttribute("data-field-name", item.name);
+        row.setAttribute("data-field-title", item.title);
+
+        const fieldCell = document.createElement("td");
+        fieldCell.textContent = item.title;
+
+        const includeCell = document.createElement("td");
+        const includeInput = document.createElement("input");
+        includeInput.type = "checkbox";
+        includeInput.className = "form-check-input";
+        includeInput.checked = Boolean(item.include);
+        includeInput.setAttribute("aria-label", `Include ${item.title} in charts`);
+        includeCell.appendChild(includeInput);
+
+        const chartTypeCell = document.createElement("td");
+        const chartTypeSelect = document.createElement("select");
+        chartTypeSelect.className = "form-select form-select-sm";
+        chartTypeSelect.setAttribute("aria-label", `Chart type for ${item.title}`);
+        chartTypes.forEach((type) => {
+          const option = document.createElement("option");
+          option.value = type;
+          option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+          if (type === item.chart_type) {
+            option.selected = true;
+          }
+          chartTypeSelect.appendChild(option);
+        });
+        chartTypeSelect.disabled = !item.include;
+        chartTypeCell.appendChild(chartTypeSelect);
+
+        row.appendChild(fieldCell);
+        row.appendChild(includeCell);
+        row.appendChild(chartTypeCell);
+        graphSettingsRows.appendChild(row);
+      });
+
+      syncGraphConfigInput();
+    };
+
+    const autosaveSettings = async () => {
+      if (!settingsForm || suppressAutosave) {
+        return;
+      }
+
+      syncGraphConfigInput();
+      setAutosaveStatus("saving");
+
+      const payload = {
+        event_name: eventNameInput ? eventNameInput.value : "",
+        event_season: eventSeasonInput ? eventSeasonInput.value : "",
+        matches_per_page: matchesPerPageInput ? matchesPerPageInput.value : "",
+        graph_config_json: graphConfigInput ? graphConfigInput.value : "[]",
+      };
+
+      try {
+        const response = await fetch("/api/settings/autosave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          setAutosaveStatus("error", result.error || "Autosave failed");
+          return;
+        }
+        setAutosaveStatus("saved");
+      } catch (_error) {
+        setAutosaveStatus("error", "Network issue");
+      }
+    };
+
+    const queueAutosave = () => {
+      if (autosaveTimer) {
+        clearTimeout(autosaveTimer);
+      }
+      setAutosaveStatus("unsaved");
+      autosaveTimer = setTimeout(() => {
+        autosaveSettings();
+      }, 500);
+    };
+
+    if (settingsForm) {
+      settingsForm.addEventListener("submit", () => {
+        suppressAutosave = true;
+        if (autosaveTimer) {
+          clearTimeout(autosaveTimer);
+        }
+        syncGraphConfigInput();
+      });
+
+      settingsForm.addEventListener("input", (event) => {
+        if (!(event.target instanceof HTMLElement)) {
+          return;
+        }
+        if (event.target.closest("#graphSettingsRows") || event.target.id === "event_name" || event.target.id === "event_season" || event.target.id === "matches_per_page") {
+          queueAutosave();
+        }
+      });
+
+      settingsForm.addEventListener("change", (event) => {
+        if (!(event.target instanceof HTMLElement)) {
+          return;
+        }
+        if (event.target.matches("#graphSettingsRows input[type='checkbox']")) {
+          const row = event.target.closest("tr");
+          const select = row ? row.querySelector("select") : null;
+          if (select instanceof HTMLSelectElement) {
+            select.disabled = !event.target.checked;
+          }
+        }
+        if (event.target.closest("#graphSettingsRows") || event.target.id === "event_name" || event.target.id === "event_season" || event.target.id === "matches_per_page") {
+          queueAutosave();
+        }
+      });
+    }
+
+    renderGraphConfigRows();
+    setAutosaveStatus("idle");
+
     const openPathMessage = document.getElementById("openPathMessage");
     document.querySelectorAll(".open-path-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -195,13 +565,64 @@
           const payload = await response.json();
           if (payload.success) {
             openPathMessage.textContent = `Opened: ${payload.path}`;
+            console.debug("[Settings] Opened path", target, payload.path);
           } else {
             openPathMessage.textContent = payload.error || "Could not open path.";
+            console.warn("[Settings] Failed to open path", target, payload.error);
           }
         } catch (_error) {
           openPathMessage.textContent = "Could not open path.";
+          console.warn("[Settings] Open path request failed", target);
         }
       });
+    });
+  });
+</script>
+
+<script>
+  // Device ID display management
+  document.addEventListener("DOMContentLoaded", () => {
+    const deviceIdInput = document.getElementById("device_id");
+    const copyBtn = document.querySelector(".device-id-copy-btn");
+    const expandBtn = document.querySelector(".device-id-expand-btn");
+    
+    if (!deviceIdInput || !copyBtn || !expandBtn) {
+      return;
+    }
+    
+    const fullId = deviceIdInput.getAttribute("data-full-id") || "";
+    const shortId = deviceIdInput.getAttribute("data-short-id") || fullId;
+    let isExpanded = false;
+    
+    // Initialize with short ID
+    deviceIdInput.value = shortId;
+    
+    // Copy functionality
+    copyBtn.addEventListener("click", async () => {
+      const idToCopy = copyBtn.getAttribute("data-device-id") || "";
+      if (!idToCopy) {
+        return;
+      }
+      
+      try {
+        await navigator.clipboard.writeText(idToCopy);
+        copyBtn.classList.add("copied");
+        copyBtn.setAttribute("title", "Copied!");
+        setTimeout(() => {
+          copyBtn.classList.remove("copied");
+          copyBtn.setAttribute("title", "Copy full device ID");
+        }, 2000);
+      } catch (error) {
+        console.error("Failed to copy device ID:", error);
+      }
+    });
+    
+    // Expand/collapse functionality
+    expandBtn.addEventListener("click", () => {
+      isExpanded = !isExpanded;
+      deviceIdInput.value = isExpanded ? fullId : shortId;
+      expandBtn.setAttribute("aria-expanded", String(isExpanded));
+      expandBtn.setAttribute("title", isExpanded ? "Hide full device ID" : "Show full device ID");
     });
   });
 </script>
