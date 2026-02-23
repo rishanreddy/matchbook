@@ -58,39 +58,3 @@ fi
 uv run pyinstaller "${PYINSTALLER_ARGS[@]}" main.py
 
 echo "Build complete: dist/${NAME}"
-
-if [ "${CREATE_MACOS_APP_BUNDLE:-0}" = "1" ] && [ "$(uname -s)" = "Darwin" ]; then
-  APP_BUNDLE_NAME="${NAME}-app"
-  APP_PYINSTALLER_ARGS=(
-    "--name" "$APP_BUNDLE_NAME"
-    "--onedir"
-    "--windowed"
-    "--add-data" "pyproject.toml:."
-    "--add-data" "templates:templates"
-    "--add-data" "static:static"
-    "--add-data" "config:config"
-  )
-
-  if [ -n "$ICON_PATH" ]; then
-    APP_PYINSTALLER_ARGS+=("--icon" "$ICON_PATH")
-  fi
-
-  echo "Building macOS app bundle: dist/${APP_BUNDLE_NAME}.app"
-  uv run pyinstaller "${APP_PYINSTALLER_ARGS[@]}" main.py
-
-  APP_BUNDLE_PATH="dist/${APP_BUNDLE_NAME}.app"
-  APP_BUNDLE_ZIP_PATH="dist/${APP_BUNDLE_NAME}.zip"
-  if [ -d "$APP_BUNDLE_PATH" ]; then
-    if command -v ditto >/dev/null 2>&1; then
-      if ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE_PATH" "$APP_BUNDLE_ZIP_PATH"; then
-        echo "Packaged macOS app bundle: ${APP_BUNDLE_ZIP_PATH}"
-      else
-        echo "Warning: Failed to zip macOS app bundle at ${APP_BUNDLE_PATH}."
-      fi
-    else
-      echo "Warning: 'ditto' not found, skipping macOS app bundle zip packaging."
-    fi
-  else
-    echo "Warning: macOS app bundle not found at ${APP_BUNDLE_PATH}; skipping zip packaging."
-  fi
-fi
