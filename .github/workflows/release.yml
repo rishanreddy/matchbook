@@ -138,12 +138,33 @@ jobs:
           path: release-assets
           merge-multiple: true
 
-      - name: Upload release asset
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/**
-          tag_name: ${{ needs.resolve_tag.outputs.release_tag }}
-          fail_on_unmatched_files: true
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.resolve_tag.outputs.release_tag }}
+        shell: bash
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skipping create."
+          else
+            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.resolve_tag.outputs.release_tag }}
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          files=()
+          for file in release-assets/**; do
+            if [ -f "$file" ]; then
+              files+=("$file")
+            fi
+          done
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No release assets found to upload"
+            exit 1
+          fi
+          gh release upload "$TAG" "${files[@]}" --clobber
