@@ -2,10 +2,18 @@
 
 import json
 import logging
+from pathlib import Path
 
 from .constants import APP_STATE_FILE
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write_text(file_path: Path, content: str) -> None:
+    """Write text atomically using temporary sibling file."""
+    temp_path = file_path.with_suffix(f"{file_path.suffix}.tmp")
+    temp_path.write_text(content, encoding="utf-8")
+    temp_path.replace(file_path)
 
 
 def load_app_state() -> dict:
@@ -26,5 +34,5 @@ def load_app_state() -> dict:
 def save_app_state(state: dict) -> None:
     """Persist app state to disk."""
     APP_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    APP_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    _atomic_write_text(APP_STATE_FILE, json.dumps(state, indent=2))
     logger.info("[State] Saved app state keys=%s", list(state.keys()))

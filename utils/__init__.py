@@ -44,7 +44,7 @@ from .team_analysis import (
     get_all_teams_summary,
     get_radar_data,
 )
-from .formatting import format_timestamp
+from .formatting import format_timestamp, format_device_id
 from .temp_uploads import (
     save_uploaded_file,
     load_combined_data_from_temp,
@@ -67,12 +67,7 @@ from .analysis_config import (
     build_settings_graph_config_json,
 )
 from .analysis_pipeline import prepare_analysis
-from .update_service import (
-    get_update_status,
-    download_latest_update,
-    apply_downloaded_update,
-)
-from .version_check import CURRENT_VERSION
+from .version_check import CURRENT_VERSION, check_for_updates
 
 __all__ = [
     # Constants
@@ -117,6 +112,7 @@ __all__ = [
     "get_radar_data",
     # Formatting
     "format_timestamp",
+    "format_device_id",
     # Temp Uploads
     "save_uploaded_file",
     "load_combined_data_from_temp",
@@ -142,10 +138,7 @@ __all__ = [
     "build_settings_graph_config_json",
     # Analysis Pipeline
     "prepare_analysis",
-    # Update Service
-    "get_update_status",
-    "download_latest_update",
-    "apply_downloaded_update",
     # Version
     "CURRENT_VERSION",
+    "check_for_updates",
 ]

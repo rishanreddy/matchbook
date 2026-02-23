@@ -15,6 +15,7 @@ import csv
 import datetime
 import logging
 import json
+import os
 import subprocess
 import sys
 import time
@@ -53,6 +54,7 @@ from utils.constants import (
 from utils.csv_operations import append_row, get_stats
 from utils.data_lifecycle import reset_local_data
 from utils.export_safety import escape_csv_cell, sanitize_filename
+from utils.formatting import format_device_id
 from utils.survey_display import (
     build_choice_display_entries,
     build_choice_label_maps,
@@ -65,12 +67,7 @@ from utils.temp_uploads import (
     load_combined_data_from_temp,
     save_uploaded_file,
 )
-from utils.update_service import (
-    apply_downloaded_update,
-    download_latest_update,
-    get_update_status,
-)
-from utils.version_check import CURRENT_VERSION
+from utils.version_check import CURRENT_VERSION, check_for_updates
 
 app = Flask(__name__)
 
@@ -82,6 +79,9 @@ app.config.update(
     MAX_CONTENT_LENGTH=10 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_NAME="osm_session",
+    SESSION_COOKIE_SECURE=(os.environ.get("OSM_SESSION_COOKIE_SECURE", "0") == "1"),
+    PERMANENT_SESSION_LIFETIME=datetime.timedelta(hours=12),
 )
 
 # Logging
@@ -91,7 +91,14 @@ handler = RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3)
 handler.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
 handler.setFormatter(formatter)
-app.logger.addHandler(handler)
+existing_rotating = [
+    h
+    for h in app.logger.handlers
+    if isinstance(h, RotatingFileHandler)
+    and getattr(h, "baseFilename", None) == str(log_file)
+]
+if not existing_rotating:
+    app.logger.addHandler(handler)
 app.logger.setLevel(logging.INFO)
 app.logger.info("App started")
 
@@ -99,21 +106,6 @@ app.logger.info("App started")
 # Make version available to all templates
 @app.context_processor
 def inject_version():
-    def format_device_id(value: str | None, compact: bool = False) -> str:
-        """Format device IDs for human-readable display without changing identity."""
-        text = str(value or "").strip()
-        if not text:
-            return ""
-
-        if text.startswith("osm_did_v2_"):
-            token = text[len("osm_did_v2_") :]
-            grouped = "-".join(token[idx : idx + 4] for idx in range(0, len(token), 4))
-            text = f"osm-v2-{grouped}"
-
-        if compact and len(text) > 28:
-            return f"{text[:12]}...{text[-8:]}"
-        return text
-
     return {"app_version": CURRENT_VERSION, "format_device_id": format_device_id}
 
 
@@ -137,6 +129,11 @@ def log_request_start():
 @app.after_request
 def log_request_end(response):
     """Log request completion status and latency."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+
     if request.path.startswith("/static/"):
         return response
 
@@ -162,10 +159,6 @@ def enforce_setup_wizard():
         "static",
         "open_path",
         "api_version",
-        "api_update_check",
-        "api_update_download",
-        "api_update_apply",
-        "api_update_state",
     }:
         return None
     if request.path.startswith("/static/"):
@@ -527,17 +520,28 @@ def export_setup():
     filename = f"setup_{event_name}_{ts}.yaml"
     export_path = TEMP_EXPORTS_DIR / filename
 
-    with export_path.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(setup_data, f, sort_keys=False)
+    try:
+        with export_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(setup_data, f, sort_keys=False)
 
-    app.logger.info("[Setup] Exported setup file: %s", export_path)
+        app.logger.info("[Setup] Exported setup file: %s", export_path)
 
-    return send_file(
-        export_path,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="text/yaml",
-    )
+        return send_file(
+            export_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="text/yaml",
+        )
+    except Exception as exc:
+        app.logger.error("[Setup] Failed to export setup file: %s", exc)
+        return (
+            render_template(
+                "error.html",
+                title="Export Failed",
+                message="Unable to export setup file. Please check file permissions.",
+            ),
+            500,
+        )
 
 
 @app.route("/setup", methods=["GET", "POST"])
@@ -571,8 +575,17 @@ def setup_wizard():
             )
         data_action = (request.form.get("data_action") or "keep").strip()
         if data_action == "reset":
-            reset_local_data(app.logger)
-            app.logger.info("[Setup] Skip setup requested with data reset")
+            try:
+                reset_local_data(app.logger)
+                app.logger.info("[Setup] Skip setup requested with data reset")
+            except Exception as exc:
+                app.logger.error("[Setup] Skip setup data reset failed: %s", exc)
+                return render_template(
+                    "setup_wizard.html",
+                    current_version=CURRENT_VERSION,
+                    device_id_preview=device_id,
+                    error="Unable to reset local data. Please check file permissions.",
+                )
         state = load_app_state()
         state["last_version"] = CURRENT_VERSION
         save_app_state(state)
@@ -580,9 +593,7 @@ def setup_wizard():
         return redirect(url_for("show_form"))
 
     data_action = (request.form.get("data_action") or "keep").strip()
-    if data_action == "reset":
-        reset_local_data(app.logger)
-        app.logger.info("[Setup] Data reset selected during setup")
+    should_reset_data = data_action == "reset"
 
     event_name = (request.form.get("event_name") or "").strip()
     event_season = (request.form.get("season") or "").strip()
@@ -693,6 +704,19 @@ def setup_wizard():
         )
 
     updated_device = {"uniqueId": str(device_id)}
+
+    if should_reset_data:
+        try:
+            reset_local_data(app.logger)
+            app.logger.info("[Setup] Data reset selected during setup")
+        except Exception as exc:
+            app.logger.error("[Setup] Data reset failed: %s", exc)
+            return render_template(
+                "setup_wizard.html",
+                current_version=CURRENT_VERSION,
+                device_id_preview=device_id,
+                error="Unable to reset local data. Please check file permissions.",
+            )
 
     backup_config()
     save_config(
@@ -850,41 +874,52 @@ def download_sync():
         abort(404, description="No data file found yet.")
 
     # Build a useful filename
-    safe_name = (device_id or "device").replace(" ", "_")
-    safe_event = (event_cfg.get("name") or "event").replace(" ", "_")
+    safe_name = sanitize_filename(device_id or "device")
+    safe_event = sanitize_filename(event_cfg.get("name") or "event")
     ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     filename = f"scouting_{safe_event}_{safe_name}_{ts}.csv"
 
     export_path = TEMP_EXPORTS_DIR / filename
 
     entry_count = 0
-    with CSV_FILE.open("r", newline="", encoding="utf-8") as source:
-        reader = csv.DictReader(source)
-        fieldnames = reader.fieldnames or []
+    try:
+        with CSV_FILE.open("r", newline="", encoding="utf-8") as source:
+            reader = csv.DictReader(source)
+            fieldnames = reader.fieldnames or []
 
-        with export_path.open("w", newline="", encoding="utf-8") as target:
-            writer = csv.DictWriter(target, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in reader:
-                entry_count += 1
-                safe_row = {
-                    key: escape_csv_cell(row.get(key, "")) for key in fieldnames
-                }
-                writer.writerow(safe_row)
+            with export_path.open("w", newline="", encoding="utf-8") as target:
+                writer = csv.DictWriter(target, fieldnames=fieldnames)
+                writer.writeheader()
+                for row in reader:
+                    entry_count += 1
+                    safe_row = {
+                        key: escape_csv_cell(row.get(key, "")) for key in fieldnames
+                    }
+                    writer.writerow(safe_row)
 
-    app.logger.info(
-        "[Sync] Exported CSV: device=%s event=%s entries=%s",
-        device_id,
-        event_cfg.get("name") or "",
-        entry_count,
-    )
+        app.logger.info(
+            "[Sync] Exported CSV: device=%s event=%s entries=%s",
+            device_id,
+            event_cfg.get("name") or "",
+            entry_count,
+        )
 
-    return send_file(
-        export_path,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="text/csv",
-    )
+        return send_file(
+            export_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype="text/csv",
+        )
+    except Exception as exc:
+        app.logger.error("[Sync] Export failed: %s", exc)
+        return (
+            render_template(
+                "error.html",
+                title="Export Failed",
+                message="Unable to export CSV. Please check file permissions.",
+            ),
+            500,
+        )
 
 
 @app.route("/submit", methods=["POST"])
@@ -1100,7 +1135,7 @@ def open_path():
 def api_version():
     """Return app version and update status."""
     try:
-        status = get_update_status(force_check=False)
+        status = check_for_updates()
         return jsonify(status)
     except Exception as exc:
         app.logger.error("Version endpoint failed: %s", exc)
@@ -1111,61 +1146,11 @@ def api_version():
                     "current_version": CURRENT_VERSION,
                     "latest_version": None,
                     "download_url": None,
-                    "mode": "source",
-                    "state": {"status": "error", "error": str(exc)},
+                    "error": str(exc),
                 }
             ),
             500,
         )
-
-
-@app.route("/api/update/check", methods=["POST"])
-def api_update_check():
-    """Force-check update status from GitHub releases."""
-    try:
-        result = get_update_status(force_check=True)
-        return jsonify(result)
-    except Exception as exc:
-        app.logger.error("Update check failed: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
-@app.route("/api/update/download", methods=["POST"])
-def api_update_download():
-    """Download latest update artifact in packaged mode."""
-    try:
-        result = download_latest_update()
-        status_code = 200 if result.get("success") else 400
-        if not result.get("success"):
-            app.logger.warning("Update download unavailable/failed: %s", result)
-        return jsonify(result), status_code
-    except Exception as exc:
-        app.logger.error("Update download failed: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
-@app.route("/api/update/apply", methods=["POST"])
-def api_update_apply():
-    """Apply already downloaded update artifact."""
-    try:
-        result = apply_downloaded_update()
-        status_code = 200 if result.get("success") else 400
-        if not result.get("success"):
-            app.logger.warning("Update apply unavailable/failed: %s", result)
-        return jsonify(result), status_code
-    except Exception as exc:
-        app.logger.error("Update apply failed: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
-@app.route("/api/update/state", methods=["GET"])
-def api_update_state():
-    """Return cached update state payload without forced refresh."""
-    try:
-        return jsonify(get_update_status(force_check=False))
-    except Exception as exc:
-        app.logger.error("Update state endpoint failed: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
 
 
 @app.errorhandler(400)

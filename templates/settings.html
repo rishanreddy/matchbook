@@ -39,9 +39,9 @@
         <h2 class="h5 mb-2">Open Local Folders</h2>
         <p class="small text-muted-app mb-3">Quickly open config, data, or log folders on this machine.</p>
         <div class="d-flex flex-wrap gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="config">Open Config</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="data">Open Data</button>
-          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="logs">Open Logs</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="config" aria-label="Open configuration folder in file explorer">Open Config</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="data" aria-label="Open data folder in file explorer">Open Data</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm open-path-btn" data-target="logs" aria-label="Open log folder in file explorer">Open Logs</button>
         </div>
         <div id="openPathMessage" class="small mt-2 text-muted-app"></div>
       </div>
@@ -217,11 +217,11 @@
       </div>
     </form>
 
-    <div class="modal fade" id="resetDataModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="resetDataModal" tabindex="-1" aria-labelledby="resetDataModalTitle" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content bg-app-surface border border-app">
           <div class="modal-header">
-            <h5 class="modal-title">Clear local data</h5>
+            <h5 class="modal-title" id="resetDataModalTitle">Clear local data</h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">

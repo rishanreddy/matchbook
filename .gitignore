@@ -12,6 +12,7 @@ data/
 config/*
 !config/config.yaml
 logs/
+updates/
 
 # Build artifacts
 dist/

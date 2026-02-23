@@ -2,9 +2,11 @@
 
 import csv
 import logging
+import os
 import shutil
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 import yaml
 
@@ -20,6 +22,13 @@ from .constants import (
 from .device_registry import get_or_create_device_id
 
 logger = logging.getLogger(__name__)
+
+
+def _atomic_write_text(file_path: Path, content: str) -> None:
+    """Write text to a temp file and atomically replace destination."""
+    temp_path = file_path.with_suffix(f"{file_path.suffix}.tmp")
+    temp_path.write_text(content, encoding="utf-8")
+    temp_path.replace(file_path)
 
 
 def collect_survey_elements(node) -> list[dict]:
@@ -245,8 +254,8 @@ def save_config(
 
     cfg["survey_json"] = survey_json or {"elements": []}
 
-    with CONFIG_FILE.open("w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f, sort_keys=False)
+    rendered_config = yaml.safe_dump(cfg, sort_keys=False)
+    _atomic_write_text(CONFIG_FILE, rendered_config)
 
     logger.info(
         "[Config] Saved configuration: event=%s season=%s fields=%s",
@@ -263,7 +272,11 @@ def get_secret_key() -> str:
 
     SECRET_FILE.parent.mkdir(exist_ok=True)
     secret = uuid.uuid4().hex + uuid.uuid4().hex
-    SECRET_FILE.write_text(secret, encoding="utf-8")
+    _atomic_write_text(SECRET_FILE, secret)
+    try:
+        os.chmod(SECRET_FILE, 0o600)
+    except Exception:
+        pass
     logger.info("[Config] Generated new secret key at %s", SECRET_FILE)
     return secret
 
