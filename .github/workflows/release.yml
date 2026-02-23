@@ -142,18 +142,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.resolve_tag.outputs.release_tag }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if gh release view "$TAG" -R "$GH_REPO" >/dev/null 2>&1; then
             echo "Release $TAG already exists; skipping create."
           else
-            gh release create "$TAG" --verify-tag --generate-notes --title "$TAG"
+            gh release create "$TAG" -R "$GH_REPO" --verify-tag --generate-notes --title "$TAG"
           fi
 
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.resolve_tag.outputs.release_tag }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           shopt -s globstar nullglob
@@ -167,4 +169,4 @@ jobs:
             echo "No release assets found to upload"
             exit 1
           fi
-          gh release upload "$TAG" "${files[@]}" --clobber
+          gh release upload "$TAG" -R "$GH_REPO" "${files[@]}" --clobber
