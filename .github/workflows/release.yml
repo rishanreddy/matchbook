@@ -16,8 +16,27 @@ permissions:
 
 jobs:
   build:
-    name: Build (windows)
-    runs-on: windows-latest
+    name: Build (${{ matrix.os_id }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            os_id: windows
+            ext: .exe
+            build_shell: cmd
+            build_cmd: scripts\build_executable.bat
+          - runner: ubuntu-latest
+            os_id: linux
+            ext: ""
+            build_shell: bash
+            build_cmd: ./scripts/build_executable.sh
+          - runner: macos-latest
+            os_id: macos
+            ext: ""
+            build_shell: bash
+            build_cmd: ./scripts/build_executable.sh
 
     steps:
       - name: Checkout
@@ -49,17 +68,47 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v4
 
-      - name: Build executable (windows)
-        shell: cmd
+      - name: Resolve asset name
+        id: asset_name
+        shell: bash
+        run: |
+          RAW_ARCH="${{ runner.arch }}"
+          ARCH="$(echo "$RAW_ARCH" | tr '[:upper:]' '[:lower:]')"
+          case "$ARCH" in
+            x64) ARCH="x86_64" ;;
+            amd64) ARCH="x86_64" ;;
+            aarch64) ARCH="arm64" ;;
+          esac
+          TAG="${{ steps.resolve_tag.outputs.release_tag }}"
+          ASSET_NAME="OfflineScoutingManager-${TAG}-${{ matrix.os_id }}-${ARCH}"
+          CHECKSUM_NAME="${ASSET_NAME}.sha256"
+          MANIFEST_NAME="${ASSET_NAME}.manifest.json"
+          echo "arch=$ARCH" >> "$GITHUB_OUTPUT"
+          echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "checksum_name=$CHECKSUM_NAME" >> "$GITHUB_OUTPUT"
+          echo "manifest_name=$MANIFEST_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Build executable
+        shell: ${{ matrix.build_shell }}
         env:
           GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
-        run: scripts\build_executable.bat
+          RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
+        run: ${{ matrix.build_cmd }}
+
+      - name: Generate checksum and manifest
+        shell: bash
+        run: |
+          TAG="${{ steps.resolve_tag.outputs.release_tag }}"
+          ASSET="dist/${{ steps.asset_name.outputs.asset_name }}${{ matrix.ext }}"
+          python scripts/generate_release_metadata.py --asset "$ASSET" --tag "$TAG"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/OfflineScoutingManager-${{ steps.resolve_tag.outputs.release_tag }}.exe
+            dist/${{ steps.asset_name.outputs.asset_name }}${{ matrix.ext }}
+            dist/${{ steps.asset_name.outputs.checksum_name }}
+            dist/${{ steps.asset_name.outputs.manifest_name }}
           tag_name: ${{ steps.resolve_tag.outputs.release_tag }}
           fail_on_unmatched_files: true
           draft: false

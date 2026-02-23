@@ -13,7 +13,13 @@ uv sync
 uv pip install pillow pyinstaller
 
 VERSION=$(uv run python scripts/get_version.py)
-NAME="OfflineScoutingManager-v${VERSION}"
+if [ -n "${RELEASE_ASSET_NAME:-}" ]; then
+  NAME="${RELEASE_ASSET_NAME}"
+elif [ -n "${GITHUB_REF_NAME:-}" ]; then
+  NAME="OfflineScoutingManager-${GITHUB_REF_NAME}"
+else
+  NAME="OfflineScoutingManager-v${VERSION}"
+fi
 
 ICON_PATH=""
 if command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then

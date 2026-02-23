@@ -14,55 +14,63 @@ from flask import (
 import csv
 import datetime
 import logging
-import shutil
-import re
 import json
 import subprocess
 import sys
 import time
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 
 import yaml
 
-from utils import (
-    load_config,
-    collect_survey_elements,
-    get_survey_field_names,
-    append_row,
-    get_device,
-    get_stats,
-    CSV_FILE,
-    CONFIG_DIR,
-    DATA_DIR,
-    TEMP_EXPORTS_DIR,
-    BACKUP_DIR,
-    LOG_DIR,
-    DEVICE_FILE,
-    TEMP_UPLOADS_DIR,
-    validate_required_fields,
-    calculate_team_stats,
-    get_all_teams_summary,
-    get_radar_data,
-    REQUIRED_SURVEY_FIELD_GROUPS,
-    SYSTEM_FIELD_DEFAULTS,
-    REQUIRED_FIELDS,
-    save_uploaded_file,
-    load_combined_data_from_temp,
-    clear_temp_uploads,
-    build_display_rows,
-    build_choice_label_maps,
-    build_choice_display_entries,
-    backup_config,
-    save_config,
-    get_secret_key,
-    APP_STATE_FILE,
-    CURRENT_VERSION,
-    get_update_status,
-    download_latest_release_asset,
-    apply_update_now,
-    get_update_instructions,
+from utils.analysis_config import (
+    build_graph_field_options,
+    build_settings_graph_config_json,
+    get_enabled_graph_fields,
+    normalize_settings_graph_payload,
+    sanitize_graph_field_config,
 )
+from utils.analysis_pipeline import prepare_analysis
+from utils.app_state import load_app_state, save_app_state
+from utils.config import (
+    backup_config,
+    collect_survey_elements,
+    get_device,
+    get_secret_key,
+    get_survey_field_names,
+    load_config,
+    save_config,
+    validate_required_fields,
+)
+from utils.constants import (
+    CONFIG_DIR,
+    CSV_FILE,
+    DATA_DIR,
+    LOG_DIR,
+    REQUIRED_FIELDS,
+    REQUIRED_SURVEY_FIELD_GROUPS,
+    TEMP_EXPORTS_DIR,
+)
+from utils.csv_operations import append_row, get_stats
+from utils.data_lifecycle import reset_local_data
+from utils.export_safety import escape_csv_cell, sanitize_filename
+from utils.survey_display import (
+    build_choice_display_entries,
+    build_choice_label_maps,
+    build_display_rows,
+)
+from utils.survey_schema import ensure_system_fields
+from utils.team_analysis import calculate_team_stats, get_radar_data
+from utils.temp_uploads import (
+    clear_temp_uploads,
+    load_combined_data_from_temp,
+    save_uploaded_file,
+)
+from utils.update_service import (
+    apply_downloaded_update,
+    download_latest_update,
+    get_update_status,
+)
+from utils.version_check import CURRENT_VERSION
 
 app = Flask(__name__)
 
@@ -147,60 +155,17 @@ def log_request_end(response):
     return response
 
 
-def load_app_state() -> dict:
-    """Load persisted app state from config directory."""
-    if APP_STATE_FILE.exists():
-        try:
-            state = json.loads(APP_STATE_FILE.read_text(encoding="utf-8"))
-            app.logger.debug("[State] Loaded app state keys=%s", list(state.keys()))
-            return state
-        except json.JSONDecodeError:
-            app.logger.warning(
-                "[State] Invalid JSON in %s; resetting state", APP_STATE_FILE
-            )
-            return {}
-    return {}
-
-
-def save_app_state(state: dict) -> None:
-    """Persist app state to disk."""
-    APP_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    APP_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
-    app.logger.info("[State] Saved app state keys=%s", list(state.keys()))
-
-
-def reset_local_data() -> None:
-    """Clear local scouting data files."""
-    app.logger.info("[Reset] Clearing local scouting data and temp exports/uploads")
-    if CSV_FILE.exists():
-        ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        backup_path = BACKUP_DIR / f"scouting_data_{ts}.csv"
-        shutil.copy(CSV_FILE, backup_path)
-        CSV_FILE.unlink(missing_ok=True)
-        app.logger.info("[Reset] Backed up and removed CSV: %s", backup_path)
-
-    # Preserve device ID across resets so this device remains stable for sync analysis.
-    app.logger.debug("[Reset] Preserving device file: %s", DEVICE_FILE)
-
-    for temp_dir in [TEMP_UPLOADS_DIR, TEMP_EXPORTS_DIR]:
-        if temp_dir.exists():
-            for item in temp_dir.glob("*"):
-                if item.is_file():
-                    item.unlink(missing_ok=True)
-    app.logger.info("[Reset] Completed local data reset")
-
-
 @app.before_request
 def enforce_setup_wizard():
     if request.endpoint in {
         "setup_wizard",
         "static",
-        "version_info",
-        "update_check",
-        "update_download",
-        "update_apply",
-        "update_instructions",
         "open_path",
+        "api_version",
+        "api_update_check",
+        "api_update_download",
+        "api_update_apply",
+        "api_update_state",
     }:
         return None
     if request.path.startswith("/static/"):
@@ -218,206 +183,6 @@ def enforce_setup_wizard():
         app.logger.info("[Setup] Redirecting to setup wizard due to missing event name")
         return redirect(url_for("setup_wizard"))
     return None
-
-
-def sanitize_filename(value: str) -> str:
-    """Sanitize a string for safe filenames."""
-    text = (value or "").strip().replace(" ", "_")
-    text = re.sub(r"[^A-Za-z0-9._-]", "", text)
-    return text or "file"
-
-
-def ensure_system_fields(schema: dict) -> tuple[dict, list[str]]:
-    """Ensure required system fields exist in SurveyJS schema."""
-    if not isinstance(schema, dict):
-        return {"elements": []}, [item["name"] for item in SYSTEM_FIELD_DEFAULTS]
-
-    current_names = set(get_survey_field_names(schema))
-    added: list[str] = []
-
-    if isinstance(schema.get("pages"), list) and schema.get("pages"):
-        first_page = schema["pages"][0]
-        if not isinstance(first_page, dict):
-            first_page = {}
-            schema["pages"][0] = first_page
-        if not isinstance(first_page.get("elements"), list):
-            first_page["elements"] = []
-        target_elements = first_page["elements"]
-    else:
-        if not isinstance(schema.get("elements"), list):
-            schema["elements"] = []
-        target_elements = schema["elements"]
-
-    for field in reversed(SYSTEM_FIELD_DEFAULTS):
-        name = field["name"]
-        if name in current_names:
-            continue
-        target_elements.insert(0, dict(field))
-        current_names.add(name)
-        added.insert(0, name)
-
-    return schema, added
-
-
-def sanitize_graph_field_config(
-    raw_graph_config, available_field_names: list[str]
-) -> list[dict]:
-    """Normalize graph field configuration from UI payload."""
-    if not isinstance(raw_graph_config, list):
-        return []
-
-    allowed_chart_types = {"line", "bar", "radar", "pie", "doughnut"}
-    available = set(available_field_names)
-    result = []
-    seen = set()
-
-    for item in raw_graph_config:
-        if not isinstance(item, dict):
-            continue
-
-        field = str(item.get("field") or "").strip()
-        if not field or field in seen or field not in available:
-            continue
-
-        enabled = bool(item.get("enabled", True))
-
-        chart_type = str(item.get("chart_type") or "line").strip().lower()
-        if chart_type not in allowed_chart_types:
-            chart_type = "line"
-
-        seen.add(field)
-        result.append(
-            {
-                "field": field,
-                "enabled": enabled,
-                "chart_type": chart_type,
-            }
-        )
-
-    return result
-
-
-def get_enabled_graph_fields(analysis_cfg: dict | None) -> list[dict]:
-    """Return normalized enabled graph fields for chart generation."""
-    items = []
-    for item in (analysis_cfg or {}).get("graph_fields", []):
-        if isinstance(item, dict):
-            field = str(item.get("field") or "").strip()
-            enabled = item.get("enabled", True)
-            chart_type = str(item.get("chart_type") or "line").strip().lower()
-        else:
-            field = str(item or "").strip()
-            enabled = True
-            chart_type = "line"
-
-        if not field or not bool(enabled):
-            continue
-
-        items.append({"field": field, "chart_type": chart_type})
-    return items
-
-
-def build_graph_field_options(
-    survey_json: dict, analysis_cfg: dict | None = None
-) -> list[dict]:
-    """Build graph-field option metadata for settings UI."""
-    configured_fields = set()
-    for item in (analysis_cfg or {}).get("graph_fields", []):
-        if isinstance(item, dict):
-            name = str(item.get("field") or "").strip()
-        else:
-            name = str(item or "").strip()
-        if name:
-            configured_fields.add(name)
-
-    options: list[dict] = []
-    seen = set()
-    for element in collect_survey_elements(survey_json or {}):
-        if not isinstance(element, dict):
-            continue
-
-        name = str(element.get("name") or "").strip()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-
-        field_type = str(element.get("type") or "text").strip().lower()
-        input_type = str(element.get("inputType") or "").strip().lower()
-        is_system_field = name in {"auto_score", "teleop_score"}
-        is_analysis_friendly = (
-            field_type in {"rating", "dropdown", "radiogroup", "boolean", "checkbox"}
-            or (field_type == "text" and input_type == "number")
-            or is_system_field
-        )
-
-        options.append(
-            {
-                "name": name,
-                "title": str(element.get("title") or name),
-                "type": field_type,
-                "input_type": input_type,
-                "is_system_field": is_system_field,
-                "enabled_default": (name in configured_fields) or is_analysis_friendly,
-            }
-        )
-
-    return options
-
-
-def normalize_settings_graph_payload(raw_graph_config) -> list[dict]:
-    """Convert settings UI graph payload into sanitize_graph_field_config format."""
-    if not isinstance(raw_graph_config, list):
-        return []
-
-    normalized = []
-    for item in raw_graph_config:
-        if not isinstance(item, dict):
-            continue
-
-        field = str(item.get("field") or item.get("name") or "").strip()
-        if not field:
-            continue
-
-        include = item.get("enabled")
-        if include is None:
-            include = item.get("include")
-        if include is None:
-            include = True
-
-        normalized.append(
-            {
-                "field": field,
-                "enabled": bool(include),
-                "chart_type": str(item.get("chart_type") or "line").strip().lower(),
-            }
-        )
-
-    return normalized
-
-
-def build_settings_graph_config_json(analysis_cfg: dict | None) -> str:
-    """Serialize current graph settings for Settings page editing."""
-    rows = []
-    for item in (analysis_cfg or {}).get("graph_fields", []):
-        if isinstance(item, dict):
-            field = str(item.get("field") or "").strip()
-            chart_type = str(item.get("chart_type") or "line").strip().lower()
-            include = bool(item.get("enabled", True))
-        else:
-            field = str(item or "").strip()
-            chart_type = "line"
-            include = True
-        if not field:
-            continue
-        rows.append(
-            {
-                "name": field,
-                "title": field.replace("_", " ").title(),
-                "include": include,
-                "chart_type": chart_type,
-            }
-        )
-    return json.dumps(rows)
 
 
 # --- Flask routes ---
@@ -728,7 +493,7 @@ def settings_autosave():
 @app.route("/settings/reset", methods=["POST"])
 def settings_reset():
     try:
-        reset_local_data()
+        reset_local_data(app.logger)
         app.logger.info("[Settings] Local data reset completed")
     except Exception as exc:
         app.logger.error("Settings reset failed: %s", exc)
@@ -806,7 +571,7 @@ def setup_wizard():
             )
         data_action = (request.form.get("data_action") or "keep").strip()
         if data_action == "reset":
-            reset_local_data()
+            reset_local_data(app.logger)
             app.logger.info("[Setup] Skip setup requested with data reset")
         state = load_app_state()
         state["last_version"] = CURRENT_VERSION
@@ -816,7 +581,7 @@ def setup_wizard():
 
     data_action = (request.form.get("data_action") or "keep").strip()
     if data_action == "reset":
-        reset_local_data()
+        reset_local_data(app.logger)
         app.logger.info("[Setup] Data reset selected during setup")
 
     event_name = (request.form.get("event_name") or "").strip()
@@ -977,161 +742,6 @@ def analyze():
 
     config_field_names = get_survey_field_names(survey_json or {})
 
-    def prepare_analysis(rows: list, expected_field_names: list):
-        nonlocal warnings, table_columns, table_rows, teams_summary
-        nonlocal device_statuses
-
-        if not rows:
-            table_columns = []
-            table_rows = []
-            teams_summary = []
-            device_statuses = []
-            return
-
-        all_keys = set().union(*(row.keys() for row in rows))
-        if "device_id" in all_keys:
-            all_keys.discard("device_name")
-        table_columns = [{"id": k, "label": k} for k in sorted(all_keys)]
-
-        base_cols = {
-            "timestamp",
-            "event_name",
-            "event_season",
-            "config_id",
-            "device_id",
-            "device_name",
-        }
-        missing_fields = [f for f in expected_field_names if f not in all_keys]
-        if missing_fields:
-            warnings.append(
-                f"Missing fields in uploaded CSVs: {', '.join(missing_fields)}"
-            )
-
-        extra_fields = sorted(all_keys - base_cols - set(expected_field_names))
-        if extra_fields:
-            warnings.append(
-                "Extra fields found in uploads (not in current config): "
-                + ", ".join(extra_fields)
-            )
-
-        deduped_rows = []
-        seen = set()
-        dup_count = 0
-        for row in rows:
-            device_key = (row.get("device_id") or row.get("device_name") or "").strip()
-            match_val = (row.get("match") or row.get("match_number") or "").strip()
-            team_val = (row.get("team") or row.get("team_number") or "").strip()
-            if not (device_key or match_val or team_val):
-                deduped_rows.append(row)
-                continue
-            key = (device_key, match_val, team_val)
-            if key in seen:
-                dup_count += 1
-                continue
-            seen.add(key)
-            deduped_rows.append(row)
-
-        if dup_count:
-            warnings.append(
-                f"Removed {dup_count} duplicate rows (same device + match + team)."
-            )
-
-        raw_table_rows = deduped_rows
-        table_rows = build_display_rows(raw_table_rows, survey_json)
-
-        graph_fields_config = get_enabled_graph_fields(analysis_config)
-        if analysis_config.get("graph_fields") is None and not graph_fields_config:
-            graph_fields_config = [{"field": "auto_score"}, {"field": "teleop_score"}]
-        stat_fields = []
-        for field_item in graph_fields_config:
-            if isinstance(field_item, dict):
-                stat_fields.append(field_item.get("field"))
-            else:
-                stat_fields.append(field_item)
-        teams_summary = get_all_teams_summary(raw_table_rows, stat_fields)
-
-        analysis_insights["quality"] = {
-            "rows_loaded": len(rows),
-            "rows_kept": len(raw_table_rows),
-            "duplicates_removed": dup_count,
-            "teams_with_data": len(teams_summary),
-            "missing_team_rows": sum(
-                1 for row in raw_table_rows if not str(row.get("team") or "").strip()
-            ),
-            "missing_match_rows": sum(
-                1
-                for row in raw_table_rows
-                if not str((row.get("match") or row.get("match_number") or "")).strip()
-            ),
-        }
-
-        leaders = []
-        consistency = []
-        for field in stat_fields:
-            best_team = None
-            best_avg = None
-            best_range = None
-            most_consistent_team = None
-
-            for team_item in teams_summary:
-                stats = (team_item.get("stats") or {}).get(field) or {}
-                avg_value = stats.get("average")
-                min_value = stats.get("min")
-                max_value = stats.get("max")
-
-                if isinstance(avg_value, (int, float)):
-                    if best_avg is None or avg_value > best_avg:
-                        best_avg = float(avg_value)
-                        best_team = str(team_item.get("team_number") or "")
-
-                if isinstance(min_value, (int, float)) and isinstance(
-                    max_value, (int, float)
-                ):
-                    value_range = float(max_value) - float(min_value)
-                    if best_range is None or value_range < best_range:
-                        best_range = value_range
-                        most_consistent_team = str(team_item.get("team_number") or "")
-
-            if best_team and best_avg is not None:
-                leaders.append(
-                    {
-                        "field": field,
-                        "label": field.replace("_", " ").title(),
-                        "team": best_team,
-                        "value": round(best_avg, 2),
-                    }
-                )
-
-            if most_consistent_team and best_range is not None:
-                consistency.append(
-                    {
-                        "field": field,
-                        "label": field.replace("_", " ").title(),
-                        "team": most_consistent_team,
-                        "range": round(best_range, 2),
-                    }
-                )
-
-        analysis_insights["leaders"] = leaders[:3]
-        analysis_insights["consistency"] = consistency[:3]
-
-        counts_by_name = {}
-        for row in raw_table_rows:
-            name = (
-                row.get("device_id") or row.get("device_name") or "Unknown"
-            ).strip() or "Unknown"
-            counts_by_name[name] = counts_by_name.get(name, 0) + 1
-
-        device_statuses = []
-        for name, count in sorted(counts_by_name.items()):
-            device_statuses.append(
-                {
-                    "name": name,
-                    "entries": count,
-                    "status": "synced",
-                }
-            )
-
     if request.method == "POST":
         files = request.files.getlist("csv_files")
 
@@ -1169,7 +779,18 @@ def analyze():
                     len(combined_rows),
                 )
 
-                prepare_analysis(combined_rows, config_field_names)
+                prepared = prepare_analysis(
+                    combined_rows,
+                    config_field_names,
+                    survey_json,
+                    analysis_config,
+                )
+                table_columns = prepared["table_columns"]
+                table_rows = prepared["table_rows"]
+                teams_summary = prepared["teams_summary"]
+                warnings = prepared["warnings"]
+                device_statuses = prepared["device_statuses"]
+                analysis_insights = prepared["analysis_insights"]
 
                 # Store only filenames in session (not the data!)
                 session["temp_filenames"] = saved_filenames
@@ -1183,7 +804,18 @@ def analyze():
             # Load data from temp files
             combined_rows = load_combined_data_from_temp(temp_filenames)
             uploaded_filenames = session.get("uploaded_filenames", [])
-            prepare_analysis(combined_rows, config_field_names)
+            prepared = prepare_analysis(
+                combined_rows,
+                config_field_names,
+                survey_json,
+                analysis_config,
+            )
+            table_columns = prepared["table_columns"]
+            table_rows = prepared["table_rows"]
+            teams_summary = prepared["teams_summary"]
+            warnings = prepared["warnings"]
+            device_statuses = prepared["device_statuses"]
+            analysis_insights = prepared["analysis_insights"]
             app.logger.debug(
                 "[Analyze] Restored session data files=%s rows=%s",
                 len(temp_filenames),
@@ -1203,16 +835,6 @@ def analyze():
         device_statuses=device_statuses,
         analysis_insights=analysis_insights,
     )
-
-
-def escape_csv_cell(value) -> str:
-    """Escape CSV cell values that may trigger spreadsheet formulas."""
-    if value is None:
-        return ""
-    text = str(value)
-    if text and text[0] in ("=", "+", "-", "@"):
-        return f"'{text}"
-    return text
 
 
 @app.route("/sync", methods=["GET"])
@@ -1427,7 +1049,7 @@ def team_info(team_number):
 def reset_data():
     """Delete the local CSV so this device starts fresh."""
     try:
-        reset_local_data()
+        reset_local_data(app.logger)
         app.logger.info("[Scouting] Reset data requested from scouting page")
     except Exception as exc:
         app.logger.error("Reset failed: %s", exc)
@@ -1441,73 +1063,6 @@ def reset_data():
         )
 
     return redirect(url_for("show_form", reset="1"))
-
-
-@app.route("/api/version")
-def version_info():
-    """API endpoint to get version and update information."""
-    status = get_update_status()
-    app.logger.debug(
-        "[Update] Version info requested: current=%s latest=%s available=%s",
-        status.get("current_version"),
-        status.get("latest_version"),
-        status.get("update_available"),
-    )
-    return status
-
-
-@app.route("/api/update/check", methods=["POST"])
-def update_check():
-    """Re-check update status and return mode details."""
-    status = get_update_status()
-    app.logger.info(
-        "[Update] Manual check requested: available=%s latest=%s",
-        status.get("update_available"),
-        status.get("latest_version"),
-    )
-    return jsonify(status)
-
-
-@app.route("/api/update/download", methods=["POST"])
-def update_download():
-    """Download latest release asset into local staging."""
-    try:
-        result = download_latest_release_asset()
-        status = 200 if result.get("success") else 400
-        app.logger.info(
-            "[Update] Download endpoint result: success=%s latest=%s",
-            result.get("success"),
-            result.get("latest_version"),
-        )
-        return jsonify(result), status
-    except Exception as exc:
-        app.logger.error("Update download failed: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
-@app.route("/api/update/apply", methods=["POST"])
-def update_apply():
-    """Apply available update now when supported."""
-    try:
-        result = apply_update_now()
-        status = 200 if result.get("success") else 400
-        app.logger.info(
-            "[Update] Apply endpoint result: success=%s", result.get("success")
-        )
-        return jsonify(result), status
-    except Exception as exc:
-        app.logger.error("Update apply failed: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
-
-
-@app.route("/api/update/instructions", methods=["GET"])
-def update_instructions():
-    """Return manual update instructions for current mode."""
-    instructions = get_update_instructions()
-    app.logger.debug(
-        "[Update] Instructions requested for mode=%s", instructions.get("mode")
-    )
-    return jsonify(instructions)
 
 
 @app.route("/api/open-path", methods=["POST"])
@@ -1538,6 +1093,78 @@ def open_path():
         return jsonify({"success": True, "path": str(folder.resolve())})
     except Exception as exc:
         app.logger.error("Open path failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/version", methods=["GET"])
+def api_version():
+    """Return app version and update status."""
+    try:
+        status = get_update_status(force_check=False)
+        return jsonify(status)
+    except Exception as exc:
+        app.logger.error("Version endpoint failed: %s", exc)
+        return (
+            jsonify(
+                {
+                    "update_available": False,
+                    "current_version": CURRENT_VERSION,
+                    "latest_version": None,
+                    "download_url": None,
+                    "mode": "source",
+                    "state": {"status": "error", "error": str(exc)},
+                }
+            ),
+            500,
+        )
+
+
+@app.route("/api/update/check", methods=["POST"])
+def api_update_check():
+    """Force-check update status from GitHub releases."""
+    try:
+        result = get_update_status(force_check=True)
+        return jsonify(result)
+    except Exception as exc:
+        app.logger.error("Update check failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/update/download", methods=["POST"])
+def api_update_download():
+    """Download latest update artifact in packaged mode."""
+    try:
+        result = download_latest_update()
+        status_code = 200 if result.get("success") else 400
+        if not result.get("success"):
+            app.logger.warning("Update download unavailable/failed: %s", result)
+        return jsonify(result), status_code
+    except Exception as exc:
+        app.logger.error("Update download failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/update/apply", methods=["POST"])
+def api_update_apply():
+    """Apply already downloaded update artifact."""
+    try:
+        result = apply_downloaded_update()
+        status_code = 200 if result.get("success") else 400
+        if not result.get("success"):
+            app.logger.warning("Update apply unavailable/failed: %s", result)
+        return jsonify(result), status_code
+    except Exception as exc:
+        app.logger.error("Update apply failed: %s", exc)
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/update/state", methods=["GET"])
+def api_update_state():
+    """Return cached update state payload without forced refresh."""
+    try:
+        return jsonify(get_update_status(force_check=False))
+    except Exception as exc:
+        app.logger.error("Update state endpoint failed: %s", exc)
         return jsonify({"success": False, "error": str(exc)}), 500
 
 
@@ -1609,7 +1236,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--host", type=str, help="Explicit host override.")
     parser.add_argument("--port", type=int, help="Explicit port override.")
+    parser.add_argument(
+        "--version", action="store_true", help="Print the application version and exit."
+    )
     args = parser.parse_args()
+
+    if args.version:
+        print(CURRENT_VERSION)
+        sys.exit(0)
 
     if args.dev:
         host = args.host if args.host else "127.0.0.1"

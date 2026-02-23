@@ -55,14 +55,24 @@ from .survey_display import (
     build_choice_label_maps,
     build_choice_display_entries,
 )
-from .version_check import check_for_updates, CURRENT_VERSION
-from .update_manager import (
-    is_packaged_mode,
-    get_update_status,
-    download_latest_release_asset,
-    apply_update_now,
-    get_update_instructions,
+from .app_state import load_app_state, save_app_state
+from .data_lifecycle import reset_local_data
+from .export_safety import sanitize_filename, escape_csv_cell
+from .survey_schema import ensure_system_fields
+from .analysis_config import (
+    sanitize_graph_field_config,
+    get_enabled_graph_fields,
+    build_graph_field_options,
+    normalize_settings_graph_payload,
+    build_settings_graph_config_json,
 )
+from .analysis_pipeline import prepare_analysis
+from .update_service import (
+    get_update_status,
+    download_latest_update,
+    apply_downloaded_update,
+)
+from .version_check import CURRENT_VERSION
 
 __all__ = [
     # Constants
@@ -114,13 +124,28 @@ __all__ = [
     "build_display_rows",
     "build_choice_label_maps",
     "build_choice_display_entries",
-    # Version Check
-    "check_for_updates",
-    "CURRENT_VERSION",
-    # Update Manager
-    "is_packaged_mode",
+    # App State
+    "load_app_state",
+    "save_app_state",
+    # Data Lifecycle
+    "reset_local_data",
+    # Export Safety
+    "sanitize_filename",
+    "escape_csv_cell",
+    # Survey Schema
+    "ensure_system_fields",
+    # Analysis Config
+    "sanitize_graph_field_config",
+    "get_enabled_graph_fields",
+    "build_graph_field_options",
+    "normalize_settings_graph_payload",
+    "build_settings_graph_config_json",
+    # Analysis Pipeline
+    "prepare_analysis",
+    # Update Service
     "get_update_status",
-    "download_latest_release_asset",
-    "apply_update_now",
-    "get_update_instructions",
+    "download_latest_update",
+    "apply_downloaded_update",
+    # Version
+    "CURRENT_VERSION",
 ]

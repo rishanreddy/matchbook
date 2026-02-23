@@ -12,7 +12,9 @@ uv sync
 uv pip install pillow pyinstaller
 
 for /f "usebackq tokens=*" %%v in (`uv run python scripts\get_version.py`) do set VERSION=%%v
-if defined GITHUB_REF_NAME (
+if defined RELEASE_ASSET_NAME (
+    set NAME=%RELEASE_ASSET_NAME%
+) else if defined GITHUB_REF_NAME (
     set NAME=OfflineScoutingManager-%GITHUB_REF_NAME%
 ) else (
     set NAME=OfflineScoutingManager-v%VERSION%

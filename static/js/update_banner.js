@@ -1,236 +1,262 @@
-/* Handles update checks, download/apply actions, and banner state. */
 document.addEventListener("DOMContentLoaded", () => {
   const banner = document.getElementById("update-banner");
-  const dismissBtn = document.getElementById("update-dismiss");
-  const messageEl = document.getElementById("update-message");
-  const detailEl = document.getElementById("update-detail");
-  const linkEl = document.getElementById("update-link");
-  const actionEl = document.getElementById("update-action");
-  const progressWrapEl = document.getElementById("update-progress-wrap");
-  const progressBarEl = document.getElementById("update-progress-bar");
+  const alertBox = document.getElementById("update-banner-alert");
+  const messageEl = document.getElementById("update-banner-message");
+  const detailEl = document.getElementById("update-banner-detail");
+  const actionBtn = document.getElementById("update-banner-action");
+  const dismissBtn = document.getElementById("update-banner-dismiss");
+  const releaseLink = document.getElementById("update-banner-release-link");
+  const progressWrap = banner ? banner.querySelector(".progress") : null;
+  const progressBar = document.getElementById("update-banner-progress-bar");
 
-  let statusPollTimer = null;
+  if (!banner || !alertBox || !messageEl || !detailEl || !dismissBtn) {
+    return;
+  }
 
-  const showBanner = () => banner?.classList.remove("d-none");
-  const hideBanner = () => banner?.classList.add("d-none");
-
-  const setDetail = (text) => {
-    if (!detailEl) {
-      return;
-    }
-    if (text) {
-      detailEl.classList.remove("d-none");
-      detailEl.textContent = text;
-      return;
-    }
-    detailEl.classList.add("d-none");
-    detailEl.textContent = "";
+  const state = {
+    pollTimer: null,
+    mode: null,
+    releaseUrl: null,
+    latestVersion: null,
+    currentVersion: null,
   };
 
-  const setProgress = (percent) => {
-    if (!progressWrapEl || !progressBarEl) {
-      return;
-    }
-
-    if (typeof percent !== "number" || Number.isNaN(percent)) {
-      progressWrapEl.classList.add("d-none");
-      progressBarEl.style.width = "0%";
-      progressBarEl.setAttribute("aria-valuenow", "0");
-      return;
-    }
-
-    const clamped = Math.max(0, Math.min(100, Math.round(percent)));
-    progressWrapEl.classList.remove("d-none");
-    progressBarEl.style.width = `${clamped}%`;
-    progressBarEl.setAttribute("aria-valuenow", String(clamped));
-  };
-
-  const fetchJson = async (url, options) => {
-    const response = await fetch(url, options);
-    const payload = await response.json();
-    return { ok: response.ok, payload };
-  };
-
-  const stopStatusPolling = () => {
-    if (statusPollTimer) {
-      window.clearInterval(statusPollTimer);
-      statusPollTimer = null;
+  const clearPolling = () => {
+    if (state.pollTimer) {
+      window.clearTimeout(state.pollTimer);
+      state.pollTimer = null;
     }
   };
 
-  const startStatusPolling = () => {
-    if (statusPollTimer) {
-      return;
+  const hide = () => {
+    clearPolling();
+    banner.classList.add("d-none");
+  };
+
+  const show = () => {
+    banner.classList.remove("d-none");
+  };
+
+  const setAlertTone = (tone) => {
+    alertBox.classList.remove("alert-warning", "alert-info", "alert-danger", "alert-success");
+    alertBox.classList.add(`alert-${tone}`);
+  };
+
+  const setMessage = (message, detail) => {
+    messageEl.textContent = message || "";
+    detailEl.textContent = detail || "";
+  };
+
+  const setReleaseLink = (url) => {
+    if (!releaseLink) return;
+    if (url) {
+      releaseLink.href = url;
+      releaseLink.classList.remove("d-none");
+    } else {
+      releaseLink.href = "#";
+      releaseLink.classList.add("d-none");
+    }
+  };
+
+  const setAction = (label, handler, style = "primary") => {
+    if (!actionBtn) return;
+    actionBtn.className = `btn btn-sm btn-${style}`;
+    actionBtn.textContent = label || "";
+    if (label && typeof handler === "function") {
+      actionBtn.classList.remove("d-none");
+      actionBtn.disabled = false;
+      actionBtn.onclick = handler;
+    } else {
+      actionBtn.classList.add("d-none");
+      actionBtn.onclick = null;
+    }
+  };
+
+  const setProgress = (percent, showProgress) => {
+    if (!progressWrap || !progressBar) return;
+    if (showProgress) {
+      progressWrap.classList.remove("d-none");
+    } else {
+      progressWrap.classList.add("d-none");
     }
 
-    statusPollTimer = window.setInterval(async () => {
-      try {
-        const { payload } = await fetchJson("/api/version");
-        const state = payload.state || {};
-        const stateStatus = String(state.status || "").toLowerCase();
-        const progressPercent = Number(state.progress_percent);
+    const safeValue = Number.isFinite(percent)
+      ? Math.max(0, Math.min(100, Math.round(percent)))
+      : 0;
+    progressBar.style.width = `${safeValue}%`;
+    progressBar.textContent = `${safeValue}%`;
+    progressBar.setAttribute("aria-valuenow", String(safeValue));
+    progressBar.setAttribute("aria-valuemin", "0");
+    progressBar.setAttribute("aria-valuemax", "100");
+  };
 
-        if (stateStatus === "downloading") {
-          setProgress(Number.isFinite(progressPercent) ? progressPercent : null);
-          setDetail(
-            Number.isFinite(progressPercent)
-              ? `Downloading update... ${Math.round(progressPercent)}%`
-              : "Downloading update..."
-          );
-          return;
-        }
-
-        if (stateStatus === "downloaded") {
-          setProgress(100);
-          setDetail("Download complete. Ready to apply.");
-          stopStatusPolling();
-          return;
-        }
-
-        if (stateStatus === "error") {
-          setProgress(null);
-          setDetail(state.error || "Update failed. Please retry.");
-          stopStatusPolling();
-          return;
-        }
-      } catch (error) {
-        console.debug("[UpdateBanner] Status poll failed", error);
+  const parseProgress = (payload) => {
+    const candidates = [
+      payload?.progress,
+      payload?.download_progress,
+      payload?.percent,
+      payload?.state?.progress,
+    ];
+    for (const value of candidates) {
+      if (Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const num = Number.parseFloat(value);
+        if (Number.isFinite(num)) return num;
       }
-    }, 900);
+    }
+    return 0;
   };
 
-  const setActionButton = ({ visible, text, disabled, onClick }) => {
-    if (!actionEl) {
-      return;
-    }
-
-    if (!visible) {
-      actionEl.classList.add("d-none");
-      actionEl.onclick = null;
-      return;
-    }
-
-    actionEl.classList.remove("d-none");
-    actionEl.textContent = text;
-    actionEl.disabled = Boolean(disabled);
-    actionEl.onclick = onClick || null;
-  };
-
-  const applyUpdate = async () => {
-    setActionButton({ visible: true, text: "Applying...", disabled: true });
-    setDetail("Applying update. The app will restart automatically if successful.");
-
-    try {
-      const { ok, payload } = await fetchJson("/api/update/apply", { method: "POST" });
-      if (ok && payload.success) {
-        messageEl.textContent = payload.message || "Update is being applied.";
-        setActionButton({ visible: true, text: "Restarting...", disabled: true });
-        return;
-      }
-
-      setActionButton({ visible: true, text: "Apply Update", disabled: false, onClick: applyUpdate });
-      setDetail(payload.error || "Update apply failed.");
-    } catch (error) {
-      setActionButton({ visible: true, text: "Apply Update", disabled: false, onClick: applyUpdate });
-      setDetail("Could not apply update right now. Please retry.");
-      console.warn("[UpdateBanner] Update apply failed", error);
-    }
-  };
-
-  const downloadUpdate = async () => {
-    setActionButton({ visible: true, text: "Downloading...", disabled: true });
-    setDetail("Preparing download...");
-    setProgress(0);
-    startStatusPolling();
-
-    try {
-      const { ok, payload } = await fetchJson("/api/update/download", { method: "POST" });
-      stopStatusPolling();
-
-      if (ok && payload.success) {
-        setProgress(100);
-        setDetail("Download complete. Click Apply Update.");
-        setActionButton({ visible: true, text: "Apply Update", disabled: false, onClick: applyUpdate });
-        return;
-      }
-
-      setProgress(null);
-      setDetail(payload.error || "Download failed.");
-      setActionButton({ visible: true, text: "Retry Download", disabled: false, onClick: downloadUpdate });
-    } catch (error) {
-      stopStatusPolling();
-      setProgress(null);
-      setDetail("Could not download update right now. Please retry.");
-      setActionButton({ visible: true, text: "Retry Download", disabled: false, onClick: downloadUpdate });
-      console.warn("[UpdateBanner] Update download failed", error);
-    }
-  };
-
-  const applyStateToBanner = (data) => {
-    const state = data.state || {};
-    const mode = String(data.mode || "source");
-    const stateStatus = String(state.status || "idle").toLowerCase();
-
-    if (!data.update_available || mode !== "packaged") {
-      hideBanner();
-      stopStatusPolling();
-      return;
-    }
-
-    showBanner();
-    messageEl.textContent = `Update available: v${data.current_version} -> v${data.latest_version}`;
-    linkEl.href = data.download_url || "#";
-
-    if (stateStatus === "downloading") {
-      const progressPercent = Number(state.progress_percent);
-      setProgress(Number.isFinite(progressPercent) ? progressPercent : 0);
-      setDetail(
-        Number.isFinite(progressPercent)
-          ? `Downloading update... ${Math.round(progressPercent)}%`
-          : "Downloading update..."
-      );
-      setActionButton({ visible: true, text: "Downloading...", disabled: true });
-      startStatusPolling();
-      return;
-    }
-
-    if (stateStatus === "downloaded") {
-      setProgress(100);
-      setDetail("Download complete. Ready to apply.");
-      setActionButton({ visible: true, text: "Apply Update", disabled: false, onClick: applyUpdate });
-      return;
-    }
-
-    if (stateStatus === "applying") {
-      setProgress(null);
-      setDetail("Applying update. App restart is expected.");
-      setActionButton({ visible: true, text: "Applying...", disabled: true });
-      return;
-    }
-
-    if (stateStatus === "error") {
-      setProgress(null);
-      setDetail(state.error || "Update failed. Retry download.");
-      setActionButton({ visible: true, text: "Retry Download", disabled: false, onClick: downloadUpdate });
-      return;
-    }
-
-    setProgress(null);
-    setDetail("Download the update, then apply it from this banner.");
-    setActionButton({ visible: true, text: "Download Update", disabled: false, onClick: downloadUpdate });
-  };
-
-  dismissBtn?.addEventListener("click", () => {
-    hideBanner();
-    stopStatusPolling();
-  });
-
-  fetchJson("/api/version")
-    .then(({ payload }) => {
-      applyStateToBanner(payload || {});
-    })
-    .catch((error) => {
-      console.debug("[UpdateBanner] Could not check update state", error);
-      hideBanner();
+  const fetchJson = async (url, options = {}) => {
+    const response = await fetch(url, {
+      method: options.method || "GET",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      body: options.body,
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = data?.error || data?.message || "Request failed";
+      throw new Error(message);
+    }
+    return data;
+  };
+
+  const showDownloadError = (errorText) => {
+    show();
+    setAlertTone("danger");
+    setProgress(0, false);
+    setReleaseLink(state.releaseUrl);
+    setMessage("Update failed", errorText || "Unable to download update.");
+    setAction("Retry update", startDownload, "outline-light");
+  };
+
+  const pollUpdateState = async () => {
+    clearPolling();
+    try {
+      const data = await fetchJson("/api/update/state");
+      const status = String(data?.state?.status || data?.status || "").toLowerCase();
+      const progress = parseProgress(data);
+
+      if (status === "error" || data?.error) {
+        showDownloadError(data?.error || data?.message || "Update process reported an error.");
+        return;
+      }
+
+      if (status === "downloaded" || status === "ready") {
+        show();
+        setAlertTone("success");
+        setProgress(100, true);
+        setReleaseLink(state.releaseUrl);
+        setMessage(
+          `Update ready ${state.currentVersion ? `v${state.currentVersion} -> ` : ""}v${state.latestVersion || "new version"}`,
+          "The update has finished downloading. Restart to apply it."
+        );
+        setAction("Restart to update", applyUpdate, "success");
+        return;
+      }
+
+      if (status === "downloading" || status === "in_progress") {
+        show();
+        setAlertTone("warning");
+        setProgress(progress, true);
+        setReleaseLink(state.releaseUrl);
+        setMessage("Downloading update", data?.message || "Please keep the app open until download completes.");
+        setAction("Downloading...", null);
+        if (actionBtn) actionBtn.disabled = true;
+        state.pollTimer = window.setTimeout(pollUpdateState, 1500);
+        return;
+      }
+
+      if (status === "applying") {
+        show();
+        setAlertTone("info");
+        setProgress(100, true);
+        setMessage("Applying update", data?.message || "Restarting app with update.");
+        setAction(null, null);
+        return;
+      }
+
+      state.pollTimer = window.setTimeout(pollUpdateState, 2000);
+    } catch (error) {
+      showDownloadError(error.message);
+    }
+  };
+
+  async function startDownload() {
+    try {
+      show();
+      setAlertTone("warning");
+      setReleaseLink(state.releaseUrl);
+      setProgress(0, true);
+      setMessage("Starting update download", "Preparing update package...");
+      setAction("Downloading...", null);
+      if (actionBtn) actionBtn.disabled = true;
+      await fetchJson("/api/update/download", { method: "POST" });
+      pollUpdateState();
+    } catch (error) {
+      showDownloadError(error.message);
+    }
+  }
+
+  async function applyUpdate() {
+    try {
+      show();
+      setAlertTone("info");
+      setProgress(100, true);
+      setMessage("Applying update", "Restarting to apply update...");
+      setAction(null, null);
+      await fetchJson("/api/update/apply", { method: "POST" });
+    } catch (error) {
+      showDownloadError(error.message || "Could not apply update.");
+    }
+  }
+
+  dismissBtn.addEventListener("click", hide);
+
+  const init = async () => {
+    try {
+      const data = await fetchJson("/api/version");
+      const updateAvailable = Boolean(data?.update_available);
+      if (!updateAvailable) {
+        hide();
+        return;
+      }
+
+      state.mode = data?.mode || "";
+      state.releaseUrl = data?.download_url || data?.release_url || data?.url || null;
+      state.latestVersion = data?.latest_version || data?.latest || data?.version || null;
+      state.currentVersion = data?.current_version || data?.current || null;
+
+      if (state.mode === "source") {
+        show();
+        setAlertTone("info");
+        setProgress(0, false);
+        setReleaseLink(state.releaseUrl);
+        setMessage(
+          `Update available ${state.latestVersion ? `v${state.latestVersion}` : ""}`.trim(),
+          "Source mode detected. Download and install the latest release manually."
+        );
+        setAction(null, null);
+        return;
+      }
+
+      if (state.mode === "packaged") {
+        show();
+        setAlertTone("warning");
+        setProgress(0, false);
+        setReleaseLink(state.releaseUrl);
+        const from = state.currentVersion ? `v${state.currentVersion}` : "current";
+        const to = state.latestVersion ? `v${state.latestVersion}` : "new";
+        setMessage(`Update available ${from} -> ${to}`, "A newer app version is ready to download.");
+        setAction("Update now", startDownload, "primary");
+        return;
+      }
+
+      hide();
+    } catch (_error) {
+      hide();
+    }
+  };
+
+  init();
 });
