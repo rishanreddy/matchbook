@@ -98,6 +98,7 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
           RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
+          CREATE_MACOS_APP_BUNDLE: ${{ matrix.os_id == 'macos' && '1' || '0' }}
         run: bash ./scripts/build_executable.sh
 
       - name: Generate checksum and manifest
@@ -119,3 +120,11 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+
+      - name: Upload macOS app bundle zip
+        if: matrix.os_id == 'macos'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ steps.asset_name.outputs.asset_name }}-app.zip
+          tag_name: ${{ steps.resolve_tag.outputs.release_tag }}
+          fail_on_unmatched_files: true
