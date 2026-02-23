@@ -15,8 +15,33 @@ permissions:
   contents: write
 
 jobs:
+  resolve_tag:
+    name: Resolve release tag
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.resolve_tag.outputs.release_tag }}
+    steps:
+      - name: Resolve release tag
+        id: resolve_tag
+        shell: bash
+        run: |
+          INPUT_TAG="${{ github.event.inputs.release_tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            echo "release_tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "workflow_dispatch requires release_tag when not running on a tag ref"
+          exit 1
+
   build:
     name: Build (${{ matrix.os_id }})
+    needs: resolve_tag
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -35,24 +60,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Resolve release tag
-        id: resolve_tag
-        shell: bash
-        run: |
-          INPUT_TAG="${{ github.event.inputs.release_tag }}"
-          if [ -n "$INPUT_TAG" ]; then
-            echo "release_tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "workflow_dispatch requires release_tag when not running on a tag ref"
-          exit 1
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -73,7 +80,7 @@ jobs:
             amd64) ARCH="x86_64" ;;
             aarch64) ARCH="arm64" ;;
           esac
-          TAG="${{ steps.resolve_tag.outputs.release_tag }}"
+          TAG="${{ needs.resolve_tag.outputs.release_tag }}"
           ASSET_NAME="OfflineScoutingManager-${TAG}-${{ matrix.os_id }}-${ARCH}"
           ASSET_FILE="${ASSET_NAME}${{ matrix.ext }}"
           CHECKSUM_NAME="${ASSET_FILE}.sha256"
@@ -88,7 +95,7 @@ jobs:
         if: matrix.os_id == 'windows'
         shell: cmd
         env:
-          GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
+          GITHUB_REF_NAME: ${{ needs.resolve_tag.outputs.release_tag }}
           RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
         run: scripts\build_executable.bat
 
@@ -96,25 +103,46 @@ jobs:
         if: matrix.os_id != 'windows'
         shell: bash
         env:
-          GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
+          GITHUB_REF_NAME: ${{ needs.resolve_tag.outputs.release_tag }}
           RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
         run: bash ./scripts/build_executable.sh
 
       - name: Generate checksum and manifest
         shell: bash
         run: |
-          TAG="${{ steps.resolve_tag.outputs.release_tag }}"
+          TAG="${{ needs.resolve_tag.outputs.release_tag }}"
           ASSET="dist/${{ steps.asset_name.outputs.asset_name }}${{ matrix.ext }}"
           python scripts/generate_release_metadata.py --asset "$ASSET" --tag "$TAG"
+
+      - name: Upload matrix artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-assets-${{ matrix.os_id }}-${{ steps.asset_name.outputs.arch }}
+          path: |
+            dist/${{ steps.asset_name.outputs.asset_file }}
+            dist/${{ steps.asset_name.outputs.checksum_name }}
+            dist/${{ steps.asset_name.outputs.manifest_name }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release assets
+    needs: [resolve_tag, build]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-${{ needs.resolve_tag.outputs.release_tag }}
+      cancel-in-progress: false
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/${{ steps.asset_name.outputs.asset_file }}
-            dist/${{ steps.asset_name.outputs.checksum_name }}
-            dist/${{ steps.asset_name.outputs.manifest_name }}
-          tag_name: ${{ steps.resolve_tag.outputs.release_tag }}
+          files: release-assets/**
+          tag_name: ${{ needs.resolve_tag.outputs.release_tag }}
           fail_on_unmatched_files: true
           draft: false
           prerelease: false
