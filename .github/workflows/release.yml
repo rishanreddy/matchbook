@@ -25,18 +25,12 @@ jobs:
           - runner: windows-latest
             os_id: windows
             ext: .exe
-            build_shell: cmd
-            build_cmd: scripts\build_executable.bat
           - runner: ubuntu-latest
             os_id: linux
             ext: ""
-            build_shell: bash
-            build_cmd: ./scripts/build_executable.sh
           - runner: macos-latest
             os_id: macos
             ext: ""
-            build_shell: bash
-            build_cmd: ./scripts/build_executable.sh
 
     steps:
       - name: Checkout
@@ -88,12 +82,21 @@ jobs:
           echo "checksum_name=$CHECKSUM_NAME" >> "$GITHUB_OUTPUT"
           echo "manifest_name=$MANIFEST_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Build executable
-        shell: ${{ matrix.build_shell }}
+      - name: Build executable (windows)
+        if: matrix.os_id == 'windows'
+        shell: cmd
         env:
           GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
           RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
-        run: ${{ matrix.build_cmd }}
+        run: scripts\build_executable.bat
+
+      - name: Build executable (linux/macos)
+        if: matrix.os_id != 'windows'
+        shell: bash
+        env:
+          GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
+          RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
+        run: ./scripts/build_executable.sh
 
       - name: Generate checksum and manifest
         shell: bash
