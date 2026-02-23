@@ -96,7 +96,7 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ steps.resolve_tag.outputs.release_tag }}
           RELEASE_ASSET_NAME: ${{ steps.asset_name.outputs.asset_name }}
-        run: ./scripts/build_executable.sh
+        run: bash ./scripts/build_executable.sh
 
       - name: Generate checksum and manifest
         shell: bash
