@@ -44,10 +44,10 @@ def main() -> None:
     generated_at_utc = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     version = strip_version_prefix(args.tag)
 
-    checksum_path = asset_path.with_suffix(".sha256")
+    checksum_path = Path(f"{asset_path}.sha256")
     checksum_path.write_text(f"{sha256}  {asset_path.name}\n", encoding="utf-8")
 
-    manifest_path = asset_path.with_suffix(".manifest.json")
+    manifest_path = Path(f"{asset_path}.manifest.json")
     manifest_data = {
         "tag": args.tag,
         "version": version,

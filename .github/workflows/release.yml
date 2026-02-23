@@ -75,10 +75,12 @@ jobs:
           esac
           TAG="${{ steps.resolve_tag.outputs.release_tag }}"
           ASSET_NAME="OfflineScoutingManager-${TAG}-${{ matrix.os_id }}-${ARCH}"
-          CHECKSUM_NAME="${ASSET_NAME}.sha256"
-          MANIFEST_NAME="${ASSET_NAME}.manifest.json"
+          ASSET_FILE="${ASSET_NAME}${{ matrix.ext }}"
+          CHECKSUM_NAME="${ASSET_FILE}.sha256"
+          MANIFEST_NAME="${ASSET_FILE}.manifest.json"
           echo "arch=$ARCH" >> "$GITHUB_OUTPUT"
           echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "asset_file=$ASSET_FILE" >> "$GITHUB_OUTPUT"
           echo "checksum_name=$CHECKSUM_NAME" >> "$GITHUB_OUTPUT"
           echo "manifest_name=$MANIFEST_NAME" >> "$GITHUB_OUTPUT"
 
@@ -109,7 +111,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/${{ steps.asset_name.outputs.asset_name }}${{ matrix.ext }}
+            dist/${{ steps.asset_name.outputs.asset_file }}
             dist/${{ steps.asset_name.outputs.checksum_name }}
             dist/${{ steps.asset_name.outputs.manifest_name }}
           tag_name: ${{ steps.resolve_tag.outputs.release_tag }}
