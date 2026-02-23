@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const latestVersion = data?.latest_version || data?.latest || "latest";
       const downloadUrl = data?.download_url || "";
 
-      messageEl.textContent = `Update available: v${currentVersion} -> v${latestVersion}`;
+      messageEl.textContent = `New version available: ${currentVersion} → ${latestVersion}`;
       setReleaseLink(downloadUrl);
       showBanner();
     } catch (_error) {

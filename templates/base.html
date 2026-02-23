@@ -26,27 +26,29 @@
     {% include 'components/navbar.html' %}
 
     <div id="update-banner" class="container mt-3 d-none" role="status" aria-live="polite">
-      <div class="alert alert-warning border-0 shadow-sm mb-0" id="update-banner-alert">
-        <div class="d-flex align-items-start justify-content-between gap-2">
-          <div class="flex-grow-1">
-            <div class="fw-semibold" id="update-banner-message">Checking for updates...</div>
+      <div class="update-banner-card" role="alert">
+        <div class="update-banner-body">
+          <div class="update-banner-text-wrap">
+            <div id="update-banner-message" class="update-banner-title">Checking for updates...</div>
             <a
               id="update-banner-release-link"
-              class="link-dark d-none"
+              class="update-banner-link d-none"
               href="#"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Open release download page"
             >
-              Download release
+              View release notes
             </a>
           </div>
           <button
             id="update-banner-dismiss"
             type="button"
-            class="btn-close"
+            class="update-banner-close"
             aria-label="Dismiss update banner"
-          ></button>
+          >
+            x
+          </button>
         </div>
       </div>
     </div>

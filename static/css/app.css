@@ -18,11 +18,11 @@
   --app-muted: #a99fc5;
   --app-muted-dark: #7a7090;
   
-  /* Accent colors - warm amber/orange */
-  --app-accent: #f59e0b;
-  --app-accent-hover: #d97706;
-  --app-accent-light: #fbbf24;
-  --app-accent-dim: rgba(245, 158, 11, 0.15);
+  /* Accent colors - green (SurveyJS-aligned) */
+  --app-accent: #19b394;
+  --app-accent-hover: #16a085;
+  --app-accent-light: #1dd1af;
+  --app-accent-dim: rgba(25, 179, 148, 0.15);
   
   /* Semantic colors */
   --app-success: #10b981;
@@ -64,7 +64,7 @@
   --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
   
   /* Glow effects */
-  --glow-accent: 0 0 20px rgba(245, 158, 11, 0.3);
+  --glow-accent: 0 0 20px rgba(25, 179, 148, 0.3);
   --glow-success: 0 0 20px rgba(16, 185, 129, 0.3);
   --glow-danger: 0 0 20px rgba(239, 68, 68, 0.3);
   
@@ -156,7 +156,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--app-accent-hover) 0%, #b45309 100%);
+  background: linear-gradient(135deg, var(--app-accent-hover) 0%, #138f75 100%);
   border-color: var(--app-accent-hover);
   box-shadow: var(--shadow-md), var(--glow-accent);
 }
@@ -555,14 +555,14 @@ body {
   align-items: center;
   justify-content: center;
   margin-bottom: var(--space-3);
-  background: linear-gradient(135deg, var(--app-accent-dim), rgba(245, 158, 11, 0.25));
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: linear-gradient(135deg, var(--app-accent-dim), rgba(25, 179, 148, 0.25));
+  border: 1px solid rgba(25, 179, 148, 0.3);
 }
 
 .stat-card-gradient {
   position: relative;
   background: linear-gradient(135deg, var(--app-surface) 0%, var(--app-surface-3) 100%);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(25, 179, 148, 0.2);
   overflow: hidden;
 }
 
@@ -573,7 +573,7 @@ body {
   right: -50%;
   width: 200%;
   height: 200%;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(25, 179, 148, 0.1) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -599,7 +599,7 @@ body {
 
 .upload-zone.drag-over {
   border-color: var(--app-accent-light);
-  background: linear-gradient(135deg, var(--app-accent-dim), rgba(245, 158, 11, 0.25));
+  background: linear-gradient(135deg, var(--app-accent-dim), rgba(25, 179, 148, 0.25));
   box-shadow: var(--glow-accent);
   transform: scale(1.02);
 }
@@ -609,7 +609,7 @@ body {
   height: 64px;
   margin: 0 auto var(--space-4);
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--app-accent-dim), rgba(245, 158, 11, 0.25));
+  background: linear-gradient(135deg, var(--app-accent-dim), rgba(25, 179, 148, 0.25));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -649,7 +649,7 @@ body {
   --bs-table-striped-color: var(--app-text);
   --bs-table-color: var(--app-text);
   --bs-table-border-color: var(--app-border);
-  --bs-table-hover-bg: rgba(245, 158, 11, 0.08);
+  --bs-table-hover-bg: rgba(25, 179, 148, 0.08);
   --bs-table-hover-color: var(--app-text);
 }
 
@@ -679,7 +679,7 @@ body {
 }
 
 .table tbody tr:hover {
-  background-color: rgba(245, 158, 11, 0.08);
+  background-color: rgba(25, 179, 148, 0.08);
 }
 
 .table-striped tbody tr:nth-of-type(odd) {
@@ -715,7 +715,7 @@ canvas {
 .chart-fallback-note {
   margin-bottom: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  background: rgba(245, 158, 11, 0.08);
+  background: rgba(25, 179, 148, 0.08);
   border-left: 2px solid var(--app-accent);
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
@@ -1016,7 +1016,7 @@ footer {
 }
 
 #surveyContainer .sd-btn:hover {
-  background: linear-gradient(135deg, var(--app-accent-hover) 0%, #b45309 100%);
+  background: linear-gradient(135deg, var(--app-accent-hover) 0%, #138f75 100%);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md), var(--glow-accent);
 }
@@ -1036,6 +1036,85 @@ footer {
   background-color: var(--app-surface-2);
   border-color: var(--app-border);
   color: var(--app-text);
+}
+
+/* ============================================
+   UPDATE BANNER
+   ============================================ */
+
+.update-banner-card {
+  border: 1px solid rgba(25, 179, 148, 0.45);
+  border-left: 4px solid var(--app-accent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--app-surface-2), var(--app-surface));
+  box-shadow: var(--shadow-sm);
+  animation: slideInDown var(--duration-base) var(--ease-out);
+}
+
+.update-banner-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.update-banner-text-wrap {
+  min-width: 0;
+}
+
+.update-banner-title {
+  color: var(--app-text);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.update-banner-link {
+  display: inline-block;
+  color: var(--app-accent-light);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.update-banner-link:hover {
+  color: var(--app-accent);
+}
+
+.update-banner-close {
+  flex-shrink: 0;
+  border: 1px solid var(--app-border-hover);
+  border-radius: var(--radius-sm);
+  background: var(--app-surface-3);
+  color: var(--app-text-secondary);
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  line-height: 1;
+  font-size: 18px;
+}
+
+.update-banner-close:hover {
+  border-color: var(--app-accent);
+  color: var(--app-accent-light);
+}
+
+@media (max-width: 768px) {
+  .update-banner-body {
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .update-banner-title {
+    font-size: var(--text-sm);
+  }
+
+  .update-banner-link {
+    font-size: var(--text-xs);
+  }
 }
 
 /* ============================================
@@ -1502,7 +1581,7 @@ footer {
   height: 48px;
   flex-shrink: 0;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--app-accent-dim), rgba(13, 110, 253, 0.15));
+  background: linear-gradient(135deg, var(--app-accent-dim), rgba(25, 179, 148, 0.25));
   border: 1px solid var(--app-accent-dim);
   display: flex;
   align-items: center;
@@ -1512,7 +1591,7 @@ footer {
 }
 
 .setup-file-label:hover .setup-file-icon {
-  background: linear-gradient(135deg, rgba(13, 110, 253, 0.25), rgba(13, 110, 253, 0.2));
+  background: linear-gradient(135deg, rgba(25, 179, 148, 0.25), rgba(25, 179, 148, 0.2));
   border-color: var(--app-accent);
 }
 
