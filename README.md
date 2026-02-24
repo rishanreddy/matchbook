@@ -1,90 +1,184 @@
 # Offline Scouting Manager
 
-A Flask web app for robotics competition scouting that works completely offline. Built for FTC/FRC teams who need to collect match data on devices without internet access.
+<p align="center">
+  A practical, offline-first scouting app for FRC/FTC teams.<br>
+  Built for real match days where Wi-Fi is unreliable and speed matters.
+</p>
 
-## What it does
+<p align="center">
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/rishanreddy/Offline_Scouting_Manager?display_name=tag&sort=semver&style=for-the-badge"></a>
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/releases"><img alt="Total Downloads" src="https://img.shields.io/github/downloads/rishanreddy/Offline_Scouting_Manager/total?style=for-the-badge"></a>
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/releases/latest"><img alt="Latest Downloads" src="https://img.shields.io/github/downloads/rishanreddy/Offline_Scouting_Manager/latest/total?style=for-the-badge"></a>
+</p>
 
-- **Collect data**: Custom forms for recording match observations
-- **Sync between devices**: Export/import CSV files via USB
-- **Analyze results**: View and filter all scouting data in one place
-- **Works offline**: No internet required
+<p align="center">
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/network/members"><img alt="Forks" src="https://img.shields.io/github/forks/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/issues"><img alt="Issues" src="https://img.shields.io/github/issues/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
+  <img alt="Last Commit" src="https://img.shields.io/github/last-commit/rishanreddy/Offline_Scouting_Manager?style=flat-square">
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
+</p>
 
-## Setup
+---
 
-Recommended (auto‑install deps):
+## What this software does
+
+Offline Scouting Manager helps a scouting crew collect match observations on multiple devices, sync them with CSV, and review combined data in one place.
+
+No cloud account required. No internet requirement during operation.
+
+### Core features
+
+- Custom SurveyJS scouting forms with validation
+- Fast local data capture to CSV
+- USB-friendly export/import across devices
+- Team-level analysis and charts
+- Setup wizard for event + form configuration
+
+---
+
+## Downloads
+
+- Latest release: https://github.com/rishanreddy/Offline_Scouting_Manager/releases/latest
+- All releases: https://github.com/rishanreddy/Offline_Scouting_Manager/releases
+
+Notes on counters:
+
+- `Total Downloads` = all GitHub release asset downloads over time
+- `Latest Downloads` = downloads for only the most recent release
+
+---
+
+## Quick start
+
+### Run from executable
+
+1. Download your platform build from Releases.
+2. Launch the app.
+3. Open `http://127.0.0.1:8080` (the app also auto-opens browser on startup).
+
+### Run from source
 
 ```bash
-# Mac/Linux
+# macOS / Linux
 ./scripts/setup.sh
 
 # Windows
 scripts\setup.bat
 ```
 
-Manual:
+Manual path:
 
 ```bash
 uv sync
 
-# Run the app (production with Waitress)
+# Production mode
 uv run main.py
 
-# Run in development mode (auto-reload)
+# Development mode
 uv run main.py --dev
 
-# Allow LAN access (bind to 0.0.0.0)
+# LAN mode
 uv run main.py --lan
 
 # Custom host/port
 uv run main.py --host 0.0.0.0 --port 8080
 ```
 
-Open `http://127.0.0.1:8080` in your browser.
+---
 
-## Build an executable
+## Match-day workflow
+
+```text
+Scout devices collect data -> each exports CSV -> one laptop imports all CSVs -> combined analysis
+```
+
+Typical flow:
+
+1. Scouts submit forms during matches.
+2. Each device stores local records in `data/scouting_data.csv`.
+3. One device imports CSVs from all scouts.
+4. Drive picklist and strategy discussions from combined data.
+
+---
+
+## Architecture snapshot
+
+Built for **FTC/FRC scouting teams** operating in bandwidth-constrained environments. Collect match observations across multiple devices, synchronize via USB, and analyze aggregate performance—all without touching the cloud.
+
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│  Scout A    │      │  Scout B    │      │  Scout C    │
+│  Device     │      │  Device     │      │  Device     │
+└──────┬──────┘      └──────┬──────┘      └──────┬──────┘
+       │                    │                    │
+       │    Export CSV      │    Export CSV      │    Export CSV
+       └────────────────────┼────────────────────┘
+                            │
+                    ┌───────▼────────┐
+                    │  Analysis Hub  │
+                    │  (Import All)  │
+                    └────────────────┘
+                            │
+                    Unified Dataset → Insights
+```
+
+### Stack
+
+| Layer           | Tech                            |
+| --------------- | ------------------------------- |
+| Backend         | Python 3.12+, Flask, Waitress   |
+| Frontend        | Jinja2, Bootstrap 5, vanilla JS |
+| Forms           | SurveyJS                        |
+| Storage         | CSV + YAML + JSON               |
+| Packaging       | PyInstaller                     |
+| Package manager | uv                              |
+
+---
+
+## Build
 
 ```bash
-# Mac/Linux
+# macOS / Linux
 ./scripts/build_executable.sh
 
 # Windows
 scripts\build_executable.bat
 ```
 
-Executable will be in `dist/`.
+Artifacts are generated in `dist/`.
+
+---
 
 ## Configuration
 
-Use the **Setup Wizard** at `/setup` (auto‑launches on first run) or the **Settings** page to configure:
+Use `/setup` on first run (or `/settings` later) to configure:
 
-- Event name and season
-- Device name (unique per laptop)
-- Survey form using SurveyJS JSON format (or import setup file)
+- Event name + season
+- Device identity
+- Survey schema
+- Analysis graph fields
 
-## Usage
+Required schema fields used by the app:
 
-1. Fill out scouting forms during matches
-2. Data saves to `data/scouting_data.csv`
-3. Export CSV to USB drive
-4. Import CSVs from all scouting devices on the Analysis page
-5. View combined data from all scouts
+- `team`
+- `auto_score`
+- `teleop_score`
 
-## Tech Stack
-
-- Python 3.12+ with Flask + Waitress
-- SurveyJS Form Library for dynamic forms
-- Bootstrap 5 (offline local assets)
-- YAML for config, CSV for data storage
-
-## Recent Changes
-
-See `RELEASE_NOTES.md` for the latest production-ready improvements including:
-- Comprehensive code cleanup and bloat removal
-- Enhanced UI/UX with warm-dark theme
-- Improved reliability and error handling
-- Better accessibility support
-- JavaScript extracted from templates for maintainability
+---
 
 ## Development
 
-For contributing or making changes, see `AGENTS.md` for coding guidelines and `TESTING_CHECKLIST.md` for validation procedures.
+Manual validation loop:
+
+1. `uv run main.py --dev`
+2. Exercise affected pages
+3. Check `logs/app.log`
+4. Validate CSV import/export
+5. Re-check analysis pages
+
+---
+
+<p align="center">
+  Built by a team that has had scouting break at events and decided not to let that happen again.
+</p>
