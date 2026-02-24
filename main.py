@@ -18,7 +18,9 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
+import webbrowser
 from logging.handlers import RotatingFileHandler
 
 import yaml
@@ -1205,6 +1207,21 @@ def handle_server_error(error):
     )
 
 
+def open_browser_for_server(host: str, port: int, delay_seconds: float = 0.8) -> None:
+    """Open the local app URL in the default browser without blocking startup."""
+    open_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
+    url = f"http://{open_host}:{port}"
+
+    def _open() -> None:
+        time.sleep(delay_seconds)
+        try:
+            webbrowser.open(url, new=2)
+        except Exception as exc:
+            app.logger.warning("Failed to auto-open browser for %s: %s", url, exc)
+
+    threading.Thread(target=_open, daemon=True).start()
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -1239,6 +1256,9 @@ if __name__ == "__main__":
 
         host = args.host if args.host else ("0.0.0.0" if args.lan else "127.0.0.1")
         port = args.port if args.port is not None else 8080
+        open_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
         print("Starting in production mode (Waitress)...")
         print(f"Serving on http://{host}:{port}")
+        print(f"Opening browser at http://{open_host}:{port}")
+        open_browser_for_server(host, port)
         serve(app, host=host, port=port)

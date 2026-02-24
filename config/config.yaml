@@ -1,7 +1,7 @@
 device:
   uniqueId: osm_did_v2_dzeiwf6sz6e5r66o5agmyuuwmy
 event:
-  name: Rebuilt
+  name: Hayfield Secondary
   season: 2025-2026
 analysis:
   graph_fields:
@@ -36,6 +36,54 @@ analysis:
     enabled: true
     chart_type: bar
   - field: teleop_score
+    enabled: true
+    chart_type: line
+  - field: match_number
+    enabled: false
+    chart_type: bar
+  - field: team
+    enabled: false
+    chart_type: pie
+  - field: alliance_color
+    enabled: false
+    chart_type: pie
+  - field: robot_showed_up
+    enabled: true
+    chart_type: line
+  - field: status_note
+    enabled: false
+    chart_type: bar
+  - field: auto_fuel_scored
+    enabled: false
+    chart_type: bar
+  - field: auto_level1_climb
+    enabled: true
+    chart_type: pie
+  - field: balls_from_depo
+    enabled: true
+    chart_type: bar
+  - field: teleop_fuel_scored_active
+    enabled: true
+    chart_type: line
+  - field: endgame_fuel_scored
+    enabled: true
+    chart_type: line
+  - field: climb_start_time_left
+    enabled: true
+    chart_type: line
+  - field: endgame_result
+    enabled: true
+    chart_type: bar
+  - field: percent_fuel_made
+    enabled: true
+    chart_type: bar
+  - field: primary_role
+    enabled: true
+    chart_type: bar
+  - field: penalties
+    enabled: false
+    chart_type: bar
+  - field: defense_ranking
     enabled: true
     chart_type: bar
   - field: teleop_fuel_scored_active
@@ -97,6 +145,21 @@ survey_json:
       name: match
       title: 'Match #'
       isRequired: true
+      inputType: number
+    - type: text
+      name: auto_score
+      title: Auto Score
+      isRequired: true
+      inputType: number
+    - type: text
+      name: teleop_score
+      title: Teleop Score
+      isRequired: true
+      inputType: number
+    - type: text
+      name: match_number
+      title: 'Match #'
+      isRequired: true
       validators:
       - type: numeric
         minValue: 1
@@ -137,126 +200,62 @@ survey_json:
   - name: auto
     elements:
     - type: text
-      name: auto_score
-      title: Auto Score
-      isRequired: true
-      validators:
-      - type: numeric
-        minValue: 0
-        maxValue: 200
-      inputType: number
-    - type: slider
       name: auto_fuel_scored
       title: Auto Fuel Scored
       defaultValue: 0
-      max: 40
-    - type: boolean
-      name: auto_leave
-      title: Left Starting Zone?
-      labelTrue: 'Yes'
-      labelFalse: 'No'
-      valueTrue: 'yes'
-      valueFalse: 'no'
+      isRequired: true
+      inputType: number
+      min: 0
     - type: boolean
       name: auto_level1_climb
       title: Auto Level 1 Climb Achieved?
+      isRequired: true
       labelTrue: 'Yes'
       labelFalse: 'No'
       valueTrue: 'yes'
       valueFalse: 'no'
-    - type: rating
-      name: auto_consistency
-      title: Auto Consistency
-      autoGenerate: false
-      rateValues:
-      - value: 1
-        text: 1 - never consistent
-      - value: 2
-        text: 2 - low consistency
-      - value: 3
-        text: 3 - average consistency
-      - value: 4
-        text: 4 - usually consistent
-      - value: 5
-        text: 5 - very consistent
+    - type: checkbox
+      name: balls_from_depo
+      title: Where did they get balls from?
+      isRequired: true
+      choices:
+      - value: Item 1
+        text: Depo
+      - value: Item 2
+        text: Human Player
+      - value: Item 3
+        text: Center Area
+      showNoneItem: true
     title: Autonomous (0:20)
   - name: teleop
     elements:
     - type: text
-      name: teleop_score
-      title: Tele-op Score
-      isRequired: true
-      validators:
-      - type: numeric
-        minValue: 0
-        maxValue: 300
-      inputType: number
-    - type: slider
       name: teleop_fuel_scored_active
       title: Teleop Fuel Scored While Hub Active
       defaultValue: 0
-      max: 120
-    - type: slider
-      name: teleop_fuel_attempted_active
-      title: Teleop Fuel Attempted While Hub Active
-      defaultValue: 0
-      max: 140
-    - type: slider
-      name: teleop_fuel_scored_inactive
-      title: Fuel Scored During Inactive Hub Windows
-      description: Tracks wasted cycles during alternating hub windows.
-      defaultValue: 0
-      max: 60
-    - type: rating
-      name: shift_awareness
-      title: Shift Awareness
-      description: How well did they adapt to active/inactive hub windows?
-      autoGenerate: false
-      rateValues:
-      - value: 1
-        text: 1 - ignored shifts
-      - value: 2
-        text: 2 - late adaptation
-      - value: 3
-        text: 3 - mixed adaptation
-      - value: 4
-        text: 4 - good adaptation
-      - value: 5
-        text: 5 - excellent adaptation
-    - type: dropdown
-      name: primary_role
-      title: Primary Role
       isRequired: true
-      choices:
-      - value: cycle_scorer
-        text: Cycle Scorer
-      - value: hybrid
-        text: Hybrid
-      - value: defense
-        text: Defense
-      - value: climb_specialist
-        text: Climb Specialist
-    - type: tagbox
-      name: teleop_strengths
-      title: Observed Strengths
-      choices:
-      - value: fast_cycles
-        text: Fast cycles
-      - value: smart_retarget
-        text: Smart hub retargeting
-      - value: clean_pickups
-        text: Clean pickups
-      - value: traffic_navigation
-        text: Good traffic navigation
-      - value: defense_break
-        text: Escapes defense pressure
-      maxSelectedChoices: 4
-    title: Teleop + Shift Awareness
+      inputType: number
+      max: 120
+    title: Teleop (2:10)
   - name: endgame_and_risk
     elements:
+    - type: text
+      name: endgame_fuel_scored
+      title: 'During Endgame: fuel scored'
+      isRequired: true
+      inputType: number
+      min: 0
+      step: 1
+    - type: slider
+      name: climb_start_time_left
+      visibleIf: '{endgame_result} != ''none'''
+      title: Seconds Left When Climb Started
+      defaultValue: 0
+      isRequired: true
+      max: 30
     - type: dropdown
       name: endgame_result
-      title: Endgame Result
+      title: Climb
       isRequired: true
       choices:
       - value: none
@@ -269,49 +268,37 @@ survey_json:
         text: Level 3
       - value: failed
         text: Attempted but failed
+    title: Endgame (0:30)
+  - name: post_match
+    elements:
     - type: rating
-      name: climb_reliability
-      visibleIf: '{endgame_result} != ''none'''
-      title: Climb Reliability
-      requiredIf: '{endgame_result} != ''none'' and {endgame_result} != ''failed'''
+      name: percent_fuel_made
+      title: Percent of Fuel Made While Hub Active
+      defaultValue: 0
+      isRequired: true
       autoGenerate: false
       rateValues:
       - value: 1
-        text: 1 - rarely successful
+        text: 10%+
       - value: 2
-        text: 2 - low reliability
+        text: 30%+
       - value: 3
-        text: 3 - moderate reliability
+        text: 50%+
       - value: 4
-        text: 4 - reliable
+        text: 70%+
       - value: 5
-        text: 5 - highly reliable
-    - type: slider
-      name: climb_start_time_left
-      visibleIf: '{endgame_result} != ''none'''
-      title: Seconds Left When Climb Started
-      defaultValue: 0
-      max: 30
-    - type: matrix
-      name: driver_eval
-      title: Driver Evaluation
-      columns:
-      - value: 1
-        text: Poor
-      - value: 2
-        text: Fair
-      - value: 3
-        text: Good
-      - value: 4
-        text: Great
-      rows:
-      - value: pathing
-        text: Pathing
-      - value: decision_making
-        text: Decision making
-      - value: under_pressure
-        text: Under pressure
-      eachRowRequired: true
+        text: 90%+
+    - type: checkbox
+      name: primary_role
+      title: Role(s)
+      isRequired: true
+      choices:
+      - value: cycle_scorer
+        text: Passer
+      - value: hybrid
+        text: Shooter
+      - value: climb_specialist
+        text: Defense
     - type: paneldynamic
       name: penalties
       title: Penalties / Incidents
@@ -319,6 +306,7 @@ survey_json:
       - type: dropdown
         name: incident_type
         title: Incident Type
+        isRequired: true
         choices:
         - value: minor
           text: Minor foul
@@ -328,57 +316,50 @@ survey_json:
           text: Yellow card
         - value: red
           text: Red card
-        - value: damage_risk
-          text: Dangerous contact
+        - value: Item 1
+          text: Part broken
+        - value: Item 2
+          text: Stopped working completely
+        showOtherItem: true
       - type: comment
         name: incident_note
         title: Details
+        isRequired: true
         rows: 2
       templateTitle: 'Incident #{panelIndex}'
       maxPanelCount: 8
-    - type: expression
-      name: fuel_efficiency_est
-      title: Approx Active Fuel Efficiency
-      expression: iif({teleop_fuel_attempted_active} > 0, round(({teleop_fuel_scored_active}
-        / {teleop_fuel_attempted_active}) * 100), 0)
-    title: Endgame + Risk
-  - name: post_match
-    elements:
-    - type: dropdown
-      name: playoff_fit_role
-      title: Playoff Fit Role
-      isRequired: true
-      choices:
-      - value: primary_scorer
-        text: Primary scorer
-      - value: secondary_scorer
-        text: Secondary scorer
-      - value: utility
-        text: Utility/hybrid
-      - value: defense_specialist
-        text: Defense specialist
-      - value: climb_closer
-        text: Endgame closer
     - type: rating
-      name: overall_impact
-      title: Overall Match Impact
+      name: defense_ranking
+      title: 'Rank: Defense'
       isRequired: true
-      rateCount: 10
-      rateMax: 10
-    - type: ranking
-      name: top_pick_traits
-      title: Rank Top Pick Traits
-      choices:
-      - value: fuel_rate
-        text: Fuel throughput
-      - value: shift_awareness
-        text: Shift awareness
-      - value: climb_reliability
-        text: Climb reliability
-      - value: low_foul_risk
-        text: Low foul risk
-      - value: driver_quality
-        text: Driver quality
+      autoGenerate: false
+      rateValues:
+      - value: 1
+        text: 1 - stopped 10% of scoring
+      - value: 2
+        text: 2 - stopped 30% of scoring
+      - value: 3
+        text: 3 - stopped 50% of scoring
+      - value: 4
+        text: 4 - stopped 70% of scoring
+      - value: 5
+        text: 5 - stopped 90% of scoring
+    - type: rating
+      name: passing_rank
+      title: 'Rank: Passing'
+      isRequired: true
+      autoGenerate: false
+      rateValues:
+      - value: 1
+        text: 1 - kept 10% of balls on their side
+      - value: 2
+        text: 2 - kept 30% of balls on their side
+      - value: 3
+        text: 3 - kept 50% of balls on their side
+      - value: 4
+        text: 4 - kept 70% of balls on their side
+      - value: 5
+        text: 5 - kept 90% of balls on their side
     - type: comment
       name: notes
       title: Scout Notes
@@ -387,6 +368,5 @@ survey_json:
       placeholder: What would matter for alliance selection and playoff strategy?
     title: Post-Match Summary
   showProgressBar: true
-  progressBarLocation: top
   clearInvisibleValues: onHiddenContainer
   checkErrorsMode: onValueChanged
