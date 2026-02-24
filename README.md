@@ -16,7 +16,7 @@
   <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/network/members"><img alt="Forks" src="https://img.shields.io/github/forks/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
   <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/issues"><img alt="Issues" src="https://img.shields.io/github/issues/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
   <img alt="Last Commit" src="https://img.shields.io/github/last-commit/rishanreddy/Offline_Scouting_Manager?style=flat-square">
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
+  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
 </p>
 
 ---
