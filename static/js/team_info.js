@@ -294,7 +294,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   graphFields.forEach((fieldConfig) => {
     const fieldName = fieldConfig.field;
-    const fieldType = getFieldType(fieldName);
     const multiSelect = isMultiSelectField(fieldName);
     const categorical = isCategoricalField(fieldName);
     const unsupported = isUnsupportedField(fieldName);
@@ -420,6 +419,13 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     }
 
+    if (typeof Chart.getChart === "function") {
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) {
+        existingChart.destroy();
+      }
+    }
+
     new Chart(canvas, {
       type: chartType,
       data: {
@@ -501,6 +507,13 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   gradient.addColorStop(0, "rgba(245, 158, 11, 0.38)");
   gradient.addColorStop(1, "rgba(245, 158, 11, 0.10)");
+
+  if (typeof Chart.getChart === "function") {
+    const existingRadar = Chart.getChart(radarCanvas);
+    if (existingRadar) {
+      existingRadar.destroy();
+    }
+  }
 
   new Chart(radarCanvas, {
     type: "radar",

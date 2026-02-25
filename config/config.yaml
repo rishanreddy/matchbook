@@ -8,39 +8,12 @@ analysis:
   - field: match
     enabled: false
     chart_type: bar
-  - field: team
-    enabled: true
-    chart_type: pie
-  - field: alliance_color
-    enabled: true
-    chart_type: pie
-  - field: robot_showed_up
-    enabled: true
-    chart_type: bar
-  - field: status_note
-    enabled: false
-    chart_type: bar
   - field: auto_score
     enabled: true
     chart_type: line
-  - field: auto_fuel_scored
-    enabled: false
-    chart_type: bar
-  - field: auto_leave
-    enabled: true
-    chart_type: bar
-  - field: auto_level1_climb
-    enabled: true
-    chart_type: bar
-  - field: auto_consistency
-    enabled: true
-    chart_type: bar
   - field: teleop_score
     enabled: true
     chart_type: line
-  - field: match_number
-    enabled: false
-    chart_type: bar
   - field: team
     enabled: false
     chart_type: pie
@@ -49,16 +22,16 @@ analysis:
     chart_type: pie
   - field: robot_showed_up
     enabled: true
-    chart_type: line
+    chart_type: bar
   - field: status_note
-    enabled: false
+    enabled: true
     chart_type: bar
   - field: auto_fuel_scored
-    enabled: false
-    chart_type: bar
+    enabled: true
+    chart_type: line
   - field: auto_level1_climb
     enabled: true
-    chart_type: pie
+    chart_type: line
   - field: balls_from_depo
     enabled: true
     chart_type: bar
@@ -86,50 +59,8 @@ analysis:
   - field: defense_ranking
     enabled: true
     chart_type: bar
-  - field: teleop_fuel_scored_active
-    enabled: false
-    chart_type: bar
-  - field: teleop_fuel_attempted_active
-    enabled: false
-    chart_type: bar
-  - field: teleop_fuel_scored_inactive
-    enabled: false
-    chart_type: bar
-  - field: shift_awareness
+  - field: passing_rank
     enabled: true
-    chart_type: bar
-  - field: primary_role
-    enabled: true
-    chart_type: bar
-  - field: teleop_strengths
-    enabled: false
-    chart_type: bar
-  - field: endgame_result
-    enabled: true
-    chart_type: bar
-  - field: climb_reliability
-    enabled: true
-    chart_type: bar
-  - field: climb_start_time_left
-    enabled: false
-    chart_type: bar
-  - field: driver_eval
-    enabled: false
-    chart_type: bar
-  - field: penalties
-    enabled: false
-    chart_type: bar
-  - field: fuel_efficiency_est
-    enabled: false
-    chart_type: bar
-  - field: playoff_fit_role
-    enabled: true
-    chart_type: bar
-  - field: overall_impact
-    enabled: true
-    chart_type: bar
-  - field: top_pick_traits
-    enabled: false
     chart_type: bar
   - field: notes
     enabled: false
@@ -137,7 +68,7 @@ analysis:
   matches_per_page: 25
 survey_json:
   title: FRC 2026  Scouting
-  description: Designed for the REBUILT  season
+  description: Designed for the REBUILT season (Feb 24 2026)
   pages:
   - name: pre_match
     elements:
@@ -155,15 +86,6 @@ survey_json:
       name: teleop_score
       title: Teleop Score
       isRequired: true
-      inputType: number
-    - type: text
-      name: match_number
-      title: 'Match #'
-      isRequired: true
-      validators:
-      - type: numeric
-        minValue: 1
-        maxValue: 200
       inputType: number
     - type: text
       name: team
@@ -251,8 +173,8 @@ survey_json:
       visibleIf: '{endgame_result} != ''none'''
       title: Seconds Left When Climb Started
       defaultValue: 0
-      isRequired: true
       max: 30
+      allowClear: true
     - type: dropdown
       name: endgame_result
       title: Climb

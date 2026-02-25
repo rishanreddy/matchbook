@@ -1015,6 +1015,7 @@ def team_info(team_number):
     # Convert to full config with defaults
     graph_fields = []
     stat_fields = []
+    seen_graph_fields = set()
     for i, field_config in enumerate(graph_fields_list):
         # Support both string format and dict format
         if isinstance(field_config, dict):
@@ -1027,6 +1028,11 @@ def team_info(team_number):
 
         if not field_name:
             continue
+
+        normalized_field = str(field_name).strip().lower()
+        if normalized_field in seen_graph_fields:
+            continue
+        seen_graph_fields.add(normalized_field)
 
         graph_fields.append(
             {
