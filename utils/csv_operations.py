@@ -4,6 +4,7 @@ import csv
 import datetime
 import logging
 import re
+import threading
 
 from .constants import CSV_FILE
 from .config import (
@@ -15,6 +16,7 @@ from .config import (
 from .formatting import format_timestamp
 
 logger = logging.getLogger(__name__)
+_CSV_WRITE_LOCK = threading.Lock()
 
 
 def get_csv_header(survey_json):
@@ -47,16 +49,17 @@ def ensure_csv_header(survey_json):
     Args:
         survey_json: SurveyJS schema dict
     """
-    if CSV_FILE.exists():
-        return
+    with _CSV_WRITE_LOCK:
+        if CSV_FILE.exists():
+            return
 
-    header = get_csv_header(survey_json)
-    with CSV_FILE.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-    logger.info(
-        "[CSV] Initialized file with header (%s columns): %s", len(header), CSV_FILE
-    )
+        header = get_csv_header(survey_json)
+        with CSV_FILE.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+        logger.info(
+            "[CSV] Initialized file with header (%s columns): %s", len(header), CSV_FILE
+        )
 
 
 def cast_value(element, raw_value: str) -> str:
@@ -145,8 +148,6 @@ def append_row(device_cfg, event_cfg, survey_json, form_data):
     Creates the CSV file with headers if it doesn't exist.
     Adds metadata columns (timestamp, event, device) automatically.
     """
-    ensure_csv_header(survey_json)
-
     timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     config_id, event_name, event_season = get_event_ids(event_cfg)
     device_id = get_device(device_cfg)
@@ -169,9 +170,20 @@ def append_row(device_cfg, event_cfg, survey_json, form_data):
         row[name] = cast_value(element, raw_value)
 
     header = get_csv_header(survey_json)
-    with CSV_FILE.open("a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=header)
-        writer.writerow(row)
+    with _CSV_WRITE_LOCK:
+        if not CSV_FILE.exists():
+            with CSV_FILE.open("w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+            logger.info(
+                "[CSV] Initialized file with header (%s columns): %s",
+                len(header),
+                CSV_FILE,
+            )
+
+        with CSV_FILE.open("a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=header)
+            writer.writerow(row)
 
     logger.info(
         "[CSV] Appended row: event=%s season=%s device_id=%s fields=%s",
@@ -194,12 +206,13 @@ def get_stats():
             "last_timestamp": None,
         }
 
+    entries = 0
+    last_ts_raw = None
     with CSV_FILE.open("r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        rows = list(reader)
-
-    entries = len(rows)
-    last_ts_raw = rows[-1].get("timestamp") if rows else None
+        for row in reader:
+            entries += 1
+            last_ts_raw = row.get("timestamp")
 
     return {
         "entries": entries,

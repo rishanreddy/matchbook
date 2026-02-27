@@ -12,6 +12,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 NETWORK_RETRIES = 3
 NETWORK_BACKOFF_SECONDS = 0.75
+VERSION_CACHE_TTL_SECONDS = 600
+_VERSION_CACHE: dict | None = None
+_VERSION_CACHE_MONOTONIC: float | None = None
 
 
 def _read_version_from_pyproject() -> str:
@@ -62,6 +65,16 @@ def check_for_updates():
             'error': str (if any)
         }
     """
+    global _VERSION_CACHE, _VERSION_CACHE_MONOTONIC
+
+    now_monotonic = time.monotonic()
+    if (
+        _VERSION_CACHE is not None
+        and _VERSION_CACHE_MONOTONIC is not None
+        and (now_monotonic - _VERSION_CACHE_MONOTONIC) < VERSION_CACHE_TTL_SECONDS
+    ):
+        return dict(_VERSION_CACHE)
+
     result = {
         "update_available": False,
         "current_version": CURRENT_VERSION,
@@ -75,7 +88,7 @@ def check_for_updates():
         last_error = None
         for attempt in range(1, NETWORK_RETRIES + 1):
             try:
-                response = requests.get(RELEASES_URL, timeout=5)
+                response = requests.get(RELEASES_URL, timeout=3)
                 break
             except requests.RequestException as exc:
                 last_error = exc
@@ -141,4 +154,6 @@ def check_for_updates():
         result["error"] = f"Unexpected error: {str(e)}"
         logger.error(f"Unexpected error checking for updates: {e}")
 
+    _VERSION_CACHE = dict(result)
+    _VERSION_CACHE_MONOTONIC = now_monotonic
     return result

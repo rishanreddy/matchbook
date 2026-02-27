@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 from .constants import APP_STATE_FILE
@@ -11,8 +13,19 @@ logger = logging.getLogger(__name__)
 
 def _atomic_write_text(file_path: Path, content: str) -> None:
     """Write text atomically using temporary sibling file."""
-    temp_path = file_path.with_suffix(f"{file_path.suffix}.tmp")
-    temp_path.write_text(content, encoding="utf-8")
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=file_path.parent,
+        delete=False,
+        prefix=f".{file_path.name}.",
+        suffix=".tmp",
+    ) as handle:
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+        temp_path = Path(handle.name)
     temp_path.replace(file_path)
 
 

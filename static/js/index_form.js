@@ -76,8 +76,18 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (!surveyJson || typeof surveyJson !== "object") {
+      document.getElementById("surveyContainer").innerHTML =
+        '<div class="alert alert-warning">Invalid survey configuration. Please review Settings.</div>';
+      return;
+    }
+
     const survey = new Survey.Model(surveyJson);
-    if (window.SurveyTheme && window.SurveyTheme.LayeredDark) {
+    survey.lazyRenderEnabled = true;
+    survey.clearInvisibleValues = "onComplete";
+    if (window.AppSurveyTheme && typeof window.AppSurveyTheme.applyFormTheme === "function") {
+      window.AppSurveyTheme.applyFormTheme(survey);
+    } else if (window.SurveyTheme && window.SurveyTheme.LayeredDark) {
       survey.applyTheme(window.SurveyTheme.LayeredDark);
     }
 
@@ -107,7 +117,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return String(value);
     };
 
+    let isSubmitting = false;
     survey.onComplete.add((sender) => {
+      if (isSubmitting) {
+        return;
+      }
+      isSubmitting = true;
       const data = sender.data;
       const hiddenForm = document.getElementById("hiddenSubmitForm");
       const container = document.getElementById("hiddenFieldsContainer");

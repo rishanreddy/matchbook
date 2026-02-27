@@ -49,6 +49,7 @@ from .temp_uploads import (
     save_uploaded_file,
     load_combined_data_from_temp,
     clear_temp_uploads,
+    clear_stale_temp_uploads,
 )
 from .survey_display import (
     build_display_rows,
@@ -117,6 +118,7 @@ __all__ = [
     "save_uploaded_file",
     "load_combined_data_from_temp",
     "clear_temp_uploads",
+    "clear_stale_temp_uploads",
     "build_display_rows",
     "build_choice_label_maps",
     "build_choice_display_entries",

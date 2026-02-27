@@ -375,7 +375,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const options = {
       responsive: true,
       maintainAspectRatio: true,
+      resizeDelay: 120,
+      animation: false,
+      parsing: false,
       plugins: {
+        decimation: {
+          enabled: chartType === "line" && labels.length > 200,
+          algorithm: "lttb",
+          samples: 200,
+        },
         legend: {
           display: isPieOrDoughnut,
           labels: { color: "#a99fc5" },
@@ -411,7 +419,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!isPieOrDoughnut) {
       options.scales = {
-        x: { ticks: { color: "#94a3b8" } },
+        x: {
+          ticks: {
+            color: "#94a3b8",
+            autoSkip: true,
+            maxTicksLimit: 14,
+          },
+        },
         y: {
           beginAtZero: true,
           ticks: { color: "#94a3b8" },
@@ -434,6 +448,7 @@ document.addEventListener("DOMContentLoaded", () => {
           {
             label: fieldConfig.label,
             data: values,
+            parsing: false,
             backgroundColor,
             borderColor,
             borderWidth: 2,
@@ -495,16 +510,19 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  const gradient = radarCanvas
-    .getContext("2d")
-    .createRadialGradient(
-      radarCanvas.width / 2,
-      radarCanvas.height / 2,
-      20,
-      radarCanvas.width / 2,
-      radarCanvas.height / 2,
-      240,
-    );
+  const radarContext = radarCanvas.getContext("2d");
+  if (!radarContext) {
+    return;
+  }
+
+  const gradient = radarContext.createRadialGradient(
+    radarCanvas.width / 2,
+    radarCanvas.height / 2,
+    20,
+    radarCanvas.width / 2,
+    radarCanvas.height / 2,
+    240,
+  );
   gradient.addColorStop(0, "rgba(245, 158, 11, 0.38)");
   gradient.addColorStop(1, "rgba(245, 158, 11, 0.10)");
 
@@ -547,6 +565,9 @@ document.addEventListener("DOMContentLoaded", () => {
     options: {
       responsive: true,
       maintainAspectRatio: true,
+      resizeDelay: 120,
+      animation: false,
+      parsing: false,
       plugins: {
         legend: {
           labels: {

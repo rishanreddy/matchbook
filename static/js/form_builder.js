@@ -173,8 +173,10 @@ document.addEventListener("DOMContentLoaded", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ survey_json: schemaObject || { elements: [] } }),
       });
+      const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const details = body && body.error ? `: ${body.error}` : "";
+        throw new Error(`HTTP ${response.status}${details}`);
       }
       if (revision >= lastSavedRevision) {
         lastSavedRevision = revision;
@@ -182,7 +184,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (autosaveRevision === lastSavedRevision) {
         setSaveStatus("saved");
       }
-    } catch (_error) {
+    } catch (error) {
+      console.warn("[FormBuilder] Autosave failed", error);
       if (revision === autosaveRevision) {
         setSaveStatus("error");
       }
@@ -223,18 +226,10 @@ document.addEventListener("DOMContentLoaded", () => {
       console.debug("[FormBuilder] Toggled property panel", creator.showPropertyGrid ? "visible" : "hidden");
     });
 
-    if (window.SurveyCreatorCore && window.SurveyCreatorTheme) {
+    if (window.AppSurveyTheme && typeof window.AppSurveyTheme.applyCreatorTheme === "function") {
+      window.AppSurveyTheme.applyCreatorTheme(creator);
+    } else if (window.SurveyCreatorCore && window.SurveyCreatorTheme) {
       SurveyCreatorCore.registerCreatorTheme(SurveyCreatorTheme);
-      const darkTheme =
-        SurveyCreatorTheme.Dark ||
-        SurveyCreatorTheme.dark ||
-        SurveyCreatorTheme.DefaultDark ||
-        Object.values(SurveyCreatorTheme).find((theme) => {
-          return theme && typeof theme === "object" && String(theme.themeName || "").toLowerCase().includes("dark");
-        });
-      if (darkTheme && creator.applyCreatorTheme) {
-        creator.applyCreatorTheme(darkTheme);
-      }
     }
 
     const applySurveyPreviewTheme = (survey) => {

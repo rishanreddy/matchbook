@@ -4,6 +4,7 @@ import csv
 import logging
 import os
 import shutil
+import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -26,8 +27,19 @@ logger = logging.getLogger(__name__)
 
 def _atomic_write_text(file_path: Path, content: str) -> None:
     """Write text to a temp file and atomically replace destination."""
-    temp_path = file_path.with_suffix(f"{file_path.suffix}.tmp")
-    temp_path.write_text(content, encoding="utf-8")
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=file_path.parent,
+        delete=False,
+        prefix=f".{file_path.name}.",
+        suffix=".tmp",
+    ) as handle:
+        handle.write(content)
+        handle.flush()
+        os.fsync(handle.fileno())
+        temp_path = Path(handle.name)
     temp_path.replace(file_path)
 
 
@@ -121,8 +133,20 @@ def load_config() -> tuple[dict, dict, dict, dict]:
         cfg = {}
 
     device = cfg.get("device", {}) or {}
+    if not isinstance(device, dict):
+        logger.warning("[Config] device config was not an object; using defaults")
+        device = {}
+
     event = cfg.get("event", {}) or {}
+    if not isinstance(event, dict):
+        logger.warning("[Config] event config was not an object; using defaults")
+        event = {}
+
     analysis = cfg.get("analysis", {}) or {}
+    if not isinstance(analysis, dict):
+        logger.warning("[Config] analysis config was not an object; using defaults")
+        analysis = {}
+
     survey_json = cfg.get("survey_json") or {"elements": []}
     if not isinstance(survey_json, dict):
         logger.warning("[Config] survey_json was not an object; using empty schema")
@@ -221,10 +245,14 @@ def backup_config() -> None:
     backup_dir = CONFIG_DIR / "backups"
     backup_dir.mkdir(exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
     backup_path = backup_dir / f"config_{timestamp}.yaml"
-    shutil.copy(CONFIG_FILE, backup_path)
-    logger.info("[Config] Created backup: %s", backup_path)
+    try:
+        shutil.copy(CONFIG_FILE, backup_path)
+        logger.info("[Config] Created backup: %s", backup_path)
+    except Exception as exc:
+        logger.warning("[Config] Failed to create backup %s: %s", backup_path, exc)
+        return
 
     # Keep the latest 20 backups
     backups = sorted(backup_dir.glob("config_*.yaml"))
@@ -268,7 +296,10 @@ def save_config(
 def get_secret_key() -> str:
     """Load or generate a persistent secret key for session signing."""
     if SECRET_FILE.exists():
-        return SECRET_FILE.read_text(encoding="utf-8").strip()
+        secret = SECRET_FILE.read_text(encoding="utf-8").strip()
+        if secret:
+            return secret
+        logger.warning("[Config] Secret file was empty; regenerating %s", SECRET_FILE)
 
     SECRET_FILE.parent.mkdir(exist_ok=True)
     secret = uuid.uuid4().hex + uuid.uuid4().hex
