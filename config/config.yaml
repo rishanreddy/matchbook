@@ -23,21 +23,12 @@ analysis:
   - field: robot_showed_up
     enabled: true
     chart_type: bar
-  - field: status_note
-    enabled: true
-    chart_type: bar
-  - field: auto_fuel_scored
-    enabled: true
-    chart_type: line
   - field: auto_level1_climb
     enabled: true
     chart_type: line
   - field: balls_from_depo
     enabled: true
     chart_type: bar
-  - field: teleop_fuel_scored_active
-    enabled: true
-    chart_type: line
   - field: endgame_fuel_scored
     enabled: true
     chart_type: line
@@ -68,23 +59,13 @@ analysis:
   matches_per_page: 25
 survey_json:
   title: FRC 2026  Scouting
-  description: Designed for the REBUILT season (Feb 24 2026)
+  description: Designed for the REBUILT  season
   pages:
   - name: pre_match
     elements:
     - type: text
       name: match
       title: 'Match #'
-      isRequired: true
-      inputType: number
-    - type: text
-      name: auto_score
-      title: Auto Score
-      isRequired: true
-      inputType: number
-    - type: text
-      name: teleop_score
-      title: Teleop Score
       isRequired: true
       inputType: number
     - type: text
@@ -113,21 +94,15 @@ survey_json:
       labelFalse: 'No'
       valueTrue: 'yes'
       valueFalse: 'no'
-    - type: expression
-      name: status_note
-      title: Status
-      expression: iif({robot_showed_up} = 'no', 'Robot unavailable - continue for
-        notes only', 'Robot active')
     title: Pre-Match
   - name: auto
     elements:
     - type: text
-      name: auto_fuel_scored
-      title: Auto Fuel Scored
-      defaultValue: 0
+      name: auto_score
+      title: Auto Score
       isRequired: true
       inputType: number
-      min: 0
+      min: -1
     - type: boolean
       name: auto_level1_climb
       title: Auto Level 1 Climb Achieved?
@@ -152,12 +127,11 @@ survey_json:
   - name: teleop
     elements:
     - type: text
-      name: teleop_fuel_scored_active
-      title: Teleop Fuel Scored While Hub Active
-      defaultValue: 0
+      name: teleop_score
+      title: Teleop Score
       isRequired: true
       inputType: number
-      max: 120
+      min: -1
     title: Teleop (2:10)
   - name: endgame_and_risk
     elements:
@@ -168,13 +142,6 @@ survey_json:
       inputType: number
       min: 0
       step: 1
-    - type: slider
-      name: climb_start_time_left
-      visibleIf: '{endgame_result} != ''none'''
-      title: Seconds Left When Climb Started
-      defaultValue: 0
-      max: 30
-      allowClear: true
     - type: dropdown
       name: endgame_result
       title: Climb
@@ -190,6 +157,13 @@ survey_json:
         text: Level 3
       - value: failed
         text: Attempted but failed
+    - type: slider
+      name: climb_start_time_left
+      visibleIf: '{endgame_result} <> ''none'' and {endgame_result} <> ''failed'''
+      title: Seconds Left When Climb Started
+      defaultValue: 0
+      isRequired: true
+      max: 30
     title: Endgame (0:30)
   - name: post_match
     elements:

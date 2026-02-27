@@ -81,6 +81,32 @@ document.addEventListener("DOMContentLoaded", () => {
       survey.applyTheme(window.SurveyTheme.LayeredDark);
     }
 
+    const serializeValue = (value) => {
+      if (value === null || value === undefined) {
+        return "";
+      }
+      if (Array.isArray(value)) {
+        if (value.length === 0) {
+          return "";
+        }
+        try {
+          return JSON.stringify(value);
+        } catch (error) {
+          console.warn("Failed to serialize array value", error);
+          return value.join(", ");
+        }
+      }
+      if (typeof value === "object") {
+        try {
+          return JSON.stringify(value);
+        } catch (error) {
+          console.warn("Failed to serialize object value", error);
+          return String(value);
+        }
+      }
+      return String(value);
+    };
+
     survey.onComplete.add((sender) => {
       const data = sender.data;
       const hiddenForm = document.getElementById("hiddenSubmitForm");
@@ -92,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const hiddenInput = document.createElement("input");
         hiddenInput.type = "hidden";
         hiddenInput.name = key;
-        hiddenInput.value = value || "";
+        hiddenInput.value = serializeValue(value);
         container.appendChild(hiddenInput);
       }
 

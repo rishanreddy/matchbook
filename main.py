@@ -932,10 +932,23 @@ def submit_form():
 
     elements = collect_survey_elements(survey_json or {})
 
+    def is_missing_form_value(value: str | None) -> bool:
+        """Return True when a submitted value should be treated as missing."""
+        if value is None:
+            return True
+        if not isinstance(value, str):
+            value = str(value)
+        stripped = value.strip()
+        if stripped == "":
+            return True
+        if stripped in {"[]", "{}"}:
+            return True
+        return False
+
     # Enforce system required fields
-    missing = []
+    missing: list[str] = []
     for req_field in REQUIRED_FIELDS:
-        if not request.form.get(req_field):
+        if is_missing_form_value(request.form.get(req_field)):
             field_label = next(
                 (e.get("title") for e in elements if e.get("name") == req_field),
                 req_field,
@@ -952,7 +965,9 @@ def submit_form():
             "scouter_name",
         }:
             continue
-        if element.get("isRequired") and name and not request.form.get(name):
+        if element.get("isRequired") and name and is_missing_form_value(
+            request.form.get(name)
+        ):
             if title not in missing:
                 missing.append(title)
 
