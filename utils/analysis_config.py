@@ -45,6 +45,7 @@ def sanitize_graph_field_config(
 
 def get_enabled_graph_fields(analysis_cfg: dict | None) -> list[dict]:
     """Return normalized enabled graph fields for chart generation."""
+    allowed_chart_types = {"line", "bar", "radar", "pie", "doughnut"}
     items = []
     for item in (analysis_cfg or {}).get("graph_fields", []):
         if isinstance(item, dict):
@@ -58,6 +59,10 @@ def get_enabled_graph_fields(analysis_cfg: dict | None) -> list[dict]:
 
         if not field or not bool(enabled):
             continue
+
+        # Validate chart type - reject invalid types, default to "line"
+        if chart_type not in allowed_chart_types:
+            chart_type = "line"
 
         items.append({"field": field, "chart_type": chart_type})
     return items

@@ -1,5 +1,22 @@
 /* Renders team trend charts and radar overview. */
 document.addEventListener("DOMContentLoaded", () => {
+  // Early Chart.js availability check
+  if (typeof Chart === "undefined") {
+    console.error("[Team Info] Chart.js not loaded - charts will be unavailable");
+    const chartCards = document.querySelectorAll(".card canvas");
+    chartCards.forEach((canvas) => {
+      const cardBody = canvas.closest(".card-body");
+      if (cardBody) {
+        const errorNote = document.createElement("div");
+        errorNote.className = "alert alert-warning";
+        errorNote.textContent = "Chart library unavailable. Please refresh the page or check your connection.";
+        cardBody.insertBefore(errorNote, canvas);
+        canvas.style.display = "none";
+      }
+    });
+    return;
+  }
+
   const teamInfoData = window.teamInfoData || {};
   if (!teamInfoData.showTrends) {
     return;
@@ -42,6 +59,44 @@ document.addEventListener("DOMContentLoaded", () => {
     "#06b6d4",
     "#84cc16",
   ];
+
+  /**
+   * Safe chart creation factory with graceful error handling.
+   * Wraps Chart.js constructor to prevent one chart failure from breaking all charts.
+   */
+  const createSafeChart = (canvas, config, fieldLabel) => {
+    if (!canvas) {
+      console.warn(`[Team Info] Canvas not found for ${fieldLabel || "chart"}`);
+      return null;
+    }
+
+    try {
+      // Destroy existing chart if present
+      if (typeof Chart.getChart === "function") {
+        const existingChart = Chart.getChart(canvas);
+        if (existingChart) {
+          existingChart.destroy();
+        }
+      }
+
+      // Create new chart
+      return new Chart(canvas, config);
+    } catch (error) {
+      console.error(`[Team Info] Chart creation failed for ${fieldLabel || "chart"}:`, error);
+      
+      // Show user-friendly fallback message
+      const cardBody = canvas.closest(".card-body");
+      if (cardBody) {
+        const fallbackNote = document.createElement("div");
+        fallbackNote.className = "alert alert-warning mt-2";
+        fallbackNote.innerHTML = `<small><strong>Chart unavailable:</strong> ${fieldLabel || "This chart"} could not be rendered. Data is still available in the table below.</small>`;
+        cardBody.insertBefore(fallbackNote, canvas);
+        canvas.style.display = "none";
+      }
+
+      return null;
+    }
+  };
 
   const getFieldType = (fieldName) => String(fieldTypes[fieldName] || "").trim().toLowerCase();
   const isMultiSelectField = (fieldName) => multiSelectTypes.has(getFieldType(fieldName));
@@ -377,7 +432,6 @@ document.addEventListener("DOMContentLoaded", () => {
       maintainAspectRatio: true,
       resizeDelay: 120,
       animation: false,
-      parsing: false,
       plugins: {
         decimation: {
           enabled: chartType === "line" && labels.length > 200,
@@ -433,14 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     }
 
-    if (typeof Chart.getChart === "function") {
-      const existingChart = Chart.getChart(canvas);
-      if (existingChart) {
-        existingChart.destroy();
-      }
-    }
-
-    new Chart(canvas, {
+    createSafeChart(canvas, {
       type: chartType,
       data: {
         labels,
@@ -448,7 +495,6 @@ document.addEventListener("DOMContentLoaded", () => {
           {
             label: fieldConfig.label,
             data: values,
-            parsing: false,
             backgroundColor,
             borderColor,
             borderWidth: 2,
@@ -463,7 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ],
       },
       options,
-    });
+    }, fieldConfig.label);
 
     if (!isDistributionLike) {
       ensureMeaningLegend(fieldName, canvas);
@@ -526,14 +572,7 @@ document.addEventListener("DOMContentLoaded", () => {
   gradient.addColorStop(0, "rgba(245, 158, 11, 0.38)");
   gradient.addColorStop(1, "rgba(245, 158, 11, 0.10)");
 
-  if (typeof Chart.getChart === "function") {
-    const existingRadar = Chart.getChart(radarCanvas);
-    if (existingRadar) {
-      existingRadar.destroy();
-    }
-  }
-
-  new Chart(radarCanvas, {
+  createSafeChart(radarCanvas, {
     type: "radar",
     data: {
       labels: radarCategories,
@@ -567,7 +606,6 @@ document.addEventListener("DOMContentLoaded", () => {
       maintainAspectRatio: true,
       resizeDelay: 120,
       animation: false,
-      parsing: false,
       plugins: {
         legend: {
           labels: {
@@ -592,5 +630,5 @@ document.addEventListener("DOMContentLoaded", () => {
         },
       },
     },
-  });
+  }, "Performance Overview");
 });

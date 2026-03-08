@@ -101,6 +101,7 @@ def parse_numeric_value(raw_value) -> float | None:
 
     Handles plain numerics ("12", "4.5") and embedded numerics ("Level 3").
     Returns None when no numeric meaning can be inferred.
+    Rejects NaN and Infinity values for data integrity.
     """
     if raw_value is None:
         return None
@@ -109,14 +110,22 @@ def parse_numeric_value(raw_value) -> float | None:
         return 1.0 if raw_value else 0.0
 
     if isinstance(raw_value, (int, float)):
-        return float(raw_value)
+        val = float(raw_value)
+        # Reject NaN and Infinity - these corrupt statistics silently
+        if not (val != val or val == float("inf") or val == float("-inf")):
+            return val
+        return None
 
     text = str(raw_value).strip()
     if not text:
         return None
 
     try:
-        return float(text)
+        val = float(text)
+        # Reject NaN and Infinity from parsed strings
+        if not (val != val or val == float("inf") or val == float("-inf")):
+            return val
+        return None
     except ValueError:
         pass
 
@@ -129,7 +138,11 @@ def parse_numeric_value(raw_value) -> float | None:
     match = re.search(r"-?\d+(?:\.\d+)?", text)
     if match:
         try:
-            return float(match.group(0))
+            val = float(match.group(0))
+            # Reject NaN and Infinity from regex-extracted numbers
+            if not (val != val or val == float("inf") or val == float("-inf")):
+                return val
+            return None
         except ValueError:
             return None
 

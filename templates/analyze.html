@@ -137,49 +137,17 @@
 
     {% if analysis_insights and analysis_insights.quality %}
     <div class="row g-3 mb-4">
-      <div class="col-lg-4">
+      <div class="col-12">
         <div class="card h-100">
           <div class="card-body">
             <h2 class="h6 mb-3">Data Quality</h2>
             <div class="small">Rows loaded: <strong>{{ analysis_insights.quality.rows_loaded }}</strong></div>
             <div class="small">Rows kept: <strong>{{ analysis_insights.quality.rows_kept }}</strong></div>
             <div class="small">Duplicates removed: <strong>{{ analysis_insights.quality.duplicates_removed }}</strong></div>
+            <div class="small">Malformed rows ignored: <strong>{{ analysis_insights.quality.invalid_rows_ignored }}</strong></div>
             <div class="small">Missing team rows: <strong>{{ analysis_insights.quality.missing_team_rows }}</strong></div>
             <div class="small">Missing match rows: <strong>{{ analysis_insights.quality.missing_match_rows }}</strong></div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <h2 class="h6 mb-3">Top Teams by Metric</h2>
-            {% if analysis_insights.leaders %}
-              {% for item in analysis_insights.leaders %}
-              <div class="small mb-2">
-                <div class="fw-semibold">{{ item.label }}</div>
-                <div class="text-muted-app">Team {{ item.team }} · Avg {{ item.value }}</div>
-              </div>
-              {% endfor %}
-            {% else %}
-              <div class="small text-muted-app">Not enough numeric data yet.</div>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-4">
-        <div class="card h-100">
-          <div class="card-body">
-            <h2 class="h6 mb-3">Most Consistent Teams</h2>
-            {% if analysis_insights.consistency %}
-              {% for item in analysis_insights.consistency %}
-              <div class="small mb-2">
-                <div class="fw-semibold">{{ item.label }}</div>
-                <div class="text-muted-app">Team {{ item.team }} · Range {{ item.range }}</div>
-              </div>
-              {% endfor %}
-            {% else %}
-              <div class="small text-muted-app">Not enough match depth for consistency insights.</div>
-            {% endif %}
+            <div class="small">Teams with data: <strong>{{ analysis_insights.quality.teams_with_data }}</strong></div>
           </div>
         </div>
       </div>
@@ -198,9 +166,49 @@
     <div class="tab-content border border-app border-top-0 p-3 bg-app-surface-2">
       <!-- Teams Tab -->
       <div class="tab-pane fade show active" id="teams" role="tabpanel">
-        <div class="row g-3">
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-5">
+            <label class="form-label small mb-1" for="teamSearch">Search Team</label>
+            <input
+              id="teamSearch"
+              type="search"
+              class="form-control"
+              placeholder="Type a team number"
+              autocomplete="off"
+            />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small mb-1" for="teamSort">Sort By</label>
+            <select id="teamSort" class="form-select">
+              <option value="team_number" selected>Team Number</option>
+              <option value="total_matches">Total Matches</option>
+              {% for field_name in team_sort_fields %}
+                <option value="stat:{{ field_name|replace('_', '-') }}">
+                  {{ field_name.replace('_', ' ').title() }} Avg
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-3">
+            <label class="form-label small mb-1" for="teamSortDir">Order</label>
+            <select id="teamSortDir" class="form-select">
+              <option value="asc" selected>Lowest First</option>
+              <option value="desc">Highest First</option>
+            </select>
+          </div>
+          <div class="col-12 small text-muted-app" id="teamsResultCount"></div>
+        </div>
+
+        <div class="row g-3" id="teamsGrid">
           {% for team in teams_summary %}
-          <div class="col-md-6 col-lg-4">
+          <div
+            class="col-md-6 col-lg-4 team-card-col"
+            data-team-number="{{ team.team_number }}"
+            data-total-matches="{{ team.total_matches }}"
+            {% for field_name in team_sort_fields %}
+              data-stat-{{ field_name|replace('_', '-') }}="{{ team.stats.get(field_name, {}).get('average', 0) }}"
+            {% endfor %}
+          >
             <a href="{{ url_for('team_info', team_number=team.team_number) }}" class="text-decoration-none">
               <div class="card h-100">
                 <div class="card-body">
@@ -217,6 +225,10 @@
             </a>
           </div>
           {% endfor %}
+        </div>
+
+        <div id="teamsEmptyState" class="small text-muted-app mt-3 d-none">
+          No teams match your search.
         </div>
       </div>
 
@@ -238,7 +250,12 @@
                   {% set col_id = col.id|default('') %}
                   {% set value = row.get(col.id, '') %}
                   {% if 'team' in col_id|lower and value %}
-                    <td><a href="{{ url_for('team_info', team_number=value) }}">{{ value }}</a></td>
+                    {% set normalized = value|normalize_team %}
+                    {% if normalized %}
+                      <td><a href="{{ url_for('team_info', team_number=normalized) }}">{{ normalized }}</a></td>
+                    {% else %}
+                      <td>{{ value }}</td>
+                    {% endif %}
                   {% else %}
                     <td>{{ value }}</td>
                   {% endif %}
