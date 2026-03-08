@@ -162,7 +162,6 @@ survey_json:
       visibleIf: '{endgame_result} <> ''none'' and {endgame_result} <> ''failed'''
       title: Seconds Left When Climb Started
       defaultValue: 0
-      isRequired: true
       max: 30
     title: Endgame (0:30)
   - name: post_match

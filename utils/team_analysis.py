@@ -4,12 +4,58 @@ from __future__ import annotations
 
 import logging
 import json
+import math
 
 from .config import collect_survey_elements, load_config
 from .csv_operations import load_all_rows, parse_numeric_value
 from .temp_uploads import load_combined_data_from_temp
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_team_id(raw_team_id) -> str:
+    """
+    Normalize team ID to consistent string format.
+
+    Converts "1234", 1234, "1234.0", 1234.0 all to "1234".
+    Returns empty string if team ID is invalid.
+
+    Args:
+        raw_team_id: Team identifier (string or numeric)
+
+    Returns:
+        Normalized team ID string (e.g., "1234")
+    """
+    if raw_team_id is None:
+        return ""
+
+    # Handle numeric types (int or float)
+    if isinstance(raw_team_id, (int, float)):
+        if isinstance(raw_team_id, float):
+            if not math.isfinite(raw_team_id):
+                return ""
+            if not raw_team_id.is_integer():
+                return ""
+        # Convert to int to strip decimal (1234.0 -> 1234)
+        return str(int(raw_team_id))
+
+    # Handle string types
+    text = str(raw_team_id).strip()
+    if not text:
+        return ""
+
+    # Try to parse as number and re-stringify to normalize
+    try:
+        val = float(text)
+        if not math.isfinite(val):
+            return ""
+        if not val.is_integer():
+            return ""
+        return str(int(val))
+    except ValueError:
+        if text.isdigit():
+            return str(int(text))
+        return ""
 
 
 def _load_rows(temp_filenames: list[str] | None) -> list[dict]:
@@ -206,10 +252,11 @@ def _calculate_stats_for_matches(
 def get_team_data(team_number, temp_filenames=None):
     """Get all match data for a specific team."""
     all_rows = _load_rows(temp_filenames)
+    normalized_team = normalize_team_id(team_number)
     team_matches = [
         row
         for row in all_rows
-        if str(row.get("team", "")).strip() == str(team_number).strip()
+        if normalize_team_id(row.get("team", "")) == normalized_team
     ]
     logger.debug(
         "[Analysis] Team %s matches=%s source=%s",
@@ -253,7 +300,7 @@ def get_all_teams_summary(rows, stat_fields=None):
 
     teams_data: dict[str, list[dict]] = {}
     for row in rows:
-        team = str(row.get("team", "")).strip()
+        team = normalize_team_id(row.get("team", ""))
         if not team:
             continue
         teams_data.setdefault(team, []).append(row)
@@ -290,8 +337,8 @@ def get_all_teams(temp_filenames=None):
     all_rows = _load_rows(temp_filenames)
     teams = set()
     for row in all_rows:
-        team = str(row.get("team", "")).strip()
-        if team.isdigit():
+        team = normalize_team_id(row.get("team", ""))
+        if team and team.isdigit():
             teams.add(int(team))
     return teams
 
@@ -305,8 +352,8 @@ def get_radar_data(team_number, stat_fields, temp_filenames=None):
 
     teams_data: dict[int, list[dict]] = {}
     for row in rows:
-        team_text = str(row.get("team", "")).strip()
-        if not team_text.isdigit():
+        team_text = normalize_team_id(row.get("team", ""))
+        if not team_text or not team_text.isdigit():
             continue
         teams_data.setdefault(int(team_text), []).append(row)
 

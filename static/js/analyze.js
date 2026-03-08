@@ -116,4 +116,88 @@ document.addEventListener("DOMContentLoaded", () => {
       if (uniqueMatchesEl) uniqueMatchesEl.textContent = unique.size;
     }
   }
+
+  const teamsGrid = document.getElementById("teamsGrid");
+  const teamSearch = document.getElementById("teamSearch");
+  const teamSort = document.getElementById("teamSort");
+  const teamSortDir = document.getElementById("teamSortDir");
+  const teamsResultCount = document.getElementById("teamsResultCount");
+  const teamsEmptyState = document.getElementById("teamsEmptyState");
+
+  if (teamsGrid && teamSearch && teamSort && teamSortDir) {
+    const teamCards = Array.from(teamsGrid.querySelectorAll(".team-card-col"));
+
+    const parseNumber = (rawValue, fallback = 0) => {
+      const parsed = Number.parseFloat(rawValue);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const getSortValue = (card, sortKey) => {
+      if (sortKey === "team_number") {
+        return parseNumber(card.dataset.teamNumber, 0);
+      }
+      if (sortKey === "total_matches") {
+        return parseNumber(card.dataset.totalMatches, 0);
+      }
+      if (sortKey.startsWith("stat:")) {
+        const statKey = sortKey.slice(5);
+        return parseNumber(card.getAttribute(`data-stat-${statKey}`), 0);
+      }
+      return 0;
+    };
+
+    const updateTeamsView = () => {
+      const query = teamSearch.value.trim().toLowerCase();
+      const sortKey = teamSort.value;
+      const direction = teamSortDir.value;
+
+      const visibleCards = teamCards.filter((card) => {
+        const teamNumber = (card.dataset.teamNumber || "").toLowerCase();
+        const matchesSearch = !query || teamNumber.includes(query);
+        card.classList.toggle("d-none", !matchesSearch);
+        return matchesSearch;
+      });
+
+      visibleCards.sort((a, b) => {
+        const aValue = getSortValue(a, sortKey);
+        const bValue = getSortValue(b, sortKey);
+        if (aValue === bValue) {
+          const aTeam = parseNumber(a.dataset.teamNumber, 0);
+          const bTeam = parseNumber(b.dataset.teamNumber, 0);
+          return aTeam - bTeam;
+        }
+        if (direction === "desc") {
+          return bValue - aValue;
+        }
+        return aValue - bValue;
+      });
+
+      visibleCards.forEach((card) => {
+        teamsGrid.appendChild(card);
+      });
+
+      if (teamsResultCount) {
+        const total = teamCards.length;
+        const shown = visibleCards.length;
+        teamsResultCount.textContent = `${shown} of ${total} teams shown`;
+      }
+
+      if (teamsEmptyState) {
+        teamsEmptyState.classList.toggle("d-none", visibleCards.length > 0);
+      }
+    };
+
+    teamSearch.addEventListener("input", updateTeamsView);
+    teamSort.addEventListener("change", () => {
+      const sortKey = teamSort.value;
+      if (sortKey.startsWith("stat:")) {
+        teamSortDir.value = "desc";
+      } else if (sortKey === "team_number") {
+        teamSortDir.value = "asc";
+      }
+      updateTeamsView();
+    });
+    teamSortDir.addEventListener("change", updateTeamsView);
+    updateTeamsView();
+  }
 });

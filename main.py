@@ -26,6 +26,7 @@ from utils.app_state import load_app_state
 from utils.config import get_secret_key, load_config
 from utils.constants import LOG_DIR
 from utils.formatting import format_device_id
+from utils.team_analysis import normalize_team_id
 from utils.version_check import CURRENT_VERSION
 
 app = Flask(__name__)
@@ -49,7 +50,9 @@ app.config.update(
 log_file = LOG_DIR / "app.log"
 handler = RotatingFileHandler(log_file, maxBytes=1_000_000, backupCount=3)
 handler.setLevel(logging.INFO)
-handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+)
 
 existing_rotating = [
     h
@@ -72,7 +75,9 @@ register_scouting_routes(app)
 
 def _get_request_source_host() -> str | None:
     """Extract source host from Origin/Referer headers."""
-    source = (request.headers.get("Origin") or request.headers.get("Referer") or "").strip()
+    source = (
+        request.headers.get("Origin") or request.headers.get("Referer") or ""
+    ).strip()
     if not source:
         return None
     parsed = urlparse(source)
@@ -105,6 +110,16 @@ def inject_version():
     return {"app_version": CURRENT_VERSION, "format_device_id": format_device_id}
 
 
+@app.template_filter("normalize_team")
+def normalize_team_filter(team_id):
+    """
+    Jinja2 filter to normalize team IDs in templates.
+
+    Usage: {{ team_value|normalize_team }}
+    """
+    return normalize_team_id(team_id)
+
+
 @app.before_request
 def log_request_start():
     """Record request start time and basic request metadata."""
@@ -129,9 +144,9 @@ def log_request_end(response):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers[
-        "Content-Security-Policy"
-    ] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+    )
 
     if request.path.startswith("/static/"):
         return response

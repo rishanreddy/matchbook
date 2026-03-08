@@ -68,6 +68,23 @@ def _coerce_matches_per_page(value) -> int:
     return max(5, min(500, parsed))
 
 
+def _extract_team_sort_fields(teams_summary: list[dict]) -> list[str]:
+    """Extract unique stat field names for Teams tab sorting controls."""
+    fields: list[str] = []
+    seen = set()
+    for item in teams_summary:
+        stats = item.get("stats") if isinstance(item, dict) else None
+        if not isinstance(stats, dict):
+            continue
+        for field_name in stats.keys():
+            name = str(field_name or "").strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            fields.append(name)
+    return fields
+
+
 def register_analysis_routes(app: Flask) -> None:
     """Register analysis routes."""
 
@@ -89,10 +106,15 @@ def register_analysis_routes(app: Flask) -> None:
         warnings = []
         uploaded_filenames = []
         device_statuses = []
+        team_sort_fields = []
         analysis_insights = {
             "quality": None,
             "leaders": [],
             "consistency": [],
+            "reliability": [],
+            "trends": [],
+            "boom_bust": [],
+            "red_flags": [],
         }
 
         stale_removed = clear_stale_temp_uploads(max_age_hours=24)
@@ -129,9 +151,7 @@ def register_analysis_routes(app: Flask) -> None:
                         saved_filenames.append(saved_filename)
                         uploaded_filenames.append(upload.filename)
                     except UnicodeDecodeError:
-                        error = (
-                            f"Error reading {upload.filename}: file must be valid UTF-8 CSV."
-                        )
+                        error = f"Error reading {upload.filename}: file must be valid UTF-8 CSV."
                         app.logger.error(
                             "[Analyze] Failed reading upload %s: invalid UTF-8",
                             upload.filename,
@@ -169,6 +189,7 @@ def register_analysis_routes(app: Flask) -> None:
                     table_columns = prepared["table_columns"]
                     table_rows = prepared["table_rows"]
                     teams_summary = prepared["teams_summary"]
+                    team_sort_fields = _extract_team_sort_fields(teams_summary)
                     warnings = prepared["warnings"]
                     device_statuses = prepared["device_statuses"]
                     analysis_insights = prepared["analysis_insights"]
@@ -180,7 +201,9 @@ def register_analysis_routes(app: Flask) -> None:
                             "Upload succeeded, but no data rows were found in the selected files."
                         )
         else:
-            temp_filenames = _coerce_session_filenames(session.get("temp_filenames", []))
+            temp_filenames = _coerce_session_filenames(
+                session.get("temp_filenames", [])
+            )
             if temp_filenames:
                 combined_rows = load_combined_data_from_temp(temp_filenames)
                 if not combined_rows:
@@ -200,6 +223,7 @@ def register_analysis_routes(app: Flask) -> None:
                         warnings=warnings,
                         uploaded_filenames=uploaded_filenames,
                         device_statuses=device_statuses,
+                        team_sort_fields=team_sort_fields,
                         analysis_insights=analysis_insights,
                     )
                 uploaded_filenames = _coerce_session_filenames(
@@ -214,6 +238,7 @@ def register_analysis_routes(app: Flask) -> None:
                 table_columns = prepared["table_columns"]
                 table_rows = prepared["table_rows"]
                 teams_summary = prepared["teams_summary"]
+                team_sort_fields = _extract_team_sort_fields(teams_summary)
                 warnings = prepared["warnings"]
                 device_statuses = prepared["device_statuses"]
                 analysis_insights = prepared["analysis_insights"]
@@ -234,6 +259,7 @@ def register_analysis_routes(app: Flask) -> None:
             warnings=warnings,
             uploaded_filenames=uploaded_filenames,
             device_statuses=device_statuses,
+            team_sort_fields=team_sort_fields,
             analysis_insights=analysis_insights,
         )
 
@@ -299,7 +325,9 @@ def register_analysis_routes(app: Flask) -> None:
             temp_filenames = None
 
         team_data = calculate_team_stats(team_number, stat_fields, temp_filenames)
-        team_matches_display = build_display_rows(team_data.get("matches", []), survey_json)
+        team_matches_display = build_display_rows(
+            team_data.get("matches", []), survey_json
+        )
         choice_label_maps = build_choice_label_maps(survey_json)
         choice_display_entries = build_choice_display_entries(survey_json)
 
