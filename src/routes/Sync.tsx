@@ -19,6 +19,7 @@ import {
   Text,
   TextInput,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { Html5Qrcode } from 'html5-qrcode'
@@ -26,6 +27,8 @@ import Papa from 'papaparse'
 import { QRCodeSVG } from 'qrcode.react'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { compressData, decompressData, reconstructFromChunks, splitIntoChunks } from '../lib/utils/sync'
+import { handleError, notifyErrorWithRetry } from '../lib/utils/errorHandler'
+import { logger } from '../lib/utils/logger'
 
 type CollectionKey = 'scoutingData' | 'assignments' | 'matches' | 'events' | 'devices' | 'scouts' | 'formSchemas'
 type TimeRange = 'lastHour' | 'lastDay' | 'all'
@@ -143,11 +146,13 @@ export function Sync(): ReactElement {
     }
 
     setClientSyncStatus('syncing')
+    logger.info('Network sync started', { serverUrl: clientServerUrl })
     await new Promise((resolve) => {
       window.setTimeout(resolve, 700)
     })
     setClientSyncStatus('idle')
     setLastSyncAt(new Date().toISOString())
+    logger.info('Network sync completed')
     notifications.show({
       color: 'blue',
       title: 'Coming soon',
@@ -162,6 +167,7 @@ export function Sync(): ReactElement {
     }
 
     setIsQrExporting(true)
+    logger.info('QR export started', { collection: qrCollection, range: qrRange })
     try {
       const docs = await getCollectionDocs(qrCollection)
       const filtered = filterByRange(docs, qrRange)
@@ -183,12 +189,11 @@ export function Sync(): ReactElement {
         title: 'QR export ready',
         message: `Generated ${encodedChunks.length} QR code${encodedChunks.length === 1 ? '' : 's'}.`,
       })
+      logger.info('QR export completed', { chunks: encodedChunks.length })
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Export failed',
-        message: error instanceof Error ? error.message : 'Unable to generate QR export.',
-      })
+      notifyErrorWithRetry(error, 'Retry QR Export', () => {
+        void handleQrExport()
+      }, 'QR export')
     } finally {
       setIsQrExporting(false)
     }
@@ -293,6 +298,7 @@ export function Sync(): ReactElement {
     }
 
     try {
+      logger.info('QR import started')
       const parsed = decompressData(qrImportPayload) as {
         collection: CollectionKey
         data: Record<string, unknown>[]
@@ -325,12 +331,9 @@ export function Sync(): ReactElement {
         title: 'Import complete',
         message: `${inserted} new records imported, ${duplicates} duplicates skipped.`,
       })
+      logger.info('QR import completed', { inserted, duplicates })
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Import failed',
-        message: error instanceof Error ? error.message : 'Unable to import scanned payload.',
-      })
+      handleError(error, 'QR import')
     }
   }
 
@@ -423,6 +426,7 @@ export function Sync(): ReactElement {
 
     let inserted = 0
     let duplicates = 0
+    logger.info('CSV import started', { rows: csvRows.length })
     for (const row of csvRows) {
       const syncHash = row.syncHash
       if (syncHash) {
@@ -446,6 +450,7 @@ export function Sync(): ReactElement {
       title: 'CSV import complete',
       message: `${inserted} new records imported, ${duplicates} duplicates skipped.`,
     })
+    logger.info('CSV import completed', { inserted, duplicates })
   }
 
   const handleExportDatabase = async (): Promise<void> => {
@@ -454,6 +459,7 @@ export function Sync(): ReactElement {
     }
 
     try {
+      logger.info('Database export started')
       const snapshot: Record<string, unknown> = {
         exportedAt: new Date().toISOString(),
         collections: {},
@@ -474,15 +480,9 @@ export function Sync(): ReactElement {
         title: 'Database export complete',
         message: 'Saved full database snapshot. In Electron builds, this will use native save dialog.',
       })
+      logger.info('Database export completed', { size: blob.size })
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Export failed',
-        message:
-          error instanceof Error
-            ? `${error.message} If access is denied, choose a writable folder.`
-            : 'Unable to export database file. Choose a writable location and try again.',
-      })
+      handleError(error, 'Database export')
     }
   }
 
@@ -492,6 +492,7 @@ export function Sync(): ReactElement {
     }
 
     try {
+      logger.info('Database import started', { file: dbImportFile.name })
       setDbImportProgress(10)
       const text = await dbImportFile.text()
       const parsed = JSON.parse(text) as { collections?: Record<string, Record<string, unknown>[]> }
@@ -519,15 +520,9 @@ export function Sync(): ReactElement {
         title: 'Database merge complete',
         message: `${inserted} records imported, ${skipped} skipped as duplicates/conflicts.`,
       })
+      logger.info('Database import completed', { inserted, skipped })
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Database import failed',
-        message:
-          error instanceof Error
-            ? `${error.message} Check file permissions and JSON format.`
-            : 'Could not import database file. Check file permissions and try again.',
-      })
+      handleError(error, 'Database import')
     }
   }
 
@@ -551,7 +546,9 @@ export function Sync(): ReactElement {
                   <Badge color={isServerRunning ? 'green' : 'gray'}>{isServerRunning ? 'running' : 'stopped'}</Badge>
                 </Group>
                 <TextInput label="Server URL" value={serverUrl} onChange={(event) => setServerUrl(event.currentTarget.value)} />
-                <Button onClick={handleStartSyncServer}>{isServerRunning ? 'Stop Sync Server' : 'Start Sync Server'}</Button>
+                <Tooltip label="Hub mode advertises the URL for scout devices">
+                  <Button onClick={handleStartSyncServer}>{isServerRunning ? 'Stop Sync Server' : 'Start Sync Server'}</Button>
+                </Tooltip>
                 <Text size="sm">Share this URL with clients:</Text>
                 <Code>{serverUrl}</Code>
                 <Box w={220}>
@@ -569,9 +566,11 @@ export function Sync(): ReactElement {
                   value={clientServerUrl}
                   onChange={(event) => setClientServerUrl(event.currentTarget.value)}
                 />
-                <Button loading={clientSyncStatus === 'syncing'} onClick={() => void handleConnectAndSync()}>
-                  Connect and Sync
-                </Button>
+                <Tooltip label="Connect this device to the hub and run sync">
+                  <Button loading={clientSyncStatus === 'syncing'} onClick={() => void handleConnectAndSync()}>
+                    Connect and Sync
+                  </Button>
+                </Tooltip>
                 <Text size="sm">Last sync: {lastSyncAt === 'Never' ? lastSyncAt : formatIsoDate(lastSyncAt)}</Text>
                 <Badge color={clientSyncStatus === 'error' ? 'red' : clientSyncStatus === 'syncing' ? 'blue' : 'gray'}>
                   {clientSyncStatus}
@@ -607,9 +606,11 @@ export function Sync(): ReactElement {
                     data={allCollections.map((collection) => ({ value: collection, label: collection }))}
                   />
                 </Group>
-                <Button loading={isQrExporting} onClick={() => void handleQrExport()}>
-                  Export Recent Data
-                </Button>
+                <Tooltip label="Generate one or more QR codes for offline transfer">
+                  <Button loading={isQrExporting} onClick={() => void handleQrExport()}>
+                    Export Recent Data
+                  </Button>
+                </Tooltip>
 
                 {qrChunks.length > 0 ? (
                   <Stack>
@@ -653,9 +654,11 @@ export function Sync(): ReactElement {
                     Scan one or more QR codes to preview payload before importing.
                   </Text>
                 )}
-                <Button onClick={() => void handleImportQr()} disabled={!qrPreview}>
-                  Import
-                </Button>
+                <Tooltip label="Import scanned QR payload into local database">
+                  <Button onClick={() => void handleImportQr()} disabled={!qrPreview}>
+                    Import
+                  </Button>
+                </Tooltip>
               </Stack>
             </Card>
           </SimpleGrid>

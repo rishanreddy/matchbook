@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Card, Group, Stack, Text, Title } from '@mantine/core'
+import { Button, Card, Group, LoadingOverlay, Skeleton, Stack, Text, Title, Tooltip } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { Model } from 'survey-core'
 import { Survey } from 'survey-react-ui'
@@ -12,6 +12,8 @@ import type { ScoutDocType } from '../lib/db/schemas/scouts.schema'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
 import { getAlliancePositionLabel } from '../lib/utils/assignments'
 import { calculateAutoScore, calculateEndgameScore, calculateTeleopScore } from '../lib/utils/scoring'
+import { AppError, handleError } from '../lib/utils/errorHandler'
+import { logger } from '../lib/utils/logger'
 import { useDatabaseStore } from '../stores/useDatabase'
 
 type AssignmentView = {
@@ -86,6 +88,7 @@ function ScoutAssignmentsView(): ReactElement {
 
       setIsLoading(true)
       try {
+        logger.info('Loading assignments for current device')
         const deviceId = await getOrCreateDeviceId()
         const assignmentDocs = await db.collections.assignments
           .find({ selector: { deviceId } })
@@ -127,7 +130,7 @@ function ScoutAssignmentsView(): ReactElement {
 
         setAssignmentViews(joined)
       } catch (error: unknown) {
-        console.error('Failed to load scout assignments:', error)
+        handleError(error, 'Load scout assignments')
       } finally {
         setIsLoading(false)
       }
@@ -145,7 +148,8 @@ function ScoutAssignmentsView(): ReactElement {
 
       {isLoading ? (
         <Card withBorder shadow="sm" radius="md" p="lg">
-          <Text c="dimmed">Loading assignments...</Text>
+          <Skeleton height={28} mb="sm" />
+          <Skeleton height={14} />
         </Card>
       ) : !currentAssignment ? (
         <Card withBorder shadow="sm" radius="md" p="lg">
@@ -347,15 +351,12 @@ function ScoutFormView(): ReactElement {
 
     const validationErrors = validateSubmissionData(formData)
     if (validationErrors.length > 0) {
-      notifications.show({
-        color: 'red',
-        title: 'Validation failed',
-        message: validationErrors[0],
-      })
+      handleError(new AppError(validationErrors[0], 'FORM_VALIDATION_ERROR'), 'Scout form validation')
       return
     }
 
     setIsSubmitting(true)
+    logger.info('Scout form submission started', { assignmentId: assignment.id })
     try {
       const now = new Date().toISOString()
       const originDeviceId = await getOrCreateDeviceId()
@@ -384,13 +385,10 @@ function ScoutFormView(): ReactElement {
       })
 
       notifications.show({ color: 'green', title: 'Scouting saved', message: 'Observation was recorded successfully.' })
+      logger.info('Scout form submission successful', { assignmentId: assignment.id })
       navigate('/scout')
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Submit failed',
-        message: error instanceof Error ? error.message : 'Could not save scouting data.',
-      })
+      handleError(error, 'Scout form submit')
     } finally {
       setIsSubmitting(false)
     }
@@ -410,6 +408,19 @@ function ScoutFormView(): ReactElement {
       survey.onComplete.remove(completeHandler)
     }
   }, [saveObservation, survey])
+
+  useEffect(() => {
+    const onSaveShortcut = (): void => {
+      if (!survey || isSubmitting) {
+        return
+      }
+
+      void saveObservation(survey.data as Record<string, unknown>, { isNoShow: false, isBrokenRobot: false })
+    }
+
+    document.addEventListener('app:save-form', onSaveShortcut)
+    return () => document.removeEventListener('app:save-form', onSaveShortcut)
+  }, [isSubmitting, saveObservation, survey])
 
   if (isLoading) {
     return (
@@ -467,27 +478,32 @@ function ScoutFormView(): ReactElement {
             </Text>
           )}
           <Group>
-            <Button
-              color="yellow"
-              variant="light"
-              disabled={isSubmitting}
-              onClick={() => void saveObservation(survey?.data ?? {}, { isNoShow: true, isBrokenRobot: false })}
-            >
-              No Show
-            </Button>
-            <Button
-              color="orange"
-              variant="light"
-              disabled={isSubmitting}
-              onClick={() => void saveObservation(survey?.data ?? {}, { isNoShow: false, isBrokenRobot: true })}
-            >
-              Broken Robot
-            </Button>
-          </Group>
+              <Tooltip label="Submit this assignment as a no-show">
+                <Button
+                  color="yellow"
+                  variant="light"
+                  disabled={isSubmitting}
+                  onClick={() => void saveObservation(survey?.data ?? {}, { isNoShow: true, isBrokenRobot: false })}
+                >
+                  No Show
+                </Button>
+              </Tooltip>
+              <Tooltip label="Submit this assignment with broken robot flag">
+                <Button
+                  color="orange"
+                  variant="light"
+                  disabled={isSubmitting}
+                  onClick={() => void saveObservation(survey?.data ?? {}, { isNoShow: false, isBrokenRobot: true })}
+                >
+                  Broken Robot
+                </Button>
+              </Tooltip>
+            </Group>
         </Stack>
       </Card>
 
       <Card withBorder radius="md" p="lg" style={{ opacity: isSubmitting ? 0.7 : 1 }}>
+        <LoadingOverlay visible={isSubmitting} />
         {survey ? <Survey model={survey} /> : <Text c="dimmed">Unable to render survey.</Text>}
       </Card>
     </Stack>

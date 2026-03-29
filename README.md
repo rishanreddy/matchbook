@@ -1,73 +1,78 @@
-# React + TypeScript + Vite
+# Offline Scouting Manager
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Offline Scouting Manager is a production-focused Electron desktop app for FRC scouting operations. It helps scouting teams run fully offline at events, collect match observations, assign scouts, and sync data through multiple transfer methods.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **First-run setup wizard** for device naming and TBA key setup
+- **Event import from The Blue Alliance** (events, teams, and matches)
+- **Scout assignment manager** with manual and auto-assign workflows
+- **Live scouting forms** powered by custom SurveyJS schemas
+- **Quick match actions** (No Show / Broken Robot)
+- **Form Builder** with event-scoped schema versioning
+- **Sync tools**
+  - Network sync (hub/spoke flow; backend integration staged)
+  - QR export/import
+  - CSV export/import
+  - Full database snapshot export/import
+- **Analysis dashboard** for team-level review and picklist prep
+- **Keyboard shortcuts + command palette** for fast operation
+- **Settings and diagnostics** including logs and update checks
 
-## React Compiler
+## Screenshots (Placeholders)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+> Replace these placeholders with real screenshots before release.
 
-## Expanding the ESLint configuration
+- `[Screenshot Placeholder] Home dashboard`
+- `[Screenshot Placeholder] Event management and import`
+- `[Screenshot Placeholder] Scout form in-match workflow`
+- `[Screenshot Placeholder] Sync page (QR + CSV + DB)`
+- `[Screenshot Placeholder] Analysis page and picklist tools`
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Quick Start
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Prerequisites
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Node.js 20+
+- pnpm 9+
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Install
+
+```bash
+pnpm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Run (web renderer)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm dev
 ```
+
+### Run (Electron mode)
+
+```bash
+pnpm electron:dev
+```
+
+### Build
+
+```bash
+pnpm build
+pnpm electron:build
+```
+
+## Documentation
+
+- **User manual:** [USER_GUIDE.md](./USER_GUIDE.md)
+- **Developer guide:** [DEVELOPER.md](./DEVELOPER.md)
+- **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
+- **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
+
+## License
+
+Distributed under the [MIT License](./LICENSE).
+
+## Credits
+
+- Built with Electron, React, TypeScript, Mantine, RxDB, and SurveyJS
+- FRC event and match data from [The Blue Alliance](https://www.thebluealliance.com/)

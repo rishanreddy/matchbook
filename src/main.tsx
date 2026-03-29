@@ -10,13 +10,19 @@ import '@mantine/notifications/styles.css'
 import 'survey-core/survey-core.min.css'
 import 'survey-creator-core/survey-creator-core.min.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { setupGlobalErrorHandlers } from './lib/utils/errorHandler'
+
+setupGlobalErrorHandlers()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={appTheme} defaultColorScheme="dark">
-      <Notifications />
+      <Notifications aria-live="polite" />
       <BrowserRouter>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </BrowserRouter>
     </MantineProvider>
   </StrictMode>,

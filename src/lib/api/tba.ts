@@ -1,6 +1,8 @@
 import axios from 'axios'
 
 import type { TBAEvent, TBAMatch, TBATeam } from '../../types/tba'
+import { AppError } from '../utils/errorHandler'
+import { logger } from '../utils/logger'
 
 const TBA_BASE_URL = 'https://www.blue-alliance.org/api/v3'
 const DEFAULT_TIMEOUT_MS = 10_000
@@ -67,25 +69,28 @@ function shouldRetry(error: unknown): boolean {
 
 async function requestWithRetry<T>(endpoint: string, apiKey: string): Promise<T> {
   if (!apiKey.trim()) {
-    throw new Error(`TBA request failed for ${endpoint}: Missing API key`)
+    throw new AppError('TBA request failed: Missing API key', 'INVALID_TBA_API_KEY', { endpoint })
   }
 
   let lastError: unknown
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     try {
+      logger.debug('TBA request started', { endpoint, attempt })
       const response = await tbaClient.get<T>(endpoint, {
         headers: {
           'X-TBA-Auth-Key': apiKey,
         },
       })
 
+      logger.info('TBA request successful', { endpoint, attempt })
       return response.data
     } catch (error) {
       lastError = error
 
       const canRetry = attempt < MAX_RETRIES && shouldRetry(error)
       if (!canRetry) {
+        logger.error('TBA request failed without retry', { endpoint, error })
         break
       }
 
@@ -93,11 +98,16 @@ async function requestWithRetry<T>(endpoint: string, apiKey: string): Promise<T>
         ? error.response?.headers?.['retry-after']
         : undefined
       const delayMs = getRetryDelay(attempt, retryAfterHeader)
+      logger.warn('TBA request retry scheduled', { endpoint, attempt, delayMs })
       await sleep(delayMs)
     }
   }
 
-  throw new Error(getEndpointErrorMessage(lastError, endpoint))
+  if (axios.isAxiosError(lastError) && [401, 403].includes(lastError.response?.status ?? -1)) {
+    throw new AppError(getEndpointErrorMessage(lastError, endpoint), 'INVALID_TBA_API_KEY', { endpoint })
+  }
+
+  throw new AppError(getEndpointErrorMessage(lastError, endpoint), 'NO_INTERNET', { endpoint, error: lastError })
 }
 
 export async function getEventsByYear(year: number, apiKey: string): Promise<TBAEvent[]> {

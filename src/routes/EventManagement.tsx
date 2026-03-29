@@ -8,9 +8,11 @@ import {
   Grid,
   Group,
   Select,
+  Skeleton,
   Stack,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconInfoCircle } from '@tabler/icons-react'
@@ -18,6 +20,8 @@ import { getEvent, getEventMatches, getEventsByYear, getEventTeams } from '../li
 import { formatDateRange } from '../lib/utils/dates'
 import type { TBAEvent } from '../types/tba'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { notifyErrorWithRetry } from '../lib/utils/errorHandler'
+import { logger } from '../lib/utils/logger'
 
 const YEAR_OPTIONS = Array.from({ length: 7 }, (_, index) => {
   const year = String(2020 + index)
@@ -68,6 +72,7 @@ export function EventManagement(): ReactElement {
     }
 
     setIsFetchingEvents(true)
+    logger.info('Event fetch started', { year: selectedYear })
     try {
       const parsedYear = Number(selectedYear)
       const fetchedEvents = await getEventsByYear(parsedYear, tbaApiKey)
@@ -79,11 +84,9 @@ export function EventManagement(): ReactElement {
         message: `Loaded ${fetchedEvents.length} events for ${parsedYear}.`,
       })
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Failed to fetch events',
-        message: error instanceof Error ? error.message : 'Could not fetch events from TBA.',
-      })
+      notifyErrorWithRetry(error, 'Retry Fetch', () => {
+        void handleFetchEvents()
+      }, 'Event fetch')
     } finally {
       setIsFetchingEvents(false)
     }
@@ -121,6 +124,7 @@ export function EventManagement(): ReactElement {
     }
 
     setImportingEventKeys((prev) => new Set(prev).add(event.key))
+    logger.info('Event import started', { eventKey: event.key })
     try {
       const [eventDetails, matches, teams] = await Promise.all([
         getEvent(event.key, tbaApiKey),
@@ -166,11 +170,9 @@ export function EventManagement(): ReactElement {
         message: `Imported ${sortedMatches.length} matches and fetched ${teams.length} teams for ${eventDetails.short_name ?? eventDetails.name}.`,
       })
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Import failed',
-        message: error instanceof Error ? error.message : 'Unable to import event data.',
-      })
+      notifyErrorWithRetry(error, 'Retry Import', () => {
+        void handleImportEvent(event)
+      }, 'Event import')
     } finally {
       setImportingEventKeys((prev) => {
         const next = new Set(prev)
@@ -194,18 +196,29 @@ export function EventManagement(): ReactElement {
         <Group align="flex-end">
           <Select
             label="Season Year"
+            description="Choose the competition season to query from TBA"
             data={YEAR_OPTIONS}
             value={selectedYear}
             onChange={(value) => setSelectedYear(value ?? String(fallbackYear))}
             w={180}
           />
-          <Button onClick={() => void handleFetchEvents()} loading={isFetchingEvents}>
-            Fetch Events
-          </Button>
+          <Tooltip label="Fetch available events from The Blue Alliance">
+            <Button onClick={() => void handleFetchEvents()} loading={isFetchingEvents}>
+              Fetch Events
+            </Button>
+          </Tooltip>
         </Group>
       </Card>
 
-      {events.length === 0 ? (
+      {isFetchingEvents ? (
+        <Grid>
+          {['a', 'b', 'c', 'd'].map((placeholder) => (
+            <Grid.Col key={placeholder} span={{ base: 12, md: 6 }}>
+              <Card withBorder radius="md" p="lg"><Skeleton height={120} /></Card>
+            </Grid.Col>
+          ))}
+        </Grid>
+      ) : events.length === 0 ? (
         <Card withBorder radius="md" p="lg">
           <Text c="dimmed">No events fetched yet. Select a year and click &quot;Fetch Events&quot;.</Text>
         </Card>

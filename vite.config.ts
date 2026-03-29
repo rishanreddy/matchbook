@@ -20,6 +20,17 @@ export default defineConfig(({ mode }) => ({
       : []),
   ],
   build: {
-    sourcemap: true,
+    sourcemap: mode !== 'production',
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react') || id.includes('react-router-dom')) return 'react'
+          if (id.includes('@mantine')) return 'mantine'
+          if (id.includes('recharts')) return 'charts'
+          return undefined
+        },
+      },
+    },
   },
 }))

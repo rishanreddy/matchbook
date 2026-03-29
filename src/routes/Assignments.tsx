@@ -11,6 +11,7 @@ import {
   Stack,
   Text,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import type { AssignmentDocType } from '../lib/db/schemas/assignments.schema'
@@ -285,14 +286,17 @@ export function Assignments(): ReactElement {
     <Stack>
       <Group justify="space-between" align="flex-end">
         <Title order={2}>Scout Assignments</Title>
-        <Button onClick={() => void handleAutoAssign()} disabled={!selectedEvent || scouts.length === 0} loading={isAutoAssigning}>
-          Auto-assign
-        </Button>
+        <Tooltip label="Automatically fill open slots in round-robin order">
+          <Button onClick={() => void handleAutoAssign()} disabled={!selectedEvent || scouts.length === 0} loading={isAutoAssigning}>
+            Auto-assign
+          </Button>
+        </Tooltip>
       </Group>
 
       <Card withBorder radius="md" p="lg">
         <Select
           label="Event"
+          description="Assignments are created for the selected event"
           placeholder="Select an event"
           value={selectedEvent}
           onChange={setSelectedEvent}

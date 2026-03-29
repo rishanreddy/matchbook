@@ -3,6 +3,8 @@ import { getRxStorageLocalstorage } from 'rxdb/plugins/storage-localstorage'
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv'
 import type { ScoutingCollections, ScoutingDatabase } from './collections'
 import { collectionSchemas } from './collections'
+import { AppError } from '../utils/errorHandler'
+import { logger } from '../utils/logger'
 
 let databaseInstance: ScoutingDatabase | null = null
 let initializingPromise: Promise<ScoutingDatabase> | null = null
@@ -48,11 +50,11 @@ export async function initializeDatabase(): Promise<ScoutingDatabase> {
 
       await db.addCollections(collectionSchemas)
       databaseInstance = db
-      console.info('[DB] RxDB initialized successfully')
+      logger.info('RxDB initialized successfully')
       return databaseInstance
     } catch (error: unknown) {
-      console.error('[DB] Failed to initialize RxDB:', error)
-      throw error
+      logger.error('Failed to initialize RxDB', error)
+      throw new AppError('Database initialization failed', 'DATABASE_INIT_FAILED', { cause: error })
     } finally {
       initializingPromise = null
     }

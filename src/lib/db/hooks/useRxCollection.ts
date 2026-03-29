@@ -7,22 +7,28 @@ export function useRxCollection<K extends keyof ScoutingCollections>(
   query: Record<string, unknown> = {},
 ) {
   const db = useDatabaseStore((state) => state.db)
+  const canQuery = Boolean(db)
   const [data, setData] = useState<Record<string, unknown>[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const queryKey = `${String(collectionName)}:${JSON.stringify(query)}`
+  const [settledQueryKey, setSettledQueryKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!db) {
-      setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
     const rxQuery = db.collections[collectionName].find(query as never)
-    const subscription = (rxQuery.$ as any).subscribe({
+    const rxQueryObservable = rxQuery.$ as unknown as {
+      subscribe: (observer: {
+        next: (docs: Array<{ toJSON: () => Record<string, unknown> }>) => void
+        error: (subscriptionError: unknown) => void
+      }) => { unsubscribe: () => void }
+    }
+    const subscription = rxQueryObservable.subscribe({
         next: (docs: Array<{ toJSON: () => Record<string, unknown> }>) => {
           setData(docs.map((doc: { toJSON: () => Record<string, unknown> }) => doc.toJSON()))
-          setIsLoading(false)
+          setSettledQueryKey(queryKey)
           setError(null)
         },
         error: (subscriptionError: unknown) => {
@@ -31,12 +37,18 @@ export function useRxCollection<K extends keyof ScoutingCollections>(
               ? subscriptionError.message
               : `Failed to query ${String(collectionName)} collection`,
           )
-          setIsLoading(false)
+          setSettledQueryKey(queryKey)
         },
       })
 
     return () => subscription.unsubscribe()
-  }, [collectionName, db, query])
+  }, [collectionName, db, query, queryKey])
 
-  return { data, isLoading, error }
+  const isLoading = canQuery && settledQueryKey !== queryKey
+
+  return {
+    data: canQuery ? data : [],
+    isLoading,
+    error: canQuery ? error : null,
+  }
 }

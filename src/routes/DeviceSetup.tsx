@@ -6,6 +6,8 @@ import { notifications } from '@mantine/notifications'
 import { useNavigate } from 'react-router-dom'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { handleError } from '../lib/utils/errorHandler'
+import { logger } from '../lib/utils/logger'
 
 type DeviceSetupFormValues = {
   deviceName: string
@@ -50,6 +52,7 @@ export function DeviceSetup(): ReactElement {
     }
 
     setIsSubmitting(true)
+    logger.info('Device setup submission started')
     try {
       const resolvedDeviceId = await getOrCreateDeviceId()
       setDeviceId(resolvedDeviceId)
@@ -81,13 +84,10 @@ export function DeviceSetup(): ReactElement {
         title: 'Device registered',
         message: 'This laptop is ready for scouting.',
       })
+      logger.info('Device setup submission successful', { deviceId: resolvedDeviceId })
       navigate('/')
     } catch (error: unknown) {
-      notifications.show({
-        color: 'red',
-        title: 'Registration failed',
-        message: error instanceof Error ? error.message : 'Unable to register device.',
-      })
+      handleError(error, 'Device registration')
     } finally {
       setIsSubmitting(false)
     }

@@ -4,33 +4,44 @@ import { useDatabaseStore } from '../../../stores/useDatabase'
 
 export function useRxDocument<K extends keyof ScoutingCollections>(collectionName: K, id: string | null) {
   const db = useDatabaseStore((state) => state.db)
+  const canQuery = Boolean(db && id)
   const [document, setDocument] = useState<Record<string, unknown> | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const queryKey = `${String(collectionName)}:${id ?? ''}`
+  const [settledQueryKey, setSettledQueryKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!db || !id) {
-      setDocument(null)
-      setIsLoading(false)
       return
     }
 
-    setIsLoading(true)
     const rxQuery = db.collections[collectionName].findOne(id)
-    const subscription = (rxQuery.$ as any).subscribe({
+    const rxQueryObservable = rxQuery.$ as unknown as {
+      subscribe: (observer: {
+        next: (doc: { toJSON: () => Record<string, unknown> } | null) => void
+        error: (subscriptionError: unknown) => void
+      }) => { unsubscribe: () => void }
+    }
+    const subscription = rxQueryObservable.subscribe({
         next: (doc: { toJSON: () => Record<string, unknown> } | null) => {
           setDocument(doc ? doc.toJSON() : null)
-          setIsLoading(false)
+          setSettledQueryKey(queryKey)
           setError(null)
         },
         error: (subscriptionError: unknown) => {
           setError(subscriptionError instanceof Error ? subscriptionError.message : 'Failed to load document')
-          setIsLoading(false)
+          setSettledQueryKey(queryKey)
         },
       })
 
     return () => subscription.unsubscribe()
-  }, [collectionName, db, id])
+  }, [collectionName, db, id, queryKey])
 
-  return { document, isLoading, error }
+  const isLoading = canQuery && settledQueryKey !== queryKey
+
+  return {
+    document: canQuery ? document : null,
+    isLoading,
+    error: canQuery ? error : null,
+  }
 }

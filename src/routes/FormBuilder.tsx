@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Group, Modal, Select, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Button, Card, Group, Modal, Select, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { SurveyCreator, SurveyCreatorComponent } from 'survey-creator-react'
 import { Model } from 'survey-core'
@@ -202,6 +202,7 @@ export function FormBuilder(): ReactElement {
         <Stack>
           <Select
             label="Event"
+            description="Each event can have one active scouting form"
             placeholder="Select an event"
             data={events.map((event) => ({ value: event.id, label: `${event.name} (${event.id})` }))}
             value={selectedEvent}
@@ -209,14 +210,18 @@ export function FormBuilder(): ReactElement {
             searchable
             disabled={isLoading}
           />
-          <TextInput label="Form Name" value={formName} onChange={(event) => setFormName(event.currentTarget.value)} />
+          <TextInput label="Form Name" description="Shown to users when editing or reviewing forms" value={formName} onChange={(event) => setFormName(event.currentTarget.value)} />
           <Group>
-            <Button onClick={() => void handleSave()} loading={isSaving} disabled={!selectedEvent || isLoading}>
-              Save Form
-            </Button>
-            <Button variant="light" onClick={() => setPreviewOpen(true)} disabled={!selectedEvent || isLoading}>
-              Preview Form
-            </Button>
+            <Tooltip label="Save this schema as the active form for the selected event">
+              <Button onClick={() => void handleSave()} loading={isSaving} disabled={!selectedEvent || isLoading}>
+                Save Form
+              </Button>
+            </Tooltip>
+            <Tooltip label="Preview the current form before saving">
+              <Button variant="light" onClick={() => setPreviewOpen(true)} disabled={!selectedEvent || isLoading}>
+                Preview Form
+              </Button>
+            </Tooltip>
           </Group>
           {!selectedEvent && <Text c="dimmed">No events found. Import an event first from Event Management.</Text>}
         </Stack>

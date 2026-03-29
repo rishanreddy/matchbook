@@ -55,7 +55,22 @@ const TeamCard = memo(function TeamCard({ stats, teamName, trend, onClick }: Tea
   const consistencyColor = stats.stdDev <= 8 ? 'green' : stats.stdDev <= 16 ? 'yellow' : 'red'
 
   return (
-    <Card withBorder radius="md" p="lg" onClick={onClick} style={{ cursor: 'pointer' }}>
+    <Card
+      withBorder
+      radius="md"
+      p="lg"
+      onClick={onClick}
+      style={{ cursor: 'pointer' }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onClick()
+        }
+      }}
+      aria-label={`Open details for team ${stats.teamNumber}`}
+    >
       <Stack gap="xs">
         <Group justify="space-between">
           <Text fw={700}>Team {stats.teamNumber}</Text>
@@ -120,7 +135,7 @@ export function Analysis(): ReactElement {
   const [debouncedSearch] = useDebouncedValue(search, 200)
   const [selectedTeamKey, setSelectedTeamKey] = useState<string | null>(null)
   const [teamMap, setTeamMap] = useState<Record<string, TBATeam>>({})
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [loadedEventId, setLoadedEventId] = useState<string | null>(null)
   const [assignModalCell, setAssignModalCell] = useState<{ matchKey: string; teamKey: string } | null>(null)
   const [scoutOptions, setScoutOptions] = useState<Array<{ value: string; label: string; deviceId: string }>>([])
   const [selectedScoutId, setSelectedScoutId] = useState<string | null>(null)
@@ -147,12 +162,9 @@ export function Analysis(): ReactElement {
 
   useEffect(() => {
     if (!db || !selectedEventId) {
-      setMatches([])
-      setObservations([])
       return
     }
 
-    setIsLoading(true)
     const matchesSub = db.collections.matches
       .find({ selector: { eventId: selectedEventId } })
       .$.
@@ -164,7 +176,7 @@ export function Analysis(): ReactElement {
     const observationsSub = db.collections.scoutingData.find().$.subscribe((docs) => {
       const typed = docs as ScoutingDataDocument[]
       setObservations(typed)
-      setIsLoading(false)
+      setLoadedEventId(selectedEventId)
     })
 
     const scoutsSub = db.collections.scouts.find().$.subscribe((docs) => {
@@ -183,9 +195,13 @@ export function Analysis(): ReactElement {
     }
   }, [db, selectedEventId])
 
+  const isLoading = useMemo(
+    () => Boolean(db && selectedEventId && loadedEventId !== selectedEventId),
+    [db, loadedEventId, selectedEventId],
+  )
+
   useEffect(() => {
     if (!selectedEventId) {
-      setTeamMap({})
       return
     }
 
@@ -211,7 +227,11 @@ export function Analysis(): ReactElement {
       })
   }, [selectedEventId])
 
-  const eventMatchKeys = useMemo(() => new Set(matches.map((match) => match.get('key'))), [matches])
+  const activeMatches = useMemo(() => (selectedEventId ? matches : []), [matches, selectedEventId])
+
+  const activeTeamMap = useMemo(() => (selectedEventId ? teamMap : {}), [selectedEventId, teamMap])
+
+  const eventMatchKeys = useMemo(() => new Set(activeMatches.map((match) => match.get('key'))), [activeMatches])
 
   const eventObservations = useMemo(
     () => observations.filter((observation) => eventMatchKeys.has(observation.get('matchKey'))),
@@ -244,13 +264,13 @@ export function Analysis(): ReactElement {
       return {
         ...baseStats,
         teamKey: key,
-        teamName: teamMap[key]?.nickname || teamMap[key]?.name || `Team ${baseStats.teamNumber}`,
+        teamName: activeTeamMap[key]?.nickname || activeTeamMap[key]?.name || `Team ${baseStats.teamNumber}`,
       }
     })
 
     setStatsForEvent(selectedEventId, computed)
     return computed
-  }, [cachedStats, observationsByTeam, selectedEventId, setStatsForEvent, teamMap])
+  }, [activeTeamMap, cachedStats, observationsByTeam, selectedEventId, setStatsForEvent])
 
   const sortedFilteredStats = useMemo(() => {
     const lowered = debouncedSearch.trim().toLowerCase()
@@ -296,16 +316,14 @@ export function Analysis(): ReactElement {
     [weightedScores],
   )
 
-  useEffect(() => {
-    setManualPicklist((current) => {
-      const source = current.length > 0 ? current : autoPicklist
-      const valid = source.filter((teamNumber) => autoPicklist.includes(teamNumber))
-      const missing = autoPicklist.filter((teamNumber) => !valid.includes(teamNumber))
-      return [...valid, ...missing]
-    })
-  }, [autoPicklist])
+  const resolvedManualPicklist = useMemo(() => {
+    const source = manualPicklist.length > 0 ? manualPicklist : autoPicklist
+    const valid = source.filter((teamNumber) => autoPicklist.includes(teamNumber))
+    const missing = autoPicklist.filter((teamNumber) => !valid.includes(teamNumber))
+    return [...valid, ...missing]
+  }, [autoPicklist, manualPicklist])
 
-  const coveragePercent = useMemo(() => calculateCoverage(matches, eventObservations), [eventObservations, matches])
+  const coveragePercent = useMemo(() => calculateCoverage(activeMatches, eventObservations), [activeMatches, eventObservations])
 
   const duplicateCount = useMemo(() => {
     const seen = new Map<string, number>()
@@ -336,7 +354,7 @@ export function Analysis(): ReactElement {
 
   const coverageMatrixTeams = useMemo(() => {
     const teams = new Set<string>()
-    matches.forEach((match) => {
+    activeMatches.forEach((match) => {
       match.get('redAlliance').forEach((team: string) => {
         teams.add(team)
       })
@@ -345,7 +363,7 @@ export function Analysis(): ReactElement {
       })
     })
     return Array.from(teams).sort((a, b) => toTeamNumber(a) - toTeamNumber(b))
-  }, [matches])
+  }, [activeMatches])
 
   const scoutedCells = useMemo(() => {
     const cells = new Set<string>()
@@ -358,7 +376,7 @@ export function Analysis(): ReactElement {
   const eventOptions = events.map((event) => ({ value: event.get('id'), label: `${event.get('name')} (${event.get('season')})` }))
 
   const handlePicklistExport = (): void => {
-    const rows = manualPicklist.map((teamNumber, index) => {
+    const rows = resolvedManualPicklist.map((teamNumber, index) => {
       const scoreRow = weightedScores.find((item) => item.teamNumber === teamNumber)
       return {
         rank: index + 1,
@@ -403,7 +421,7 @@ export function Analysis(): ReactElement {
 
   const movePick = (fromIndex: number, toIndex: number): void => {
     setManualPicklist((current) => {
-      const next = [...current]
+      const next = [...(current.length > 0 ? current : resolvedManualPicklist)]
       const [moved] = next.splice(fromIndex, 1)
       next.splice(toIndex, 0, moved)
       return next
@@ -622,15 +640,16 @@ export function Analysis(): ReactElement {
                 <Card withBorder>
                   <Text fw={600} mb="sm">Match History</Text>
                   <Table.ScrollContainer minWidth={700}>
-                    <Table striped highlightOnHover>
+                    <Table striped highlightOnHover aria-label="Selected team match history">
+                      <Table.Caption>Match-by-match scoring history for the selected team</Table.Caption>
                       <Table.Thead>
                         <Table.Tr>
-                          <Table.Th>Match</Table.Th>
-                          <Table.Th>Auto</Table.Th>
-                          <Table.Th>Teleop</Table.Th>
-                          <Table.Th>Endgame</Table.Th>
-                          <Table.Th>Total</Table.Th>
-                          <Table.Th>Notes</Table.Th>
+                          <Table.Th scope="col">Match</Table.Th>
+                          <Table.Th scope="col">Auto</Table.Th>
+                          <Table.Th scope="col">Teleop</Table.Th>
+                          <Table.Th scope="col">Endgame</Table.Th>
+                          <Table.Th scope="col">Total</Table.Th>
+                          <Table.Th scope="col">Notes</Table.Th>
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
@@ -677,18 +696,19 @@ export function Analysis(): ReactElement {
               </Group>
 
               <ScrollArea h={500}>
-                <Table striped highlightOnHover>
+                <Table striped highlightOnHover aria-label="Manual picklist table">
+                  <Table.Caption>Reorder teams and review weighted rankings</Table.Caption>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Rank</Table.Th>
-                      <Table.Th>Team</Table.Th>
-                      <Table.Th>Weighted Score</Table.Th>
-                      <Table.Th>Tier</Table.Th>
-                      <Table.Th>Move</Table.Th>
+                      <Table.Th scope="col">Rank</Table.Th>
+                      <Table.Th scope="col">Team</Table.Th>
+                      <Table.Th scope="col">Weighted Score</Table.Th>
+                      <Table.Th scope="col">Tier</Table.Th>
+                      <Table.Th scope="col">Move</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {manualPicklist.map((teamNumber, index) => {
+                     {resolvedManualPicklist.map((teamNumber, index) => {
                       const row = weightedScores.find((item) => item.teamNumber === teamNumber)
                       const tierColor = index < 8 ? 'green' : index < 16 ? 'blue' : 'yellow'
                       return (
@@ -707,14 +727,15 @@ export function Analysis(): ReactElement {
                           </Table.Td>
                           <Table.Td>
                             <Group gap="xs">
-                              <Button size="xs" variant="light" disabled={index === 0} onClick={() => movePick(index, index - 1)}>
+                              <Button size="xs" variant="light" disabled={index === 0} onClick={() => movePick(index, index - 1)} aria-label={`Move team ${teamNumber} up`}>
                                 Up
                               </Button>
                               <Button
                                 size="xs"
                                 variant="light"
-                                disabled={index === manualPicklist.length - 1}
+                                 disabled={index === resolvedManualPicklist.length - 1}
                                 onClick={() => movePick(index, index + 1)}
+                                aria-label={`Move team ${teamNumber} down`}
                               >
                                 Down
                               </Button>
@@ -746,14 +767,15 @@ export function Analysis(): ReactElement {
               </Group>
 
               <ScrollArea h={360}>
-                <Table withColumnBorders withTableBorder>
+                <Table withColumnBorders withTableBorder aria-label="Coverage matrix by team and match">
+                  <Table.Caption>Coverage matrix showing whether each team has scouting data per match</Table.Caption>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Team / Match</Table.Th>
-                      {matches
-                        .slice()
-                        .sort((a, b) => a.get('matchNumber') - b.get('matchNumber'))
-                        .map((match) => (
+                      <Table.Th scope="col">Team / Match</Table.Th>
+                       {activeMatches
+                         .slice()
+                         .sort((a, b) => a.get('matchNumber') - b.get('matchNumber'))
+                         .map((match) => (
                           <Table.Th key={match.get('key')}>{match.get('matchNumber')}</Table.Th>
                         ))}
                     </Table.Tr>
@@ -764,10 +786,10 @@ export function Analysis(): ReactElement {
                       return (
                         <Table.Tr key={teamKey}>
                           <Table.Td>Team {teamNumber}</Table.Td>
-                          {matches
-                            .slice()
-                            .sort((a, b) => a.get('matchNumber') - b.get('matchNumber'))
-                            .map((match) => {
+                           {activeMatches
+                             .slice()
+                             .sort((a, b) => a.get('matchNumber') - b.get('matchNumber'))
+                             .map((match) => {
                               const cellKey = `${match.get('key')}:${teamNumber}`
                               const hasData = scoutedCells.has(cellKey)
                               const inMatch =
@@ -783,6 +805,7 @@ export function Analysis(): ReactElement {
                                     color={hasData ? 'green' : 'red'}
                                     variant="filled"
                                     onClick={() => !hasData && setAssignModalCell({ matchKey: match.get('key'), teamKey })}
+                                    aria-label={hasData ? 'Coverage complete' : `Assign scout for team ${teamNumber} in match ${match.get('matchNumber')}`}
                                   >
                                     {hasData ? '✓' : '!'}
                                   </Button>
@@ -798,14 +821,15 @@ export function Analysis(): ReactElement {
 
               <Divider />
               <Text fw={600}>Outliers (&gt; 2σ from team mean)</Text>
-              <Table>
+              <Table aria-label="Outlier observations table">
+                <Table.Caption>Observations that deviate strongly from team averages</Table.Caption>
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Team</Table.Th>
-                    <Table.Th>Match</Table.Th>
-                    <Table.Th>Total</Table.Th>
-                    <Table.Th>Flags</Table.Th>
-                    <Table.Th>Action</Table.Th>
+                    <Table.Th scope="col">Team</Table.Th>
+                    <Table.Th scope="col">Match</Table.Th>
+                    <Table.Th scope="col">Total</Table.Th>
+                    <Table.Th scope="col">Flags</Table.Th>
+                    <Table.Th scope="col">Action</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
