@@ -19,6 +19,7 @@ import {
   IconSettings,
   IconDeviceLaptop,
   IconTargetArrow,
+  IconUsersGroup,
 } from '@tabler/icons-react'
 import { type ComponentType, useEffect, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
@@ -26,6 +27,7 @@ import { Analysis } from './routes/Analysis'
 import { DeviceSetup } from './routes/DeviceSetup'
 import { EventManagement } from './routes/EventManagement'
 import { Home } from './routes/Home'
+import { Assignments } from './routes/Assignments'
 import { Scout } from './routes/Scout'
 import { Settings } from './routes/Settings'
 import { getOrCreateDeviceId } from './lib/db/utils/deviceId'
@@ -41,6 +43,7 @@ const navItems: NavItem[] = [
   { to: '/', label: 'Home', icon: IconHome },
   { to: '/scout', label: 'Scout', icon: IconTargetArrow },
   { to: '/events', label: 'Events', icon: IconCalendarEvent },
+  { to: '/assignments', label: 'Assignments', icon: IconUsersGroup },
   { to: '/analysis', label: 'Analysis', icon: IconChartBar },
   { to: '/device-setup', label: 'Device Setup', icon: IconDeviceLaptop },
   { to: '/settings', label: 'Settings', icon: IconSettings },
@@ -145,6 +148,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/scout" element={<Scout />} />
           <Route path="/events" element={<EventManagement />} />
+          <Route path="/assignments" element={<Assignments />} />
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/device-setup" element={<DeviceSetup />} />
           <Route path="/settings" element={<Settings />} />
