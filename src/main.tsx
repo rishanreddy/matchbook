@@ -12,7 +12,7 @@ import App from './App.tsx'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MantineProvider theme={appTheme} defaultColorScheme="dark">
-      <Notifications position="top-right" />
+      <Notifications />
       <BrowserRouter>
         <App />
       </BrowserRouter>

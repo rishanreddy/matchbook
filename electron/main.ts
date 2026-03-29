@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import process from 'node:process'
+import { registerDatabaseIpcHandlers } from './database'
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -43,6 +44,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle('app:get-version', () => app.getVersion())
   ipcMain.handle('app:get-platform', () => process.platform)
   ipcMain.handle('app:ping', () => 'pong')
+  registerDatabaseIpcHandlers()
 }
 
 app.whenReady().then(() => {
