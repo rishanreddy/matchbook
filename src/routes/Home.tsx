@@ -1,14 +1,35 @@
 import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
-import { Alert, Badge, Code, List, Stack, Text, ThemeIcon, Title } from '@mantine/core'
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Code,
+  List,
+  Stack,
+  Text,
+  ThemeIcon,
+  Title,
+} from '@mantine/core'
 import { IconCircleCheck, IconInfoCircle } from '@tabler/icons-react'
+import { Link } from 'react-router-dom'
+import { formatDateRange } from '../lib/utils/dates'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
+
+type ImportedEvent = {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+}
 
 export function Home(): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const [testDeviceId, setTestDeviceId] = useState<string>('')
   const [testStatus, setTestStatus] = useState<string>('pending')
+  const [importedEvents, setImportedEvents] = useState<ImportedEvent[]>([])
 
   useEffect(() => {
     const runTest = async (): Promise<void> => {
@@ -39,6 +60,26 @@ export function Home(): ReactElement {
     }
 
     void runTest()
+  }, [db])
+
+  useEffect(() => {
+    const loadImportedEvents = async (): Promise<void> => {
+      if (!db) {
+        return
+      }
+
+      const events = await db.collections.events.find().exec()
+      setImportedEvents(
+        events.map((eventDoc) => ({
+          id: eventDoc.id,
+          name: eventDoc.name,
+          startDate: eventDoc.startDate,
+          endDate: eventDoc.endDate,
+        })),
+      )
+    }
+
+    void loadImportedEvents()
   }, [db])
 
   return (
@@ -80,6 +121,26 @@ export function Home(): ReactElement {
             ? 'Device test failed. Check console logs for details.'
             : 'Running insert/query test...'}
       </Alert>
+
+      <Card withBorder radius="md" p="lg">
+        <Stack>
+          <Title order={4}>Imported Events</Title>
+          {importedEvents.length === 0 ? (
+            <Text c="dimmed">No events imported yet.</Text>
+          ) : (
+            <List spacing="xs">
+              {importedEvents.map((event) => (
+                <List.Item key={event.id}>
+                  {event.name} ({event.id}) - {formatDateRange(event.startDate, event.endDate)}
+                </List.Item>
+              ))}
+            </List>
+          )}
+          <Button component={Link} to="/events" variant="light">
+            Manage Events
+          </Button>
+        </Stack>
+      </Card>
     </Stack>
   )
 }

@@ -1,5 +1,6 @@
 import {
   AppShell,
+  Modal,
   Burger,
   Button,
   Group,
@@ -11,18 +12,23 @@ import {
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import {
+  IconCalendarEvent,
   IconChartBar,
   IconHome,
   IconListCheck,
   IconSettings,
+  IconDeviceLaptop,
   IconTargetArrow,
 } from '@tabler/icons-react'
 import { type ComponentType, useEffect, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Analysis } from './routes/Analysis'
+import { DeviceSetup } from './routes/DeviceSetup'
+import { EventManagement } from './routes/EventManagement'
 import { Home } from './routes/Home'
 import { Scout } from './routes/Scout'
 import { Settings } from './routes/Settings'
+import { getOrCreateDeviceId } from './lib/db/utils/deviceId'
 import { useDatabaseStore } from './stores/useDatabase'
 
 type NavItem = {
@@ -34,7 +40,9 @@ type NavItem = {
 const navItems: NavItem[] = [
   { to: '/', label: 'Home', icon: IconHome },
   { to: '/scout', label: 'Scout', icon: IconTargetArrow },
+  { to: '/events', label: 'Events', icon: IconCalendarEvent },
   { to: '/analysis', label: 'Analysis', icon: IconChartBar },
+  { to: '/device-setup', label: 'Device Setup', icon: IconDeviceLaptop },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
 
@@ -43,6 +51,8 @@ function App() {
   const location = useLocation()
   const [appVersion, setAppVersion] = useState<string>('unknown')
   const initializeDb = useDatabaseStore((state) => state.initialize)
+  const db = useDatabaseStore((state) => state.db)
+  const [showDeviceReminder, setShowDeviceReminder] = useState<boolean>(false)
 
   useEffect(() => {
     const loadVersion = async (): Promise<void> => {
@@ -59,6 +69,24 @@ function App() {
     void loadVersion()
     void initializeDb()
   }, [initializeDb])
+
+  useEffect(() => {
+    const checkDeviceRegistration = async (): Promise<void> => {
+      if (!db) {
+        return
+      }
+
+      try {
+        const deviceId = await getOrCreateDeviceId()
+        const device = await db.collections.devices.findOne(deviceId).exec()
+        setShowDeviceReminder(!device)
+      } catch (error: unknown) {
+        console.error('Failed to check device registration:', error)
+      }
+    }
+
+    void checkDeviceRegistration()
+  }, [db])
 
   return (
     <AppShell
@@ -98,10 +126,27 @@ function App() {
       </AppShell.Navbar>
 
       <AppShell.Main>
+        <Modal
+          opened={showDeviceReminder}
+          onClose={() => setShowDeviceReminder(false)}
+          title="Device not registered"
+        >
+          <Stack gap="sm">
+            <Text size="sm">
+              This laptop has not been registered yet. Set up this device so it can be identified for sync.
+            </Text>
+            <Button component={Link} to="/device-setup" onClick={() => setShowDeviceReminder(false)}>
+              Go to Device Setup
+            </Button>
+          </Stack>
+        </Modal>
+
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/scout" element={<Scout />} />
+          <Route path="/events" element={<EventManagement />} />
           <Route path="/analysis" element={<Analysis />} />
+          <Route path="/device-setup" element={<DeviceSetup />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
