@@ -1,183 +1,73 @@
-# Offline Scouting Manager
+# React + TypeScript + Vite
 
-<p align="center">
-  A practical, offline-first scouting app for FRC/FTC teams.<br>
-  Built for real match days where Wi-Fi is unreliable and speed matters.
-</p>
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-<p align="center">
-  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/rishanreddy/Offline_Scouting_Manager?display_name=tag&sort=semver&style=for-the-badge"></a>
-  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/releases"><img alt="Total Downloads" src="https://img.shields.io/github/downloads/rishanreddy/Offline_Scouting_Manager/total?style=for-the-badge"></a>
-  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/releases/latest"><img alt="Latest Downloads" src="https://img.shields.io/github/downloads/rishanreddy/Offline_Scouting_Manager/latest/total?style=for-the-badge"></a>
-</p>
+Currently, two official plugins are available:
 
-<p align="center">
-  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
-  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/network/members"><img alt="Forks" src="https://img.shields.io/github/forks/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
-  <a href="https://github.com/rishanreddy/Offline_Scouting_Manager/issues"><img alt="Issues" src="https://img.shields.io/github/issues/rishanreddy/Offline_Scouting_Manager?style=flat-square"></a>
-  <img alt="Last Commit" src="https://img.shields.io/github/last-commit/rishanreddy/Offline_Scouting_Manager?style=flat-square">
-</p>
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
----
+## React Compiler
 
-## What this software does
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-Offline Scouting Manager helps a scouting crew collect match observations on multiple devices, sync them with CSV, and review combined data in one place.
+## Expanding the ESLint configuration
 
-No cloud account required. No internet requirement during operation.
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-### Core features
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-- Custom SurveyJS scouting forms with validation
-- Fast local data capture to CSV
-- USB-friendly export/import across devices
-- Team-level analysis and charts
-- Setup wizard for event + form configuration
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
 
----
-
-## Downloads
-
-- Latest release: https://github.com/rishanreddy/Offline_Scouting_Manager/releases/latest
-- All releases: https://github.com/rishanreddy/Offline_Scouting_Manager/releases
-
-Notes on counters:
-
-- `Total Downloads` = all GitHub release asset downloads over time
-- `Latest Downloads` = downloads for only the most recent release
-
----
-
-## Quick start
-
-### Run from executable
-
-1. Download your platform build from Releases.
-2. Launch the app.
-3. Open `http://127.0.0.1:8080` (the app also auto-opens browser on startup).
-
-### Run from source
-
-```bash
-# macOS / Linux
-./scripts/setup.sh
-
-# Windows
-scripts\setup.bat
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
 
-Manual path:
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-```bash
-uv sync
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
 
-# Production mode
-uv run main.py
-
-# Development mode
-uv run main.py --dev
-
-# LAN mode
-uv run main.py --lan
-
-# Custom host/port
-uv run main.py --host 0.0.0.0 --port 8080
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
 ```
-
----
-
-## Match-day workflow
-
-```text
-Scout devices collect data -> each exports CSV -> one laptop imports all CSVs -> combined analysis
-```
-
-Typical flow:
-
-1. Scouts submit forms during matches.
-2. Each device stores local records in `data/scouting_data.csv`.
-3. One device imports CSVs from all scouts.
-4. Drive picklist and strategy discussions from combined data.
-
----
-
-## Architecture snapshot
-
-Built for **FTC/FRC scouting teams** operating in bandwidth-constrained environments. Collect match observations across multiple devices, synchronize via USB, and analyze aggregate performance—all without touching the cloud.
-
-```
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│  Scout A    │      │  Scout B    │      │  Scout C    │
-│  Device     │      │  Device     │      │  Device     │
-└──────┬──────┘      └──────┬──────┘      └──────┬──────┘
-       │                    │                    │
-       │    Export CSV      │    Export CSV      │    Export CSV
-       └────────────────────┼────────────────────┘
-                            │
-                    ┌───────▼────────┐
-                    │  Analysis Hub  │
-                    │  (Import All)  │
-                    └────────────────┘
-                            │
-                    Unified Dataset → Insights
-```
-
-### Stack
-
-| Layer           | Tech                            |
-| --------------- | ------------------------------- |
-| Backend         | Python 3.12+, Flask, Waitress   |
-| Frontend        | Jinja2, Bootstrap 5, vanilla JS |
-| Forms           | SurveyJS                        |
-| Storage         | CSV + YAML + JSON               |
-| Packaging       | PyInstaller                     |
-| Package manager | uv                              |
-
----
-
-## Build
-
-```bash
-# macOS / Linux
-./scripts/build_executable.sh
-
-# Windows
-scripts\build_executable.bat
-```
-
-Artifacts are generated in `dist/`.
-
----
-
-## Configuration
-
-Use `/setup` on first run (or `/settings` later) to configure:
-
-- Event name + season
-- Device identity
-- Survey schema
-- Analysis graph fields
-
-Required schema fields used by the app:
-
-- `team`
-- `auto_score`
-- `teleop_score`
-
----
-
-## Development
-
-Manual validation loop:
-
-1. `uv run main.py --dev`
-2. Exercise affected pages
-3. Check `logs/app.log`
-4. Validate CSV import/export
-5. Re-check analysis pages
-
----
-
-<p align="center">
-  Built by a team that has had scouting break at events and decided not to let that happen again.
-</p>

@@ -1,0 +1,6 @@
+allowBuilds:
+  '@firebase/util': true
+  electron: true
+  electron-winstaller: true
+  protobufjs: true
+  rxdb: true
