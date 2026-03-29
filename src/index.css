@@ -9,3 +9,10 @@ body,
   width: 100%;
   min-height: 100vh;
 }
+
+.sd-root-modern {
+  --sjs-primary-backcolor: var(--mantine-color-blue-6);
+  --sjs-primary-backcolor-light: var(--mantine-color-blue-8);
+  --sjs-base-unit: 8px;
+  --sjs-corner-radius: 8px;
+}

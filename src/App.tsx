@@ -20,6 +20,8 @@ import {
   IconDeviceLaptop,
   IconTargetArrow,
   IconUsersGroup,
+  IconForms,
+  IconRefresh,
 } from '@tabler/icons-react'
 import { type ComponentType, useEffect, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
@@ -30,6 +32,8 @@ import { Home } from './routes/Home'
 import { Assignments } from './routes/Assignments'
 import { Scout } from './routes/Scout'
 import { Settings } from './routes/Settings'
+import { FormBuilder } from './routes/FormBuilder'
+import { Sync } from './routes/Sync'
 import { getOrCreateDeviceId } from './lib/db/utils/deviceId'
 import { useDatabaseStore } from './stores/useDatabase'
 
@@ -46,7 +50,9 @@ const navItems: NavItem[] = [
   { to: '/assignments', label: 'Assignments', icon: IconUsersGroup },
   { to: '/analysis', label: 'Analysis', icon: IconChartBar },
   { to: '/device-setup', label: 'Device Setup', icon: IconDeviceLaptop },
+  { to: '/sync', label: 'Sync', icon: IconRefresh },
   { to: '/settings', label: 'Settings', icon: IconSettings },
+  { to: '/form-builder', label: 'Form Builder', icon: IconForms },
 ]
 
 function App() {
@@ -147,11 +153,14 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/scout" element={<Scout />} />
+          <Route path="/scout/form/:assignmentId" element={<Scout />} />
           <Route path="/events" element={<EventManagement />} />
           <Route path="/assignments" element={<Assignments />} />
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/device-setup" element={<DeviceSetup />} />
+          <Route path="/sync" element={<Sync />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/form-builder" element={<FormBuilder />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Text c="dimmed" size="xs" mt="xl">

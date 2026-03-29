@@ -7,6 +7,8 @@ import { appTheme } from './theme'
 import './index.css'
 import '@mantine/core/styles.css'
 import '@mantine/notifications/styles.css'
+import 'survey-core/survey-core.min.css'
+import 'survey-creator-core/survey-creator-core.min.css'
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(

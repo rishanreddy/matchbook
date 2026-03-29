@@ -2,9 +2,9 @@ import type { RxJsonSchema } from 'rxdb'
 
 export interface ScoutingDataDocType {
   id: string
+  eventKey: string
   matchKey: string
-  teamNumber: string
-  position: string
+  teamKey: string
   scoutId: string
   deviceId: string
   originDeviceId: string
@@ -28,9 +28,9 @@ export const scoutingDataSchema: RxJsonSchema<ScoutingDataDocType> = {
   type: 'object',
   properties: {
     id: { type: 'string', maxLength: 128 },
+    eventKey: { type: 'string' },
     matchKey: { type: 'string' },
-    teamNumber: { type: 'string' },
-    position: { type: 'string' },
+    teamKey: { type: 'string' },
     scoutId: { type: 'string' },
     deviceId: { type: 'string' },
     originDeviceId: { type: 'string' },
@@ -47,9 +47,9 @@ export const scoutingDataSchema: RxJsonSchema<ScoutingDataDocType> = {
   },
   required: [
     'id',
+    'eventKey',
     'matchKey',
-    'teamNumber',
-    'position',
+    'teamKey',
     'scoutId',
     'deviceId',
     'originDeviceId',
@@ -64,5 +64,5 @@ export const scoutingDataSchema: RxJsonSchema<ScoutingDataDocType> = {
     'isBrokenRobot',
     'createdAt',
   ],
-  indexes: ['matchKey', 'teamNumber', 'syncHash', ['matchKey', 'teamNumber']],
+  indexes: ['eventKey', 'matchKey', 'teamKey', 'syncHash', ['matchKey', 'teamKey']],
 }

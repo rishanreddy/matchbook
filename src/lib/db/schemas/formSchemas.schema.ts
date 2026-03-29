@@ -2,11 +2,13 @@ import type { RxJsonSchema } from 'rxdb'
 
 export interface FormSchemaDocType {
   id: string
-  eventId: string
-  version: number
-  schema: Record<string, unknown>
+  eventKey: string
+  name: string
+  surveyJson: Record<string, unknown>
+  schemaVersion: number
   isActive: boolean
   createdAt: string
+  updatedAt: string
 }
 
 export const formSchemaSchema: RxJsonSchema<FormSchemaDocType> = {
@@ -16,12 +18,14 @@ export const formSchemaSchema: RxJsonSchema<FormSchemaDocType> = {
   type: 'object',
   properties: {
     id: { type: 'string', maxLength: 128 },
-    eventId: { type: 'string' },
-    version: { type: 'number', minimum: 0 },
-    schema: { type: 'object', additionalProperties: true },
+    eventKey: { type: 'string' },
+    name: { type: 'string' },
+    surveyJson: { type: 'object', additionalProperties: true },
+    schemaVersion: { type: 'number', minimum: 0 },
     isActive: { type: 'boolean' },
     createdAt: { type: 'string' },
+    updatedAt: { type: 'string' },
   },
-  required: ['id', 'eventId', 'version', 'schema', 'isActive', 'createdAt'],
-  indexes: ['eventId', ['eventId', 'version']],
+  required: ['id', 'eventKey', 'name', 'surveyJson', 'schemaVersion', 'isActive', 'createdAt', 'updatedAt'],
+  indexes: ['eventKey', ['eventKey', 'schemaVersion'], ['eventKey', 'isActive']],
 }
