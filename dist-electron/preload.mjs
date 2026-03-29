@@ -1,8 +1,1 @@
-let electron = require("electron");
-//#region electron/preload.ts
-electron.contextBridge.exposeInMainWorld("electronAPI", {
-	getVersion: () => electron.ipcRenderer.invoke("app:get-version"),
-	getPlatform: () => electron.ipcRenderer.invoke("app:get-platform"),
-	ping: () => electron.ipcRenderer.invoke("app:ping")
-});
-//#endregion
+let e=require(`electron`);e.contextBridge.exposeInMainWorld(`electronAPI`,{getVersion:()=>e.ipcRenderer.invoke(`app:get-version`),getPlatform:()=>e.ipcRenderer.invoke(`app:get-platform`),ping:()=>e.ipcRenderer.invoke(`app:ping`),db:{initialize:()=>e.ipcRenderer.invoke(`db:initialize`),query:(t,n)=>e.ipcRenderer.invoke(`db:query`,t,n),insert:(t,n)=>e.ipcRenderer.invoke(`db:insert`,t,n),update:(t,n,r)=>e.ipcRenderer.invoke(`db:update`,t,n,r),delete:(t,n)=>e.ipcRenderer.invoke(`db:delete`,t,n),sync:()=>e.ipcRenderer.invoke(`db:sync`)}});

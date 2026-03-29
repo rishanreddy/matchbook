@@ -23,6 +23,7 @@ import { Analysis } from './routes/Analysis'
 import { Home } from './routes/Home'
 import { Scout } from './routes/Scout'
 import { Settings } from './routes/Settings'
+import { useDatabaseStore } from './stores/useDatabase'
 
 type NavItem = {
   to: string
@@ -41,6 +42,7 @@ function App() {
   const [opened, { toggle, close }] = useDisclosure()
   const location = useLocation()
   const [appVersion, setAppVersion] = useState<string>('unknown')
+  const initializeDb = useDatabaseStore((state) => state.initialize)
 
   useEffect(() => {
     const loadVersion = async (): Promise<void> => {
@@ -55,7 +57,8 @@ function App() {
     }
 
     void loadVersion()
-  }, [])
+    void initializeDb()
+  }, [initializeDb])
 
   return (
     <AppShell

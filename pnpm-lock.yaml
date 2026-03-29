@@ -90,15 +90,24 @@ importers:
       '@types/node':
         specifier: ^24.12.0
         version: 24.12.0
+      '@types/papaparse':
+        specifier: ^5.5.2
+        version: 5.5.2
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
+      '@types/uuid':
+        specifier: ^11.0.0
+        version: 11.0.0
       '@vitejs/plugin-react':
         specifier: ^6.0.1
         version: 6.0.1(vite@8.0.3(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)(@types/node@24.12.0)(jiti@2.6.1)(sugarss@5.0.1(postcss@8.5.8)))
+      dexie:
+        specifier: ^4.4.1
+        version: 4.4.1
       electron:
         specifier: ^41.1.0
         version: 41.1.0
@@ -897,6 +906,9 @@ packages:
   '@types/node@24.12.0':
     resolution: {integrity: sha512-GYDxsZi3ChgmckRT9HPU0WEhKLP08ev/Yfcq2AstjrDASOYCSXeyjDsHg4v5t4jOj7cyDX3vmprafKlWIG9MXQ==}
 
+  '@types/papaparse@5.5.2':
+    resolution: {integrity: sha512-gFnFp/JMzLHCwRf7tQHrNnfhN4eYBVYYI897CGX4MY1tzY9l2aLkVyx2IlKZ/SAqDbB3I1AOZW5gTMGGsqWliA==}
+
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
 
@@ -931,6 +943,10 @@ packages:
 
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
+
+  '@types/uuid@11.0.0':
+    resolution: {integrity: sha512-HVyk8nj2m+jcFRNazzqyVKiZezyhDKrGUA3jlEcg/nZ6Ms+qHwocba1Y/AaVaznJTAM9xpdFSh+ptbNrhOGvZA==}
+    deprecated: This is a stub types definition. uuid provides its own type definitions, so you do not need this installed.
 
   '@types/verror@1.10.11':
     resolution: {integrity: sha512-RlDm9K7+o5stv0Co8i8ZRGxDbrTxhJtgjqjFyVh/tXQyl/rYtTKlnTvZ88oSTeYREWurwx20Js4kTuKCsFkUtg==}
@@ -1438,6 +1454,9 @@ packages:
 
   dexie@4.0.10:
     resolution: {integrity: sha512-eM2RzuR3i+M046r2Q0Optl3pS31qTWf8aFuA7H9wnsHTwl8EPvroVLwvQene/6paAs39Tbk6fWZcn2aZaHkc/w==}
+
+  dexie@4.4.1:
+    resolution: {integrity: sha512-4Xec5+yrS+TgyFAnMrneFOt/QG8sD3FxlkUVpfypui3SriRN80UN0SZBWmkNAY7ulfKgk0ilvv7M6pBURprdgA==}
 
   dir-compare@4.2.0:
     resolution: {integrity: sha512-2xMCmOoMrdQIPHdsTawECdNPwlVFB9zGcz3kuhmBO6U3oU+UQjsue0i8ayLKpgBcm+hcXPMVSGUN9d+pvJ6+VQ==}
@@ -4246,6 +4265,10 @@ snapshots:
     dependencies:
       undici-types: 7.16.0
 
+  '@types/papaparse@5.5.2':
+    dependencies:
+      '@types/node': 24.12.0
+
   '@types/plist@3.0.5':
     dependencies:
       '@types/node': 24.12.0
@@ -4288,6 +4311,10 @@ snapshots:
       '@types/node': 24.12.0
 
   '@types/use-sync-external-store@0.0.6': {}
+
+  '@types/uuid@11.0.0':
+    dependencies:
+      uuid: 13.0.0
 
   '@types/verror@1.10.11':
     optional: true
@@ -4838,6 +4865,8 @@ snapshots:
     optional: true
 
   dexie@4.0.10: {}
+
+  dexie@4.4.1: {}
 
   dir-compare@4.2.0:
     dependencies:
