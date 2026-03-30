@@ -1,6 +1,8 @@
 import {
   AppShell,
   Modal,
+  Badge,
+  Box,
   Burger,
   Button,
   Group,
@@ -8,6 +10,7 @@ import {
   ScrollArea,
   Stack,
   Text,
+  ThemeIcon,
   Title,
   ActionIcon,
   Tooltip,
@@ -42,6 +45,7 @@ import { Help } from './routes/Help'
 import { getOrCreateDeviceId } from './lib/db/utils/deviceId'
 import { useDatabaseStore } from './stores/useDatabase'
 import { shortcutManager } from './lib/utils/shortcuts'
+import { handleError } from './lib/utils/errorHandler'
 import { ShortcutHelp } from './components/ShortcutHelp'
 import { CommandPalette, type CommandItem } from './components/CommandPalette'
 import { SplashScreen } from './components/SplashScreen'
@@ -85,23 +89,47 @@ function App() {
   const [showAbout, setShowAbout] = useState<boolean>(false)
   const [shortcutsEnabled, setShortcutsEnabled] = useState<boolean>(() => localStorage.getItem('shortcuts_enabled') !== 'false')
   const mainRef = useRef<HTMLElement | null>(null)
+  const initStartedRef = useRef<boolean>(false)
 
   useEffect(() => {
+    if (initStartedRef.current) {
+      return
+    }
+
+    initStartedRef.current = true
+    let mounted = true
+
     const loadVersion = async (): Promise<void> => {
+      if (!mounted) {
+        return
+      }
+
       try {
         if (window.electronAPI) {
           const version = await window.electronAPI.getVersion()
-          setAppVersion(version)
+          if (mounted) {
+            setAppVersion(version)
+          }
         }
         await initializeDb()
       } catch (error: unknown) {
-        console.error('Failed to load app version:', error)
+        if (mounted) {
+          handleError(error, 'App initialization')
+        }
       } finally {
-        window.setTimeout(() => setShowSplash(false), 500)
+        window.setTimeout(() => {
+          if (mounted) {
+            setShowSplash(false)
+          }
+        }, 500)
       }
     }
 
     void loadVersion()
+
+    return () => {
+      mounted = false
+    }
   }, [initializeDb])
 
   useEffect(() => {
@@ -239,49 +267,119 @@ function App() {
       header={{ height: 60 }}
       navbar={{ width: 250, breakpoint: 'sm', collapsed: { mobile: !opened } }}
       padding="md"
+      styles={{
+        header: {
+          backgroundColor: 'var(--mantine-color-slate-9)',
+          borderBottom: '1px solid rgba(0, 102, 179, 0.2)',
+        },
+        navbar: {
+          backgroundColor: 'var(--mantine-color-slate-9)',
+          borderRight: '1px solid rgba(0, 102, 179, 0.2)',
+        },
+        main: {
+          backgroundColor: 'var(--mantine-color-slate-8)',
+        },
+      }}
     >
-      <AppShell.Header>
+      <AppShell.Header className="frc-accent-line">
         <Group h="100%" px="md" justify="space-between">
           <Group>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation menu" />
-            <IconListCheck size={22} />
-            <Title order={4}>Offline Scouting Manager</Title>
+            <ThemeIcon size={32} radius="md" variant="light" color="frc-blue.5">
+              <IconListCheck size={20} />
+            </ThemeIcon>
+            <Title order={4} c="white" fw={700}>Offline Scouting Manager</Title>
           </Group>
           <Group>
             <Tooltip label="Open command palette (Ctrl/Cmd + K)">
-              <ActionIcon variant="light" onClick={() => setShowCommandPalette(true)} aria-label="Open command palette">
-                <IconCommand size={16} />
+              <ActionIcon 
+                variant="subtle" 
+                onClick={() => setShowCommandPalette(true)} 
+                aria-label="Open command palette"
+                size="lg"
+                color="gray"
+                className="transition-fast"
+                style={{
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 102, 179, 0.2)',
+                  },
+                }}
+              >
+                <IconCommand size={18} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Show keyboard shortcuts (?)">
-              <ActionIcon variant="light" onClick={() => setShowShortcutHelp(true)} aria-label="Open keyboard shortcuts help">
-                <IconHelp size={16} />
+              <ActionIcon 
+                variant="subtle" 
+                onClick={() => setShowShortcutHelp(true)} 
+                aria-label="Open keyboard shortcuts help"
+                size="lg"
+                color="gray"
+                className="transition-fast"
+              >
+                <IconHelp size={18} />
               </ActionIcon>
             </Tooltip>
-            <Button variant="light" size="xs" disabled aria-label={`Application version ${appVersion}`}>
+            <Badge variant="light" color="frc-orange.5" className="mono-number" size="lg">
               v{appVersion}
-            </Button>
+            </Badge>
           </Group>
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="sm">
+      <AppShell.Navbar p="md">
         <AppShell.Section grow component={ScrollArea}>
-          <Stack gap="xs">
-            {navItems.map(({ to, label, icon: Icon }) => (
-              <Tooltip key={to} label={`Go to ${label}`} position="right">
-                <NavLink
-                  component={Link}
-                  to={to}
-                  label={label}
-                  leftSection={<Icon size={16} />}
-                  active={location.pathname === to}
-                  onClick={close}
-                  aria-label={`Navigate to ${label}`}
-                />
-              </Tooltip>
-            ))}
+          <Stack gap={6}>
+            {navItems.map(({ to, label, icon: Icon }) => {
+              const isActive = location.pathname === to
+              return (
+                <Tooltip key={to} label={`Go to ${label}`} position="right">
+                  <NavLink
+                    component={Link}
+                    to={to}
+                    label={label}
+                    leftSection={<Icon size={18} />}
+                    active={isActive}
+                    onClick={close}
+                    aria-label={`Navigate to ${label}`}
+                    className="transition-fast"
+                    styles={{
+                      root: {
+                        borderRadius: 6,
+                        fontWeight: isActive ? 600 : 500,
+                        color: isActive ? 'white' : 'var(--mantine-color-gray-4)',
+                        padding: '12px 14px',
+                        '&:hover': {
+                          backgroundColor: 'rgba(0, 102, 179, 0.15)',
+                        },
+                        '&[data-active]': {
+                          backgroundColor: 'rgba(0, 102, 179, 0.25)',
+                          borderLeft: '3px solid #0066b3',
+                          paddingLeft: '11px',
+                          color: 'white',
+                          '&:hover': {
+                            backgroundColor: 'rgba(0, 102, 179, 0.3)',
+                          },
+                        },
+                      },
+                      label: {
+                        fontSize: 14,
+                      },
+                    }}
+                  />
+                </Tooltip>
+              )
+            })}
           </Stack>
+        </AppShell.Section>
+        
+        {/* Footer in sidebar */}
+        <AppShell.Section>
+          <Box pt="md" style={{ borderTop: '1px solid rgba(0, 102, 179, 0.2)' }}>
+            <Text size="xs" c="dark.3" ta="center">
+              FRC Scouting Tool
+            </Text>
+          </Box>
         </AppShell.Section>
       </AppShell.Navbar>
 
@@ -327,9 +425,11 @@ function App() {
           <Route path="/help" element={<Help />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        <Text c="dimmed" size="xs" mt="xl">
-          Built with Electron, React, TypeScript, Mantine, and RxDB foundations.
-        </Text>
+        <Box mt="xl" pt="md" style={{ borderTop: '1px solid rgba(0, 102, 179, 0.15)' }}>
+          <Text c="dark.3" size="xs">
+            Built with Electron, React, TypeScript, Mantine, and RxDB
+          </Text>
+        </Box>
         <AboutDialog
           opened={showAbout}
           onClose={() => setShowAbout(false)}

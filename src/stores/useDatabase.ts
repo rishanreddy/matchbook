@@ -12,12 +12,17 @@ interface DatabaseState {
   initialize: () => Promise<void>
 }
 
-export const useDatabaseStore = create<DatabaseState>((set) => ({
+export const useDatabaseStore = create<DatabaseState>((set, get) => ({
   db: null,
   isLoading: false,
   isInitialized: false,
   error: null,
   initialize: async () => {
+    const { isLoading, isInitialized, db } = get()
+    if (isLoading || isInitialized || db) {
+      return
+    }
+
     logger.info('Database initialization started')
     set({ isLoading: true, error: null })
     try {

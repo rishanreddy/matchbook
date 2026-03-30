@@ -18,12 +18,16 @@ export class AppError extends Error {
 const FRIENDLY_MESSAGES: Record<string, string> = {
   NO_INTERNET: 'No internet connection detected. Check your network and try again.',
   INVALID_TBA_API_KEY: 'Your TBA API key appears invalid. Update it in Settings and retry.',
-  DATABASE_INIT_FAILED: 'Could not initialize local database. Reload the app and verify storage permissions.',
+  DATABASE_INIT_FAILED:
+    'Unable to initialize local storage. Please ensure storage permissions are granted, there is sufficient disk space, and the app can write to local storage. Then restart the app.',
   FORM_VALIDATION_ERROR: 'Please review the highlighted form fields and try again.',
   SYNC_FAILED: 'Sync failed. Verify both devices are on the same network and retry.',
   FILE_PERMISSION_ERROR: 'File permission denied. Choose a writable location and try again.',
   UNKNOWN: 'Something went wrong. Please try again.',
 }
+
+const recentNotifications = new Map<string, number>()
+const NOTIFICATION_DEDUP_WINDOW_MS = 5000
 
 export function getFriendlyErrorMessage(error: unknown): string {
   if (error instanceof AppError) {
@@ -63,10 +67,24 @@ export function getFriendlyErrorMessage(error: unknown): string {
 export function handleError(error: unknown, context?: string): void {
   logger.error(context ? `${context} failed` : 'Unhandled application error', error)
 
+  const message = getFriendlyErrorMessage(error)
+  const key = `${context ?? 'global'}::${message}`
+  const now = Date.now()
+  const lastShownAt = recentNotifications.get(key)
+
+  if (lastShownAt && now - lastShownAt < NOTIFICATION_DEDUP_WINDOW_MS) {
+    return
+  }
+
+  recentNotifications.set(key, now)
+  window.setTimeout(() => {
+    recentNotifications.delete(key)
+  }, NOTIFICATION_DEDUP_WINDOW_MS)
+
   notifications.show({
     color: 'red',
     title: 'Action failed',
-    message: getFriendlyErrorMessage(error),
+    message,
   })
 }
 

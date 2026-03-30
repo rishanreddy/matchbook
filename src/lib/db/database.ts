@@ -1,5 +1,6 @@
 import { addRxPlugin, createRxDatabase } from 'rxdb'
 import { getRxStorageLocalstorage } from 'rxdb/plugins/storage-localstorage'
+import { getRxStorageMemory } from 'rxdb/plugins/storage-memory'
 import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv'
 import type { ScoutingCollections, ScoutingDatabase } from './collections'
 import { collectionSchemas } from './collections'
@@ -9,6 +10,39 @@ import { logger } from '../utils/logger'
 let databaseInstance: ScoutingDatabase | null = null
 let initializingPromise: Promise<ScoutingDatabase> | null = null
 let pluginsLoaded = false
+
+function isLocalStorageAvailable(): boolean {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return false
+  }
+
+  try {
+    const testKey = '__rxdb_localstorage_test__'
+    window.localStorage.setItem(testKey, testKey)
+    window.localStorage.removeItem(testKey)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function createDatabaseWithStorage(useMemoryStorage: boolean): Promise<ScoutingDatabase> {
+  const selectedStorage = useMemoryStorage ? getRxStorageMemory() : getRxStorageLocalstorage()
+  const storage = wrappedValidateAjvStorage({
+    storage: selectedStorage as never,
+  })
+
+  const db = await createRxDatabase<ScoutingCollections>({
+    name: 'offline-scouting-manager',
+    storage,
+    multiInstance: true,
+    eventReduce: true,
+    ignoreDuplicate: import.meta.env.DEV, // Only in dev mode
+  })
+
+  await db.addCollections(collectionSchemas)
+  return db
+}
 
 async function loadPlugins(): Promise<void> {
   if (pluginsLoaded) return
@@ -35,26 +69,35 @@ export async function initializeDatabase(): Promise<ScoutingDatabase> {
     try {
       await loadPlugins()
 
-      // Wrap storage with validation
-      const storage = wrappedValidateAjvStorage({
-        storage: getRxStorageLocalstorage(),
-      })
+      const hasLocalStorage = isLocalStorageAvailable()
+      let usedMemoryFallback = false
+      let db: ScoutingDatabase
 
-      const db = await createRxDatabase<ScoutingCollections>({
-        name: 'offline-scouting-manager',
-        storage,
-        multiInstance: true,
-        eventReduce: true,
-        ignoreDuplicate: import.meta.env.DEV, // Only in dev mode
-      })
+      if (!hasLocalStorage) {
+        usedMemoryFallback = true
+        logger.warn('localStorage unavailable. Falling back to in-memory RxDB storage.')
+        db = await createDatabaseWithStorage(true)
+      } else {
+        try {
+          db = await createDatabaseWithStorage(false)
+        } catch (localStorageError) {
+          logger.warn('localStorage RxDB initialization failed. Retrying with in-memory storage.', localStorageError)
+          usedMemoryFallback = true
+          db = await createDatabaseWithStorage(true)
+        }
+      }
 
-      await db.addCollections(collectionSchemas)
       databaseInstance = db
-      logger.info('RxDB initialized successfully')
+      logger.info(
+        usedMemoryFallback ? 'RxDB initialized successfully with memory fallback' : 'RxDB initialized successfully',
+      )
       return databaseInstance
     } catch (error: unknown) {
       logger.error('Failed to initialize RxDB', error)
-      throw new AppError('Database initialization failed', 'DATABASE_INIT_FAILED', { cause: error })
+      throw new AppError('Database initialization failed', 'DATABASE_INIT_FAILED', {
+        cause: error,
+        hasLocalStorage: isLocalStorageAvailable(),
+      })
     } finally {
       initializingPromise = null
     }
