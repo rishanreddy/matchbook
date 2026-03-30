@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 * {
   box-sizing: border-box;
 }
@@ -48,4 +50,162 @@ body,
 :focus-visible {
   outline: 2px solid var(--mantine-color-blue-5);
   outline-offset: 2px;
+}
+
+/* Grid pattern background */
+.grid-pattern {
+  background-color: #0f172a;
+  background-image: 
+    linear-gradient(rgba(0, 102, 179, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 102, 179, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  position: relative;
+}
+
+.grid-pattern::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(0, 102, 179, 0.15), transparent 70%);
+  pointer-events: none;
+}
+
+/* Noise texture overlay */
+.noise-overlay {
+  position: relative;
+}
+
+.noise-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Blue glow effect */
+.glow-blue {
+  box-shadow: 0 0 24px rgba(0, 102, 179, 0.4), 0 0 48px rgba(0, 102, 179, 0.2);
+  border: 1px solid rgba(0, 102, 179, 0.3);
+}
+
+.glow-orange {
+  box-shadow: 0 0 24px rgba(245, 124, 0, 0.4), 0 0 48px rgba(245, 124, 0, 0.2);
+  border: 1px solid rgba(245, 124, 0, 0.3);
+}
+
+/* Hexagon decorative elements */
+.hex-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='46' viewBox='0 0 40 46' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0l20 11.547v23.094L20 46 0 34.641V11.547z' fill='none' stroke='rgba(0, 102, 179, 0.1)' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 40px 46px;
+}
+
+/* Monospace number styling */
+.mono-number {
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Animation utilities */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 102, 179, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(0, 102, 179, 0.5);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-fadeInScale {
+  animation: fadeInScale 0.4s ease-out forwards;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.4s ease-out forwards;
+}
+
+.animate-pulseGlow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Sharp shadows for industrial look */
+.sharp-shadow {
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Data grid backgrounds */
+.data-grid {
+  background-color: rgba(15, 23, 42, 0.5);
+  background-image: 
+    repeating-linear-gradient(0deg, rgba(0, 102, 179, 0.05) 0px, transparent 1px, transparent 2px, rgba(0, 102, 179, 0.05) 3px),
+    repeating-linear-gradient(90deg, rgba(0, 102, 179, 0.05) 0px, transparent 1px, transparent 2px, rgba(0, 102, 179, 0.05) 3px);
+  background-size: 3px 3px;
+}
+
+/* Transition utilities */
+.transition-all {
+  transition: all 0.2s ease-in-out;
+}
+
+.transition-fast {
+  transition: all 0.15s ease-out;
+}
+
+.transition-slow {
+  transition: all 0.3s ease-in-out;
+}
+
+/* FRC brand accent line */
+.frc-accent-line {
+  position: relative;
+}
+
+.frc-accent-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0066b3 0%, #f57c00 100%);
 }
