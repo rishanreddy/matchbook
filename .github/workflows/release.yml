@@ -8,6 +8,8 @@ on:
 jobs:
   release:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
 
     strategy:
       matrix:
@@ -46,16 +48,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           draft: true
-          files: |
-            release/*.exe
-            release/*.zip
-            release/*.dmg
-            release/*.AppImage
-            release/*.snap
-            release/*.deb
-            release/*.rpm
-            release/*.tar.gz
-            release/*.yml
-            release/*.blockmap
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
