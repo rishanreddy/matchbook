@@ -50,3 +50,7 @@ settings-*.png
 sync-*.png
 events-*.png
 analysis-*.png
+
+# Project documentation (local only)
+AGENTS.md
+RELEASE_NOTES.md
