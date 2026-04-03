@@ -1,3 +1,18 @@
+# Dependencies
+node_modules
+
+# Build outputs
+out
+release
+release-assets
+
+# Build resources (keep app icons/installer art)
+build/*
+!build/icon.ico
+!build/icon.icns
+!build/icon.png
+!build/installer-welcome.bmp
+
 # Logs
 logs
 *.log
@@ -7,18 +22,31 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Local files
 *.local
+.env
+.env.*
 
-# Editor directories and files
+# Editor files
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local automation artifacts
+.opencode/
+*-page.png
+device-setup-*.png
+scout-*.png
+settings-*.png
+sync-*.png
+events-*.png
+analysis-*.png

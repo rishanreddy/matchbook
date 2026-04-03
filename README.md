@@ -1,17 +1,18 @@
-# Offline Scouting Manager
+# Matchbook
 
-Offline Scouting Manager is a production-focused Electron desktop app for FRC scouting operations. It helps scouting teams run fully offline at events, collect match observations, assign scouts, and sync data through multiple transfer methods.
+Matchbook is a production-focused Electron desktop app for FRC scouting operations. It helps scouting teams run fully offline at events, collect match observations, assign scouts, and sync data through multiple transfer methods.
 
 ## Features
 
-- **First-run setup wizard** for device naming and TBA key setup
-- **Event import from The Blue Alliance** (events, teams, and matches)
+- **Guided onboarding wizard** for role selection, device registration, and TBA API validation
+- **Device setup route** to update role/name after onboarding
+- **Event import from The Blue Alliance** with stale match cleanup on re-sync
 - **Scout assignment manager** with manual and auto-assign workflows
+- **Assigned-scout and manual scouting entry flows**
 - **Live scouting forms** powered by custom SurveyJS schemas
-- **Quick match actions** (No Show / Broken Robot)
-- **Form Builder** with event-scoped schema versioning
+- **Form Builder** with single active schema enforcement
 - **Sync tools**
-  - Network sync (hub/spoke flow; backend integration staged)
+  - Network sync (hub/spoke over LAN) with optional auth token
   - QR export/import
   - CSV export/import
   - Full database snapshot export/import
@@ -19,22 +20,12 @@ Offline Scouting Manager is a production-focused Electron desktop app for FRC sc
 - **Keyboard shortcuts + command palette** for fast operation
 - **Settings and diagnostics** including logs and update checks
 
-## Screenshots (Placeholders)
-
-> Replace these placeholders with real screenshots before release.
-
-- `[Screenshot Placeholder] Home dashboard`
-- `[Screenshot Placeholder] Event management and import`
-- `[Screenshot Placeholder] Scout form in-match workflow`
-- `[Screenshot Placeholder] Sync page (QR + CSV + DB)`
-- `[Screenshot Placeholder] Analysis page and picklist tools`
-
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 20+
-- pnpm 9+
+- pnpm 10+
 
 ### Install
 
@@ -42,31 +33,64 @@ Offline Scouting Manager is a production-focused Electron desktop app for FRC sc
 pnpm install
 ```
 
-### Run (web renderer)
+### Run (Electron dev)
 
 ```bash
 pnpm dev
 ```
 
-### Run (Electron mode)
+### Configure for Event Use
 
-```bash
-pnpm electron:dev
-```
+1. Open `Settings` and add your TBA API key.
+2. Open `Device Setup` and register this machine as `Hub` or `Scout`.
+3. If Hub, import event data and publish an active form from `Form Builder`.
+4. If Scout, open `Scout` and either start assigned entries or manual entries.
 
 ### Build
 
 ```bash
 pnpm build
-pnpm electron:build
+
+# Platform packages
+pnpm build:win
+pnpm build:mac
+pnpm build:linux
 ```
+
+### Verification
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm build:unpack
+```
+
+Build outputs are intentionally split for clarity:
+
+- `out/renderer` - Vite React frontend bundle
+- `out/main` - Electron main bundle
+- `out/preload` - Electron preload bundle
+
+This separation keeps desktop/runtime code and web UI output easy to inspect.
+
+## Extension Points (Contributor Friendly)
+
+- `src/renderer/src/config/brand.ts` - central app name/tagline/repo links
+- `src/renderer/src/config/navigation.ts` - centralized nav structure and labels
+- `src/renderer/src/config/routes.tsx` - route registry and hub-only route metadata
+- `src/renderer/src/config/shortcuts.ts` - global shortcut bindings + help group definitions
+- `src/renderer/src/features/command-center/` - command palette component + configurable command definitions
+- `tailwind.config.cjs` + `postcss.config.cjs` - Tailwind + PostCSS styling pipeline
+
+Add new features under `src/renderer/src/features/<feature-name>/` to keep app logic modular and easy to extend.
 
 ## Documentation
 
-- **User manual:** [USER_GUIDE.md](./USER_GUIDE.md)
-- **Developer guide:** [DEVELOPER.md](./DEVELOPER.md)
-- **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
-- **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
+- Architecture and extension guide: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- Project architecture and coding guidelines: [AGENTS.md](./AGENTS.md)
+- Runtime and build configuration: [`electron-builder.yml`](./electron-builder.yml), [`electron.vite.config.ts`](./electron.vite.config.ts)
+- Security policy: [SECURITY.md](./SECURITY.md)
+- Support guide: [SUPPORT.md](./SUPPORT.md)
 
 ## License
 

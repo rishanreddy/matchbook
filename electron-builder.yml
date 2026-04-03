@@ -1,5 +1,5 @@
-appId: com.frc.offline-scouting-manager
-productName: Offline Scouting Manager
+appId: com.frc.matchbook
+productName: Matchbook
 copyright: Copyright © 2024
 
 directories:
@@ -7,9 +7,19 @@ directories:
   buildResources: build
 
 files:
-  - dist/**/*
-  - dist-electron/**/*
-  - package.json
+  - '!**/.vscode/*'
+  - '!src/**'
+  - '!.github/**'
+  - '!.opencode/**'
+  - '!docs/**'
+  - '!release/**'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.js,eslint.config.mjs,CHANGELOG.md,README.md,AGENTS.md,SECURITY.md,SUPPORT.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,pnpm-workspace.yaml,.editorconfig,.prettierignore,.prettierrc,.prettierrc.yaml}'
+  - '!{postcss.config.cjs,tailwind.config.cjs,tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+
+asarUnpack:
+  - resources/**
 
 win:
   target:
@@ -39,5 +49,7 @@ linux:
   category: Utility
 
 publish:
-  provider: generic
-  url: https://your-update-server.com/releases
+  provider: github
+  owner: rishanreddy
+  repo: matchbook
+  releaseType: release
