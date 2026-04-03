@@ -43,14 +43,6 @@ Thumbs.db
 
 # Local automation artifacts
 .opencode/
-*-page.png
-device-setup-*.png
-scout-*.png
-settings-*.png
-sync-*.png
-events-*.png
-analysis-*.png
 
 # Project documentation (local only)
 AGENTS.md
-RELEASE_NOTES.md
