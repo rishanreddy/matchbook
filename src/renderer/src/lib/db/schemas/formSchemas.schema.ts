@@ -11,7 +11,7 @@ export interface FormSchemaDocType {
 
 export const formSchemaSchema: RxJsonSchema<FormSchemaDocType> = {
   title: 'formSchemas schema',
-  version: 3,
+  version: 0,
   primaryKey: 'id',
   type: 'object',
   properties: {

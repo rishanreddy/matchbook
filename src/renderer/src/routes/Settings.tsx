@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Badge,
@@ -17,11 +17,13 @@ import {
   Switch,
   Table,
   Text,
+  TextInput,
   ThemeIcon,
   Title,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
+import { formatForDisplay, normalizeHotkey, useHotkeyRecorder } from '@tanstack/react-hotkeys'
 import {
   IconSettings,
   IconKey,
@@ -37,6 +39,7 @@ import {
   IconServer,
   IconUsers,
   IconChartBar,
+  IconAlertTriangle,
 } from '@tabler/icons-react'
 import { logger, LogLevel } from '../lib/utils/logger'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
@@ -47,14 +50,23 @@ import { handleError } from '../lib/utils/errorHandler'
 import type { UpdaterActionResult } from '../types/electron'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import {
+  appShortcuts,
+  getDefaultShortcutBindings,
+  getShortcutDefinition,
+  loadShortcutBindings,
+  saveShortcutBindings,
+  type AppShortcutId,
+  type ShortcutBindings,
+} from '../config/shortcuts'
+import {
   type AnalysisAggregation,
   type AnalysisChartType,
   type AnalysisFieldConfig,
   type AnalysisFieldDefinition,
   extractSurveyAnalysisFields,
   getAllowedAggregations,
-  loadAnalysisFieldConfigs,
-  saveAnalysisFieldConfigs,
+  loadAnalysisFieldConfigsFromDatabase,
+  saveAnalysisFieldConfigsToDatabase,
 } from '../lib/utils/analysisConfig'
 
 type SettingsProps = {
@@ -90,6 +102,27 @@ function getValueKindLabel(valueKind: AnalysisFieldDefinition['valueKind']): str
   }
 }
 
+function findShortcutConflict(
+  candidateShortcut: string,
+  targetId: AppShortcutId,
+  bindings: ShortcutBindings,
+): AppShortcutId | null {
+  const normalizedCandidate = normalizeHotkey(candidateShortcut)
+
+  for (const shortcut of appShortcuts) {
+    if (shortcut.id === targetId) {
+      continue
+    }
+
+    const existing = bindings[shortcut.id]
+    if (normalizeHotkey(existing) === normalizedCandidate) {
+      return shortcut.id
+    }
+  }
+
+  return null
+}
+
 export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactElement {
   const [tbaApiKey, setTbaApiKey] = useState<string>(() => localStorage.getItem('tba_api_key') ?? '')
   const [shortcutsEnabled, setShortcutsEnabled] = useState<boolean>(() => localStorage.getItem('shortcuts_enabled') !== 'false')
@@ -99,12 +132,76 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   const [downloadProgress, setDownloadProgress] = useState<number>(0)
   const [updateInfo, setUpdateInfo] = useState<unknown>(null)
   const [logsModalOpened, logsModalHandlers] = useDisclosure(false)
+  const [clearLogsModalOpened, clearLogsModalHandlers] = useDisclosure(false)
+  const [deleteScoutingDataModalOpened, deleteScoutingDataModalHandlers] = useDisclosure(false)
   const isHub = useDeviceStore((state) => state.isPrimary)
   const deviceId = useDeviceStore((state) => state.deviceId)
   const setDevice = useDeviceStore((state) => state.setDevice)
   const db = useDatabaseStore((state) => state.db)
   const [activeFormSchema, setActiveFormSchema] = useState<FormSchemaDocType | null>(null)
   const [analysisFieldConfigs, setAnalysisFieldConfigs] = useState<AnalysisFieldConfig[]>([])
+  const [shortcutBindings, setShortcutBindings] = useState<ShortcutBindings>(() => loadShortcutBindings())
+  const [recordingShortcutId, setRecordingShortcutId] = useState<AppShortcutId | null>(null)
+  const [deleteScoutingDataConfirmText, setDeleteScoutingDataConfirmText] = useState('')
+  const [isDeletingScoutingData, setIsDeletingScoutingData] = useState(false)
+  const [scoutingDataCount, setScoutingDataCount] = useState<number>(0)
+
+  const applyShortcutBindings = (nextBindings: ShortcutBindings, message: string): void => {
+    setShortcutBindings(nextBindings)
+    saveShortcutBindings(nextBindings)
+    window.dispatchEvent(new CustomEvent('shortcuts:bindings-changed', { detail: nextBindings }))
+    setFormMessage(message)
+  }
+
+  const shortcutRecorder = useHotkeyRecorder({
+    onRecord: (hotkey) => {
+      if (!recordingShortcutId) {
+        return
+      }
+
+      const normalized = normalizeHotkey(hotkey)
+      const conflictingId = findShortcutConflict(normalized, recordingShortcutId, shortcutBindings)
+      if (conflictingId) {
+        const conflictDefinition = getShortcutDefinition(conflictingId)
+        notifications.show({
+          color: 'yellow',
+          title: 'Shortcut already in use',
+          message: `${formatForDisplay(normalized)} is already assigned to "${conflictDefinition.description}".`,
+        })
+        return
+      }
+
+      const editedDefinition = getShortcutDefinition(recordingShortcutId)
+      const nextBindings: ShortcutBindings = {
+        ...shortcutBindings,
+        [recordingShortcutId]: normalized,
+      }
+
+      applyShortcutBindings(nextBindings, `Shortcut updated: ${editedDefinition.description}.`)
+      setRecordingShortcutId(null)
+      window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
+    },
+    onCancel: () => {
+      setRecordingShortcutId(null)
+      window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
+    },
+    onClear: () => {
+      if (!recordingShortcutId) {
+        return
+      }
+
+      const defaults = getDefaultShortcutBindings()
+      const shortcutDefinition = getShortcutDefinition(recordingShortcutId)
+      const nextBindings: ShortcutBindings = {
+        ...shortcutBindings,
+        [recordingShortcutId]: defaults[recordingShortcutId],
+      }
+
+      applyShortcutBindings(nextBindings, `Shortcut reset: ${shortcutDefinition.description}.`)
+      setRecordingShortcutId(null)
+      window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
+    },
+  })
 
   useEffect(() => {
     if (!window.electronAPI) return
@@ -145,6 +242,12 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
+    }
+  }, [])
+
   const updateStatusText = useMemo(() => {
     switch (updateState) {
       case 'checking':
@@ -166,7 +269,6 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
   useEffect(() => {
     if (!db) {
-      setActiveFormSchema(null)
       return
     }
 
@@ -212,9 +314,59 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     return extractSurveyAnalysisFields(activeFormSchema.surveyJson)
   }, [activeFormSchema])
 
+  const analysisConfigContext = useMemo(() => {
+    if (!activeFormSchema) {
+      return null
+    }
+
+    return {
+      formSchemaId: activeFormSchema.id,
+      formSchemaUpdatedAt: activeFormSchema.updatedAt,
+    }
+  }, [activeFormSchema])
+
   useEffect(() => {
-    setAnalysisFieldConfigs(loadAnalysisFieldConfigs(analysisFields))
-  }, [analysisFields])
+    if (!db || !analysisConfigContext) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadConfigs = async (): Promise<void> => {
+      try {
+        const configs = await loadAnalysisFieldConfigsFromDatabase(db, analysisConfigContext, analysisFields)
+        if (!cancelled) {
+          setAnalysisFieldConfigs(configs)
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          handleError(error, 'Load analysis field configuration')
+          setAnalysisFieldConfigs([])
+        }
+      }
+    }
+
+    void loadConfigs()
+
+    return () => {
+      cancelled = true
+    }
+  }, [analysisConfigContext, analysisFields, db])
+
+  const persistAnalysisFieldConfigs = useCallback(
+    async (configs: AnalysisFieldConfig[]): Promise<void> => {
+      if (!db || !analysisConfigContext) {
+        return
+      }
+
+      try {
+        await saveAnalysisFieldConfigsToDatabase(db, analysisConfigContext, configs)
+      } catch (error: unknown) {
+        handleError(error, 'Save analysis field configuration')
+      }
+    },
+    [analysisConfigContext, db],
+  )
 
   const updateAnalysisFieldConfig = (fieldName: string, patch: Partial<AnalysisFieldConfig>): void => {
     setAnalysisFieldConfigs((previous) => {
@@ -236,7 +388,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
         return updated
       })
 
-      saveAnalysisFieldConfigs(next)
+      void persistAnalysisFieldConfigs(next)
       return next
     })
 
@@ -251,9 +403,42 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     logger.info('Settings updated: shortcuts_enabled', { enabled: value })
   }
 
+  const handleStartShortcutRecording = (shortcutId: AppShortcutId): void => {
+    setRecordingShortcutId(shortcutId)
+    window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: true }))
+    shortcutRecorder.startRecording()
+  }
+
+  const handleCancelShortcutRecording = (): void => {
+    shortcutRecorder.cancelRecording()
+    setRecordingShortcutId(null)
+    window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
+  }
+
+  const handleResetShortcut = (shortcutId: AppShortcutId): void => {
+    const defaults = getDefaultShortcutBindings()
+    const definition = getShortcutDefinition(shortcutId)
+
+    const nextBindings: ShortcutBindings = {
+      ...shortcutBindings,
+      [shortcutId]: defaults[shortcutId],
+    }
+
+    applyShortcutBindings(nextBindings, `Shortcut reset: ${definition.description}.`)
+  }
+
+  const handleResetAllShortcuts = (): void => {
+    const defaults = getDefaultShortcutBindings()
+    applyShortcutBindings(defaults, 'All shortcuts reset to defaults.')
+    setRecordingShortcutId(null)
+    shortcutRecorder.cancelRecording()
+    window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
+  }
+
   const handleDeveloperModeToggle = (value: boolean): void => {
     setDeveloperMode(value)
     localStorage.setItem('developer_mode', String(value))
+    window.dispatchEvent(new CustomEvent('developer-mode:changed', { detail: value }))
     setFormMessage(`Developer mode ${value ? 'enabled' : 'disabled'}.`)
     logger.info('Settings updated: developer_mode', { enabled: value })
   }
@@ -338,11 +523,73 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   }
 
   const handleClearLogs = (): void => {
-    if (!window.confirm('Clear all stored logs? This action cannot be undone.')) {
+    logger.clearLogs()
+    clearLogsModalHandlers.close()
+    notifications.show({ color: 'green', title: 'Logs cleared', message: 'All logs were removed.' })
+  }
+
+  const refreshScoutingDataCount = useCallback(async (): Promise<void> => {
+    if (!db) {
+      setScoutingDataCount(0)
       return
     }
-    logger.clearLogs()
-    notifications.show({ color: 'green', title: 'Logs cleared', message: 'All logs were removed.' })
+
+    try {
+      const count = await db.collections.scoutingData.count().exec()
+      setScoutingDataCount(count)
+    } catch (error: unknown) {
+      handleError(error, 'Load scouting data count')
+      setScoutingDataCount(0)
+    }
+  }, [db])
+
+  useEffect(() => {
+    if (!deleteScoutingDataModalOpened) {
+      setDeleteScoutingDataConfirmText('')
+      return
+    }
+
+    void refreshScoutingDataCount()
+  }, [deleteScoutingDataModalOpened, refreshScoutingDataCount])
+
+  const handleDeleteScoutingData = async (): Promise<void> => {
+    if (!db) {
+      notifications.show({
+        color: 'red',
+        title: 'Database not ready',
+        message: 'Please wait for database initialization.',
+      })
+      return
+    }
+
+    if (deleteScoutingDataConfirmText.trim().toUpperCase() !== 'DELETE') {
+      notifications.show({
+        color: 'yellow',
+        title: 'Confirmation required',
+        message: 'Type DELETE to confirm deleting scouting data.',
+      })
+      return
+    }
+
+    setIsDeletingScoutingData(true)
+    try {
+      const docs = await db.collections.scoutingData.find().exec()
+      await Promise.all(docs.map(async (doc) => await doc.remove()))
+
+      notifications.show({
+        color: 'green',
+        title: 'Scouting data deleted',
+        message: `Removed ${docs.length} scouting observation${docs.length === 1 ? '' : 's'} from this device.`,
+      })
+
+      deleteScoutingDataModalHandlers.close()
+      setDeleteScoutingDataConfirmText('')
+      setScoutingDataCount(0)
+    } catch (error: unknown) {
+      handleError(error, 'Delete scouting data from settings')
+    } finally {
+      setIsDeletingScoutingData(false)
+    }
   }
 
   const logs = logger.getLogs().slice().reverse()
@@ -447,15 +694,6 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
             
             <Paper p="md" radius="md" style={{ backgroundColor: 'var(--surface-base)' }}>
               <Stack gap="md">
-                <Switch 
-                  label="Enable offline autosave" 
-                  defaultChecked 
-                  aria-label="Enable offline autosave"
-                  styles={{
-                    track: { cursor: 'pointer' },
-                    label: { color: 'var(--mantine-color-slate-2)' },
-                  }}
-                />
                 <Switch
                   label="Show developer diagnostics"
                   checked={developerMode}
@@ -638,6 +876,98 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
                 }}
               />
             </Paper>
+
+            <Paper p="md" radius="md" style={{ backgroundColor: 'var(--surface-base)' }}>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Text size="sm" c="slate.3">
+                    Customize shortcut bindings
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="subtle"
+                    color="slate"
+                    onClick={handleResetAllShortcuts}
+                    disabled={recordingShortcutId !== null}
+                  >
+                    Reset All
+                  </Button>
+                </Group>
+
+                <Table.ScrollContainer minWidth={680}>
+                  <Table highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Action</Table.Th>
+                        <Table.Th>Current Shortcut</Table.Th>
+                        <Table.Th style={{ textAlign: 'right' }}>Controls</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {appShortcuts.map((shortcut) => {
+                        const isRecording = recordingShortcutId === shortcut.id && shortcutRecorder.isRecording
+                        return (
+                          <Table.Tr key={shortcut.id}>
+                            <Table.Td>
+                              <Stack gap={2}>
+                                <Text size="sm" c="slate.1" fw={600}>
+                                  {shortcut.description}
+                                </Text>
+                                <Text size="xs" c="slate.5">
+                                  {shortcut.category}
+                                </Text>
+                              </Stack>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge variant="light" color="frc-blue" radius="md" className="mono-number">
+                                {formatForDisplay(shortcutBindings[shortcut.id], { useSymbols: false })}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group justify="flex-end" gap="xs" wrap="nowrap">
+                                {isRecording ? (
+                                  <Button size="xs" color="warning" variant="light" onClick={handleCancelShortcutRecording}>
+                                    Press keys... (Cancel)
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="xs"
+                                    variant="light"
+                                    color="frc-blue"
+                                    onClick={() => handleStartShortcutRecording(shortcut.id)}
+                                  >
+                                    Record
+                                  </Button>
+                                )}
+                                <Button
+                                  size="xs"
+                                  variant="subtle"
+                                  color="slate"
+                                  onClick={() => handleResetShortcut(shortcut.id)}
+                                  disabled={isRecording}
+                                >
+                                  Reset
+                                </Button>
+                              </Group>
+                            </Table.Td>
+                          </Table.Tr>
+                        )
+                      })}
+                    </Table.Tbody>
+                  </Table>
+                </Table.ScrollContainer>
+
+                {recordingShortcutId && shortcutRecorder.isRecording && (
+                  <Alert color="frc-blue" variant="light" radius="md" icon={<IconInfoCircle size={16} />}>
+                    Recording shortcut for <strong>{getShortcutDefinition(recordingShortcutId).description}</strong>. Press a key
+                    combination now.
+                    {shortcutRecorder.recordedHotkey
+                      ? ` Captured: ${formatForDisplay(shortcutRecorder.recordedHotkey, { useSymbols: false })}.`
+                      : ''}
+                  </Alert>
+                )}
+              </Stack>
+            </Paper>
           </Stack>
         </Card>
 
@@ -707,13 +1037,32 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               <Button 
                 color="danger" 
                 variant="light" 
-                onClick={handleClearLogs}
+                onClick={clearLogsModalHandlers.open}
                 leftSection={<IconTrash size={16} />}
                 radius="md"
               >
                 Clear Logs
               </Button>
             </Group>
+
+            <Paper p="md" radius="md" style={{ backgroundColor: 'var(--surface-base)' }}>
+              <Stack gap="sm">
+                <Text size="sm" fw={600} c="slate.1">Scouting Data</Text>
+                <Text size="sm" c="slate.4">
+                  Delete scouting observations collected on this device. Forms, events, matches, and assignments are preserved.
+                </Text>
+                <Button
+                  color="danger"
+                  variant="light"
+                  leftSection={<IconTrash size={16} />}
+                  onClick={deleteScoutingDataModalHandlers.open}
+                  disabled={!db}
+                  radius="md"
+                >
+                  Delete Scouting Data
+                </Button>
+              </Stack>
+            </Paper>
           </Stack>
         </Card>
 
@@ -851,6 +1200,90 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>
+        </Modal>
+
+        <Modal
+          opened={clearLogsModalOpened}
+          onClose={clearLogsModalHandlers.close}
+          title="Clear Logs"
+          centered
+          radius="lg"
+          styles={{
+            header: { backgroundColor: 'var(--surface-raised)' },
+            body: { backgroundColor: 'var(--surface-raised)' },
+          }}
+        >
+          <Stack gap="md">
+            <Alert color="warning" variant="light" icon={<IconAlertTriangle size={16} />} radius="md">
+              This removes all stored application logs on this device.
+            </Alert>
+            <Text size="sm" c="slate.4">
+              Use this if logs are noisy or you want a clean troubleshooting session.
+            </Text>
+            <Group justify="flex-end">
+              <Button variant="subtle" color="slate" onClick={clearLogsModalHandlers.close}>
+                Cancel
+              </Button>
+              <Button color="danger" onClick={handleClearLogs} leftSection={<IconTrash size={16} />}>
+                Clear Logs
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        <Modal
+          opened={deleteScoutingDataModalOpened}
+          onClose={() => {
+            if (isDeletingScoutingData) {
+              return
+            }
+            deleteScoutingDataModalHandlers.close()
+          }}
+          title="Delete Scouting Data"
+          centered
+          radius="lg"
+          styles={{
+            header: { backgroundColor: 'var(--surface-raised)' },
+            body: { backgroundColor: 'var(--surface-raised)' },
+          }}
+        >
+          <Stack gap="md">
+            <Alert color="danger" variant="light" icon={<IconAlertTriangle size={16} />} radius="md">
+              This action permanently deletes scouting observations stored on this device.
+            </Alert>
+
+            <Text size="sm" c="slate.3">
+              Records to delete: <strong>{scoutingDataCount}</strong>
+            </Text>
+
+            <TextInput
+              label="Type DELETE to confirm"
+              placeholder="DELETE"
+              value={deleteScoutingDataConfirmText}
+              onChange={(event) => setDeleteScoutingDataConfirmText(event.currentTarget.value)}
+              disabled={isDeletingScoutingData}
+            />
+
+            <Group justify="flex-end">
+              <Button
+                variant="subtle"
+                color="slate"
+                onClick={deleteScoutingDataModalHandlers.close}
+                disabled={isDeletingScoutingData}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="danger"
+                variant="filled"
+                leftSection={<IconTrash size={16} />}
+                onClick={() => void handleDeleteScoutingData()}
+                loading={isDeletingScoutingData}
+              >
+                Delete Data
+              </Button>
+            </Group>
+          </Stack>
         </Modal>
       </Stack>
     </Box>

@@ -9,7 +9,7 @@ export interface ScoutDocType {
 
 export const scoutSchema: RxJsonSchema<ScoutDocType> = {
   title: 'scouts schema',
-  version: 1,
+  version: 0,
   primaryKey: 'id',
   type: 'object',
   properties: {

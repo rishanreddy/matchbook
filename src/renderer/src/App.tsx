@@ -21,7 +21,7 @@ import {
   IconServer,
   IconUsers,
 } from '@tabler/icons-react'
-import { useHotkey } from '@tanstack/react-hotkeys'
+import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useDatabaseStore } from './stores/useDatabase'
@@ -39,21 +39,15 @@ import { resetDatabase } from './lib/db/database'
 import { navGroups, navItems } from './config/navigation'
 import { brand } from './config/brand'
 import { createAppRoutes } from './config/routes'
-import type { AppShortcutId } from './config/shortcuts'
-import { appShortcuts, shortcutGroups } from './config/shortcuts'
+import {
+  createShortcutHelpGroups,
+  getShortcutHotkey,
+  loadShortcutBindings,
+  type ShortcutBindings,
+} from './config/shortcuts'
 import { getPublicAssetPath } from './lib/utils/assets'
 
 const MAX_SPLASH_MS = 3500
-const FIRST_RUN_COMPLETE_KEY = 'matchbook-first-run-complete'
-
-function getShortcutHotkey(id: AppShortcutId): (typeof appShortcuts)[number]['hotkey'] {
-  const shortcut = appShortcuts.find((item) => item.id === id)
-  if (!shortcut) {
-    return 'Escape'
-  }
-
-  return shortcut.hotkey
-}
 
 function App() {
   const [opened, { toggle, close }] = useDisclosure()
@@ -74,6 +68,9 @@ function App() {
   const [showAbout, setShowAbout] = useState<boolean>(false)
   const [isResettingDatabase, setIsResettingDatabase] = useState<boolean>(false)
   const [shortcutsEnabled, setShortcutsEnabled] = useState<boolean>(() => localStorage.getItem('shortcuts_enabled') !== 'false')
+  const [isShortcutRecording, setIsShortcutRecording] = useState<boolean>(false)
+  const [shortcutBindings, setShortcutBindings] = useState<ShortcutBindings>(() => loadShortcutBindings())
+  const [developerModeEnabled, setDeveloperModeEnabled] = useState<boolean>(() => localStorage.getItem('developer_mode') === 'true')
   const [currentEventName, setCurrentEventName] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const initStartedRef = useRef<boolean>(false)
@@ -118,32 +115,13 @@ function App() {
     }
 
     const checkOnboardingCompletion = async (): Promise<void> => {
-      const localStorageComplete = localStorage.getItem(FIRST_RUN_COMPLETE_KEY) === 'true'
-
-      if (localStorageComplete) {
-        const deviceId = localStorage.getItem('matchbook-device-id')
-
-        if (deviceId) {
-          try {
-            const device = await db.collections.devices.findOne(deviceId).exec()
-
-            if (device) {
-              const scout = await db.collections.scouts
-                .findOne({ selector: { deviceId } })
-                .exec()
-
-              if (scout) {
-                setIsOnboardingComplete(true)
-                return
-              }
-            }
-          } catch (error: unknown) {
-            handleError(error, 'Checking onboarding completion')
-          }
-        }
+      try {
+        const appStateDoc = await db.collections.appState.findOne('global').exec()
+        setIsOnboardingComplete(Boolean(appStateDoc?.onboardingCompleted))
+      } catch (error: unknown) {
+        handleError(error, 'Checking onboarding completion')
+        setIsOnboardingComplete(false)
       }
-
-      setIsOnboardingComplete(false)
     }
 
     void checkOnboardingCompletion()
@@ -286,55 +264,106 @@ function App() {
     return () => window.removeEventListener('shortcuts:changed', handleShortcutsChanged)
   }, [])
 
-  useHotkey(getShortcutHotkey('open-command-palette'), () => setShowCommandPalette(true), {
-    enabled: shortcutsEnabled,
+  useEffect(() => {
+    const handleShortcutBindingsChanged = (event: Event): void => {
+      const customEvent = event as CustomEvent<ShortcutBindings>
+      if (customEvent.detail) {
+        setShortcutBindings(customEvent.detail)
+        return
+      }
+
+      setShortcutBindings(loadShortcutBindings())
+    }
+
+    window.addEventListener('shortcuts:bindings-changed', handleShortcutBindingsChanged)
+    return () => window.removeEventListener('shortcuts:bindings-changed', handleShortcutBindingsChanged)
+  }, [])
+
+  useEffect(() => {
+    const handleShortcutRecordingChanged = (event: Event): void => {
+      const customEvent = event as CustomEvent<boolean>
+      if (typeof customEvent.detail === 'boolean') {
+        setIsShortcutRecording(customEvent.detail)
+      }
+    }
+
+    window.addEventListener('shortcuts:recording-changed', handleShortcutRecordingChanged)
+    return () => window.removeEventListener('shortcuts:recording-changed', handleShortcutRecordingChanged)
+  }, [])
+
+  useEffect(() => {
+    const handleDeveloperModeChanged = (event: Event): void => {
+      const customEvent = event as CustomEvent<boolean>
+      if (typeof customEvent.detail === 'boolean') {
+        setDeveloperModeEnabled(customEvent.detail)
+      }
+    }
+
+    window.addEventListener('developer-mode:changed', handleDeveloperModeChanged)
+    return () => window.removeEventListener('developer-mode:changed', handleDeveloperModeChanged)
+  }, [])
+
+  useEffect(() => {
+    const handleOnboardingStateChanged = (event: Event): void => {
+      const customEvent = event as CustomEvent<boolean>
+      if (typeof customEvent.detail === 'boolean') {
+        setIsOnboardingComplete(customEvent.detail)
+      }
+    }
+
+    window.addEventListener('onboarding-state:changed', handleOnboardingStateChanged)
+    return () => window.removeEventListener('onboarding-state:changed', handleOnboardingStateChanged)
+  }, [])
+
+  useHotkey(getShortcutHotkey('open-command-palette', shortcutBindings), () => setShowCommandPalette(true), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
-  useHotkey(getShortcutHotkey('open-settings'), () => navigate('/settings'), {
-    enabled: shortcutsEnabled,
+  useHotkey(getShortcutHotkey('open-settings', shortcutBindings), () => navigate('/settings'), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
-  useHotkey(getShortcutHotkey('save-form'), () => {
+  useHotkey(getShortcutHotkey('save-form', shortcutBindings), () => {
     document.dispatchEvent(new CustomEvent('app:save-form'))
   }, {
-    enabled: shortcutsEnabled,
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
     ignoreInputs: false,
   })
 
-  useHotkey(getShortcutHotkey('go-home'), () => navigate('/'), {
-    enabled: shortcutsEnabled,
+  useHotkey(getShortcutHotkey('go-home', shortcutBindings), () => navigate('/'), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
-  useHotkey(getShortcutHotkey('go-scout'), () => navigate('/scout'), {
-    enabled: shortcutsEnabled,
+  useHotkey(getShortcutHotkey('go-scout', shortcutBindings), () => navigate('/scout'), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
-  useHotkey(getShortcutHotkey('go-analysis'), () => navigate('/analysis'), {
-    enabled: shortcutsEnabled,
+  useHotkey(getShortcutHotkey('go-analysis', shortcutBindings), () => navigate('/analysis'), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
-  useHotkey(getShortcutHotkey('go-sync'), () => navigate('/sync'), {
-    enabled: shortcutsEnabled,
+  useHotkey(getShortcutHotkey('go-sync', shortcutBindings), () => navigate('/sync'), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
-  useHotkey(getShortcutHotkey('close-dialogs'), () => {
+  useHotkey(getShortcutHotkey('close-dialogs', shortcutBindings), () => {
     setShowCommandPalette(false)
     setShowShortcutHelp(false)
   }, {
-    enabled: shortcutsEnabled,
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: false,
     ignoreInputs: false,
   })
 
-  useHotkey(getShortcutHotkey('show-shortcut-help'), () => setShowShortcutHelp(true), {
-    enabled: shortcutsEnabled,
+  useHotkey(getShortcutHotkey('show-shortcut-help', shortcutBindings), () => setShowShortcutHelp(true), {
+    enabled: shortcutsEnabled && !isShortcutRecording,
     preventDefault: true,
   })
 
@@ -358,6 +387,8 @@ function App() {
     [appVersion],
   )
 
+  const shortcutHelpGroups = useMemo(() => createShortcutHelpGroups(shortcutBindings), [shortcutBindings])
+
   const logoSrc = useMemo(() => getPublicAssetPath('icons.svg'), [])
 
   const renderNavGroup = (groupKey: string, groupLabel: string) => {
@@ -365,6 +396,7 @@ function App() {
     const items = navItems.filter((item) => {
       if (item.group !== groupKey) return false
       if (item.hubOnly && !isHub) return false
+      if (item.requiresDeveloperMode && !developerModeEnabled) return false
       return true
     })
     if (items.length === 0) return null
@@ -462,8 +494,9 @@ function App() {
                   label={
                     <Group gap="xs">
                       <Text size="xs">Command Palette</Text>
-                      <Kbd size="xs">Ctrl</Kbd>
-                      <Kbd size="xs">K</Kbd>
+                      <Kbd size="xs">
+                        {formatForDisplay(getShortcutHotkey('open-command-palette', shortcutBindings), { useSymbols: false })}
+                      </Kbd>
                     </Group>
                   }
                 >
@@ -621,7 +654,7 @@ function App() {
           Current page: {navItems.find((item) => item.to === location.pathname)?.label ?? 'App'}
         </Text>
 
-        <ShortcutHelp opened={showShortcutHelp} onClose={() => setShowShortcutHelp(false)} groups={shortcutGroups} />
+        <ShortcutHelp opened={showShortcutHelp} onClose={() => setShowShortcutHelp(false)} groups={shortcutHelpGroups} />
         <CommandPalette opened={showCommandPalette} onClose={() => setShowCommandPalette(false)} commands={commandItems} />
 
         {showDatabaseInitScreen ? (
@@ -637,7 +670,9 @@ function App() {
           <Box className="app-page-container">
             <Suspense fallback={<Text size="sm" c="slate.4">Loading page...</Text>}>
               <Routes>
-                {appRoutes.map((route) => (
+                {appRoutes
+                  .filter((route) => !route.requiresDeveloperMode || developerModeEnabled)
+                  .map((route) => (
                   <Route
                     key={route.path}
                     path={route.path}

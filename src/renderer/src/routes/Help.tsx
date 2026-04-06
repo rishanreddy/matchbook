@@ -1,8 +1,10 @@
 import type { ReactElement } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
   Alert,
   Anchor,
+  Badge,
   Box,
   Button,
   Card,
@@ -15,6 +17,7 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core'
+import { formatForDisplay } from '@tanstack/react-hotkeys'
 import {
   IconHelp,
   IconRocket,
@@ -29,11 +32,38 @@ import {
 } from '@tabler/icons-react'
 import { Link } from 'react-router-dom'
 import { brand } from '../config/brand'
+import { appShortcuts, getShortcutHotkey, loadShortcutBindings, type ShortcutBindings } from '../config/shortcuts'
 
 const docsBaseUrl = brand.repoUrl
 const issuesUrl = brand.supportIssuesUrl
 
 export function Help(): ReactElement {
+  const [shortcutBindings, setShortcutBindings] = useState<ShortcutBindings>(() => loadShortcutBindings())
+
+  useEffect(() => {
+    const handleShortcutBindingsChanged = (event: Event): void => {
+      const customEvent = event as CustomEvent<ShortcutBindings>
+      if (customEvent.detail) {
+        setShortcutBindings(customEvent.detail)
+        return
+      }
+
+      setShortcutBindings(loadShortcutBindings())
+    }
+
+    window.addEventListener('shortcuts:bindings-changed', handleShortcutBindingsChanged)
+    return () => window.removeEventListener('shortcuts:bindings-changed', handleShortcutBindingsChanged)
+  }, [])
+
+  const shortcutRows = useMemo(
+    () =>
+      appShortcuts.map((shortcut) => ({
+        keys: formatForDisplay(getShortcutHotkey(shortcut.id, shortcutBindings), { useSymbols: false }),
+        action: shortcut.description,
+      })),
+    [shortcutBindings],
+  )
+
   const openExternal = (url: string): void => {
     if (window.electronAPI) {
       void window.electronAPI.openExternal(url)
@@ -143,25 +173,18 @@ export function Help(): ReactElement {
             </Group>
 
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-              {[
-                { keys: 'Ctrl/Cmd + K', action: 'Open command palette' },
-                { keys: 'Ctrl/Cmd + ,', action: 'Open settings' },
-                { keys: 'Ctrl/Cmd + S', action: 'Save scouting form' },
-                { keys: 'Ctrl/Cmd + H', action: 'Go home' },
-                { keys: 'Ctrl/Cmd + Shift + S', action: 'Go to scout page' },
-                { keys: 'Ctrl/Cmd + Shift + A', action: 'Go to analysis' },
-                { keys: 'Ctrl/Cmd + Shift + Y', action: 'Go to sync' },
-                { keys: '?', action: 'Open shortcut help' },
-              ].map((shortcut) => (
+              {shortcutRows.map((shortcut) => (
                 <Paper 
-                  key={shortcut.keys}
+                  key={`${shortcut.action}-${shortcut.keys}`}
                   p="sm" 
                   radius="md" 
                   style={{ backgroundColor: 'var(--surface-base)' }}
                 >
                   <Group justify="space-between">
                     <Text size="sm" c="slate.3">{shortcut.action}</Text>
-                    <Text size="sm" c="slate.0" fw={500} className="mono-number">{shortcut.keys}</Text>
+                    <Badge variant="light" color="frc-blue" radius="md" className="mono-number">
+                      {shortcut.keys}
+                    </Badge>
                   </Group>
                 </Paper>
               ))}

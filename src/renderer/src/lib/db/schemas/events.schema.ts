@@ -12,7 +12,7 @@ export interface EventDocType {
 
 export const eventSchema: RxJsonSchema<EventDocType> = {
   title: 'events schema',
-  version: 1,
+  version: 0,
   primaryKey: 'id',
   type: 'object',
   properties: {

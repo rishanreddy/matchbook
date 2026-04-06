@@ -20,6 +20,7 @@ const FRIENDLY_MESSAGES: Record<string, string> = {
   INVALID_TBA_API_KEY: 'Your TBA API key appears invalid. Update it in Settings and retry.',
   DATABASE_INIT_FAILED:
     'Unable to initialize local database storage. Please ensure storage permissions are granted, there is sufficient disk space, and the app can write to local data storage. Then restart the app.',
+  TBA_REQUEST_FAILED: 'TBA request failed. Verify API key, event key, and service availability, then retry.',
   FORM_VALIDATION_ERROR: 'Please review the highlighted form fields and try again.',
   SYNC_FAILED: 'Sync failed. Verify both devices are on the same network and retry.',
   FILE_PERMISSION_ERROR: 'File permission denied. Choose a writable location and try again.',
@@ -31,6 +32,10 @@ const NOTIFICATION_DEDUP_WINDOW_MS = 5000
 
 export function getFriendlyErrorMessage(error: unknown): string {
   if (error instanceof AppError) {
+    if (error.code === 'DATABASE_INIT_FAILED' || error.code === 'TBA_REQUEST_FAILED') {
+      return error.message
+    }
+
     return FRIENDLY_MESSAGES[error.code] ?? error.message
   }
 
@@ -95,15 +100,29 @@ export function notifyErrorWithRetry(
   context?: string,
 ): void {
   logger.warn(context ? `${context} failed with retry option` : 'Retryable error', error)
+  const message = getFriendlyErrorMessage(error)
+  const key = `retry::${context ?? 'global'}::${message}`
+  const now = Date.now()
+  const lastShownAt = recentNotifications.get(key)
+
+  if (lastShownAt && now - lastShownAt < NOTIFICATION_DEDUP_WINDOW_MS) {
+    return
+  }
+
+  recentNotifications.set(key, now)
+  window.setTimeout(() => {
+    recentNotifications.delete(key)
+  }, NOTIFICATION_DEDUP_WINDOW_MS)
+
   notifications.show({
     color: 'red',
     title: 'Action failed',
     autoClose: false,
     message: (
-      <Stack gap={6}>
-        <Text size="sm">{getFriendlyErrorMessage(error)}</Text>
+      <Stack gap="xs">
+        <Text size="sm">{message}</Text>
         <Group>
-          <Button size="xs" variant="light" onClick={onRetry}>
+          <Button size="xs" radius="md" variant="filled" color="frc-blue" onClick={onRetry}>
             {retryLabel}
           </Button>
         </Group>

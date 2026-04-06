@@ -6,10 +6,9 @@ import { collectionSchemas } from './collections'
 import { AppError } from '../utils/errorHandler'
 import { logger } from '../utils/logger'
 
-const DATABASE_NAME = 'matchbook'
-const LEGACY_LOCALSTORAGE_MIGRATION_KEY = 'matchbook-legacy-localstorage-migrated'
-const DATABASE_RECOVERY_KEY = 'matchbook-database-recovery-v1'
-const ENABLE_LEGACY_LOCALSTORAGE_MIGRATION = import.meta.env.VITE_ENABLE_LEGACY_LOCALSTORAGE_MIGRATION === 'true'
+const DATABASE_NAME = 'matchbook-v4'
+const LEGACY_DATABASE_NAMES = ['matchbook-v3', 'matchbook-v2', 'matchbook']
+const DATABASE_RECOVERY_KEY = 'matchbook-database-recovery-v2'
 
 let databaseInstance: ScoutingDatabase | null = null
 let initializingPromise: Promise<ScoutingDatabase> | null = null
@@ -55,28 +54,10 @@ async function createDatabaseWithStorage(): Promise<ScoutingDatabase> {
   }
 }
 
-function isLegacyMigrationCompleted(): boolean {
-  if (typeof window === 'undefined') {
-    return true
-  }
-
-  try {
-    return window.localStorage.getItem(LEGACY_LOCALSTORAGE_MIGRATION_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function markLegacyMigrationCompleted(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    window.localStorage.setItem(LEGACY_LOCALSTORAGE_MIGRATION_KEY, 'true')
-  } catch {
-    // ignore localStorage write failures
-  }
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
 }
 
 function hasRecoveryAttempted(): boolean {
@@ -119,95 +100,90 @@ function isRecoverableDatabaseError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
 
   return (
+    message.includes('RxDB Error-Code: COL12') ||
+    message.includes('RxDB Error-Code: DB6') ||
     message.includes('RxDB Error-Code: DM4') ||
     message.includes('RxDB Error-Code: SNH') ||
+    message.includes('migrationStrategy is missing') ||
+    message.includes('another instance created this collection with a different schema') ||
     message.includes('RxStorageInstanceDexie is closed')
   )
 }
 
-async function migrateLegacyLocalStorageDatabase(targetDb: ScoutingDatabase): Promise<void> {
-  if (!ENABLE_LEGACY_LOCALSTORAGE_MIGRATION) {
-    markLegacyMigrationCompleted()
+function getUserFacingDatabaseErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (
+    message.includes('RxDB Error-Code: DB6') ||
+    message.includes('another instance created this collection with a different schema')
+  ) {
+    return 'Local cache schema mismatch detected. Reset local cache to rebuild the database.'
+  }
+
+  if (message.includes('RxDB Error-Code: COL12') || message.includes('migrationStrategy is missing')) {
+    return 'Database schema configuration changed. Reset local cache and restart the app.'
+  }
+
+  if (message.includes('RxDB Error-Code: DXE1') || message.includes('RxDB Error-Code: SC36')) {
+    return 'Database schema configuration is invalid in this build. Update the app to continue.'
+  }
+
+  return `Database initialization failed: ${message}`
+}
+
+async function forceDeleteIndexedDbDatabase(name: string): Promise<void> {
+  if (typeof window === 'undefined' || typeof window.indexedDB === 'undefined') {
     return
   }
 
-  if (isLegacyMigrationCompleted()) {
-    return
-  }
-
-  let migratedCount = 0
-  let legacyDb: ScoutingDatabase | null = null
-  let legacyStorage: ReturnType<typeof wrappedValidateAjvStorage> | null = null
-
-  try {
-    const { getRxStorageLocalstorage } = await import('rxdb/plugins/storage-localstorage')
-    legacyStorage = wrappedValidateAjvStorage({
-      storage: getRxStorageLocalstorage() as never,
-    })
-
-    legacyDb = await createRxDatabase<ScoutingCollections>({
-      name: DATABASE_NAME,
-      storage: legacyStorage,
-      multiInstance: false,
-      eventReduce: true,
-      ignoreDuplicate: import.meta.env.DEV,
-    })
-
-    await legacyDb.addCollections(collectionSchemas)
-
-    const collectionNames = Object.keys(collectionSchemas) as Array<keyof ScoutingCollections>
-    for (const collectionName of collectionNames) {
-      const sourceCollection = legacyDb.collections[collectionName]
-      const targetCollection = targetDb.collections[collectionName]
-      const docs = await sourceCollection.find().exec()
-
-      for (const doc of docs) {
-        try {
-          const rawDoc = doc.toJSON() as Record<string, unknown>
-          const documentData = { ...rawDoc }
-
-          const isDeleted = documentData._deleted === true
-          delete documentData._deleted
-          delete documentData._attachments
-          delete documentData._meta
-          delete documentData._rev
-
-          if (isDeleted) {
-            continue
-          }
-
-          await targetCollection.upsert(documentData as never)
-          migratedCount += 1
-        } catch (error: unknown) {
-          logger.warn('Skipped legacy document during migration', {
-            collection: collectionName,
-            error: error instanceof Error ? error.message : 'Unknown migration error',
-          })
-        }
-      }
+  await new Promise<void>((resolve, reject) => {
+    try {
+      const request = window.indexedDB.deleteDatabase(name)
+      request.onsuccess = () => resolve()
+      request.onerror = () => reject(request.error ?? new Error('IndexedDB delete failed'))
+      request.onblocked = () => reject(new Error('IndexedDB delete blocked by another tab or process'))
+    } catch (error: unknown) {
+      reject(error)
     }
+  })
+}
 
-    await legacyDb.close()
-    legacyDb = null
+async function clearDatabaseStorageByName(name: string): Promise<void> {
+  const storage = wrappedValidateAjvStorage({
+    storage: getRxStorageDexie() as never,
+  })
 
-    if (legacyStorage) {
-      await removeRxDatabase(DATABASE_NAME, legacyStorage)
-    }
+  const maxAttempts = 3
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await removeRxDatabase(name, storage)
+      return
+    } catch (removeError: unknown) {
+      logger.warn('removeRxDatabase failed, attempting IndexedDB delete fallback', {
+        name,
+        attempt,
+        error: removeError instanceof Error ? removeError.message : 'Unknown removeRxDatabase error',
+      })
 
-    markLegacyMigrationCompleted()
-    logger.info('Legacy localStorage data migration complete', { migratedCount })
-  } catch (error: unknown) {
-    if (legacyDb) {
       try {
-        await legacyDb.close()
-      } catch {
-        // ignore close errors
+        await forceDeleteIndexedDbDatabase(name)
+        return
+      } catch (deleteError: unknown) {
+        const isLastAttempt = attempt === maxAttempts
+        logger.warn('IndexedDB delete fallback failed', {
+          name,
+          attempt,
+          error: deleteError instanceof Error ? deleteError.message : 'Unknown IndexedDB delete error',
+          isLastAttempt,
+        })
+
+        if (isLastAttempt) {
+          throw deleteError
+        }
+
+        await delay(250 * attempt)
       }
     }
-
-    logger.warn('Legacy localStorage migration skipped', {
-      error: error instanceof Error ? error.message : 'Unknown legacy migration error',
-    })
   }
 }
 
@@ -223,9 +199,6 @@ async function loadPlugins(): Promise<void> {
   // Query builder plugin for .where(), .sort(), etc.
   const { RxDBQueryBuilderPlugin } = await import('rxdb/plugins/query-builder')
   addRxPlugin(RxDBQueryBuilderPlugin)
-
-  const { RxDBMigrationSchemaPlugin } = await import('rxdb/plugins/migration-schema')
-  addRxPlugin(RxDBMigrationSchemaPlugin)
 
   pluginsLoaded = true
 }
@@ -259,8 +232,6 @@ export async function initializeDatabase(): Promise<ScoutingDatabase> {
         }
       }
 
-      await migrateLegacyLocalStorageDatabase(db)
-
       clearRecoveryAttempted()
       databaseInstance = db
       logger.info('RxDB initialized successfully')
@@ -287,7 +258,7 @@ export async function initializeDatabase(): Promise<ScoutingDatabase> {
 
       logger.error('Failed to initialize RxDB', error)
       const causeMessage = error instanceof Error ? error.message : 'Unknown database error'
-      throw new AppError(`Database initialization failed: ${causeMessage}`, 'DATABASE_INIT_FAILED', {
+      throw new AppError(getUserFacingDatabaseErrorMessage(error), 'DATABASE_INIT_FAILED', {
         cause: error,
         causeMessage,
         hasLocalStorage: isLocalStorageAvailable(),
@@ -309,11 +280,7 @@ export function getDatabase(): ScoutingDatabase {
 }
 
 async function clearPersistentDatabaseStorage(): Promise<void> {
-  const storage = wrappedValidateAjvStorage({
-    storage: getRxStorageDexie() as never,
-  })
-
-  await removeRxDatabase(DATABASE_NAME, storage)
+  await clearDatabaseStorageByName(DATABASE_NAME)
 }
 
 export async function resetDatabase(): Promise<number> {
@@ -323,9 +290,21 @@ export async function resetDatabase(): Promise<number> {
   }
 
   initializingPromise = null
+  clearRecoveryAttempted()
 
   if (isLocalStorageAvailable()) {
     await clearPersistentDatabaseStorage()
+    for (const legacyName of LEGACY_DATABASE_NAMES) {
+      try {
+        await clearDatabaseStorageByName(legacyName)
+      } catch (error: unknown) {
+        logger.warn('Failed to clear legacy database storage name', {
+          name: legacyName,
+          error: error instanceof Error ? error.message : 'Unknown legacy clear error',
+        })
+      }
+    }
+    clearRecoveryAttempted()
     logger.warn('Database reset requested, removed persistent RxDB storage')
     return 1
   }

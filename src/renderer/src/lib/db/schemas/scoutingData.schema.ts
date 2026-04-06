@@ -2,7 +2,7 @@ import type { RxJsonSchema } from 'rxdb'
 
 export interface ScoutingDataDocType {
   id: string
-  eventId: string | null
+  eventId: string
   deviceId: string
   matchNumber: number
   teamNumber: number
@@ -17,15 +17,12 @@ export interface ScoutingDataDocType {
 
 export const scoutingDataSchema: RxJsonSchema<ScoutingDataDocType> = {
   title: 'scoutingData schema',
-  version: 5,
+  version: 0,
   primaryKey: 'id',
   type: 'object',
   properties: {
     id: { type: 'string', maxLength: 128 },
-    eventId: {
-      type: ['string', 'null'],
-      maxLength: 128,
-    },
+    eventId: { type: 'string', maxLength: 128 },
     deviceId: { type: 'string', maxLength: 128 },
     matchNumber: { type: 'integer', minimum: 0, maximum: 9999, multipleOf: 1 },
     teamNumber: { type: 'integer', minimum: 0, maximum: 999999, multipleOf: 1 },

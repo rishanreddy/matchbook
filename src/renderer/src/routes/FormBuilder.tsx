@@ -1,12 +1,15 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  Badge,
   Box,
   Button,
+  Divider,
   Group,
   Loader,
   Modal,
   Paper,
+  SimpleGrid,
   Stack,
   Text,
   ThemeIcon,
@@ -22,51 +25,23 @@ import {
   IconDeviceFloppy,
   IconEye,
   IconCheck,
+  IconPlus,
+  IconLayoutGrid,
+  IconFileDescription,
+  IconSparkles,
 } from '@tabler/icons-react'
 import { DefaultDark } from 'survey-creator-core/themes'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import { applyMatchbookSurveyTheme } from '../lib/utils/surveyTheme'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import { logger } from '../lib/utils/logger'
 import 'survey-core/survey-core.min.css'
 import 'survey-creator-core/survey-creator-core.min.css'
 
-const DEFAULT_TEMPLATE: Record<string, unknown> = {
-  title: 'Match Scouting Form',
-  pages: [
-    {
-      name: 'auto',
-      title: 'Autonomous Period',
-      elements: [
-        { type: 'text', name: 'autoNotes', title: 'Notes Scored in Auto', inputType: 'number', isRequired: true },
-        { type: 'boolean', name: 'autoLeave', title: 'Left Starting Zone?' },
-      ],
-    },
-    {
-      name: 'teleop',
-      title: 'Teleoperated Period',
-      elements: [
-        { type: 'text', name: 'teleopNotes', title: 'Notes Scored in Teleop', inputType: 'number', isRequired: true },
-        { type: 'text', name: 'teleopAmp', title: 'Amp Scores', inputType: 'number' },
-      ],
-    },
-    {
-      name: 'endgame',
-      title: 'Endgame',
-      elements: [
-        { type: 'radiogroup', name: 'climbStatus', title: 'Climb Status', choices: ['None', 'Parked', 'Onstage', 'Spotlit'] },
-        { type: 'text', name: 'trapScores', title: 'Trap Scores', inputType: 'number' },
-      ],
-    },
-    {
-      name: 'overall',
-      title: 'Overall',
-      elements: [
-        { type: 'rating', name: 'defense', title: 'Defense Rating', rateMax: 5 },
-        { type: 'comment', name: 'notes', title: 'Additional Notes' },
-      ],
-    },
-  ],
+const EMPTY_TEMPLATE: Record<string, unknown> = {
+  title: '',
+  pages: [],
 }
 
 const DEFAULT_FORM_NAME = 'Match Scouting Form'
@@ -104,7 +79,7 @@ export function FormBuilder(): ReactElement {
     })
 
     model.applyCreatorTheme(DefaultDark)
-    model.JSON = DEFAULT_TEMPLATE
+    model.JSON = EMPTY_TEMPLATE
     model.onSurveyInstanceCreated.add((_, options) => {
       if (options.area === 'preview-tab' || options.area === 'designer-tab') {
         applyMatchbookSurveyTheme(options.survey)
@@ -149,8 +124,8 @@ export function FormBuilder(): ReactElement {
           creator.JSON = existing.surveyJson
           logger.info('Loaded active form schema', { name: existing.name })
         } else {
-          creator.JSON = DEFAULT_TEMPLATE
-          logger.info('No active form schema found, using default template')
+          creator.JSON = EMPTY_TEMPLATE
+          logger.info('No active form schema found, starting with empty form')
         }
       } catch (error: unknown) {
         notifications.show({

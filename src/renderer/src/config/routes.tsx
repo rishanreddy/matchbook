@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import {
   AnalysisRoute,
+  DeveloperToolsRoute,
   DeviceSetupRoute,
   EventManagementRoute,
   FormBuilderRoute,
@@ -15,6 +16,7 @@ export type AppRouteDefinition = {
   path: string
   element: ReactElement
   hubOnly?: boolean
+  requiresDeveloperMode?: boolean
 }
 
 type CreateRoutesOptions = {
@@ -31,6 +33,7 @@ export function createAppRoutes({ appVersion, onOpenAbout }: CreateRoutesOptions
     { path: '/device-setup', element: <DeviceSetupRoute /> },
     { path: '/sync', element: <SyncRoute /> },
     { path: '/settings', element: <SettingsRoute appVersion={appVersion} onOpenAbout={onOpenAbout} /> },
+    { path: '/developer-tools', element: <DeveloperToolsRoute />, requiresDeveloperMode: true },
     { path: '/form-builder', element: <FormBuilderRoute />, hubOnly: true },
     { path: '/help', element: <HelpRoute /> },
   ]

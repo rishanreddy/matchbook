@@ -1,14 +1,17 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ActionIcon,
   Alert,
   Badge,
   Box,
   Button,
   Card,
+  Checkbox,
   Code,
   FileInput,
   Group,
+  Modal,
   Paper,
   Progress,
   Select,
@@ -20,19 +23,25 @@ import {
   TextInput,
   ThemeIcon,
   Title,
+  Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { Html5Qrcode } from 'html5-qrcode'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import Papa from 'papaparse'
 import { QRCodeSVG } from 'qrcode.react'
 import {
+  IconAlertTriangle,
+  IconArrowsMaximize,
+  IconArrowsMinimize,
   IconCamera,
   IconCheck,
   IconDatabase,
   IconDownload,
   IconFileSpreadsheet,
+  IconHelp,
   IconQrcode,
   IconRefresh,
+  IconTrash,
   IconUpload,
   IconWifi,
 } from '@tabler/icons-react'
@@ -40,7 +49,6 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { useIsHub } from '../stores/useDeviceStore'
 import { handleError } from '../lib/utils/errorHandler'
 import { compressData, decompressData, reconstructFromChunks, splitIntoChunks } from '../lib/utils/sync'
-import styles from './Sync.module.css'
 
 type ChunkPayload = {
   index: number
@@ -51,6 +59,7 @@ type ChunkPayload = {
 type SyncCollection =
   | 'scoutingData'
   | 'formSchemas'
+  | 'analysisConfigs'
   | 'events'
 
 type SyncPayload = {
@@ -88,7 +97,14 @@ type QuarantinedSyncPayload = {
   quarantinedAt: string
 }
 
+type QrCameraOption = {
+  value: string
+  label: string
+}
+
 const QR_CHUNK_SIZE = 1800
+const TEST_QR_CHUNK_SIZE = 320
+const MIN_QR_SCANNER_HEIGHT = 340
 const NETWORK_UPLOAD_MAX_BYTES = 4 * 1024 * 1024
 const SYNC_TOKEN_LENGTH = 8
 const SYNC_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -96,14 +112,23 @@ const SYNC_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const collectionOptions = [
   { value: 'scoutingData', label: 'Scouting Data' },
   { value: 'formSchemas', label: 'Form Schemas' },
+  { value: 'analysisConfigs', label: 'Analysis Settings' },
   { value: 'events', label: 'Events' },
 ] satisfies Array<{ value: SyncCollection; label: string }>
 
 const allCollections: SyncCollection[] = [
   'scoutingData',
   'formSchemas',
+  'analysisConfigs',
   'events',
 ]
+
+const snapshotCollectionLabels: Record<SyncCollection, string> = {
+  scoutingData: 'Scouting Data',
+  formSchemas: 'Form Schemas',
+  analysisConfigs: 'Analysis Settings',
+  events: 'Events',
+}
 
 function isSyncCollection(value: unknown): value is SyncCollection {
   return typeof value === 'string' && allCollections.includes(value as SyncCollection)
@@ -196,6 +221,14 @@ function readPersistedValue(key: string, fallback = ''): string {
   }
 }
 
+function getMissingChunkNumbers(total: number, chunks: Map<number, string>): number[] {
+  if (total <= 0) {
+    return []
+  }
+
+  return Array.from({ length: total }, (_, index) => index + 1).filter((chunkIndex) => !chunks.has(chunkIndex))
+}
+
 export function Sync(): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const isHub = useIsHub()
@@ -216,6 +249,13 @@ export function Sync(): ReactElement {
   const expectedQrTotalRef = useRef<number>(0)
   const [qrPreview, setQrPreview] = useState<SyncPayload | null>(null)
   const [qrImportPayload, setQrImportPayload] = useState<string>('')
+  const [qrScanHint, setQrScanHint] = useState<string>('Select import collection, then start scanning chunks in order.')
+  const [qrCameraOptions, setQrCameraOptions] = useState<QrCameraOption[]>([])
+  const [selectedQrCamera, setSelectedQrCamera] = useState<string | null>(() => {
+    const persisted = readPersistedValue('sync_qr_camera_id')
+    return persisted.length > 0 ? persisted : null
+  })
+  const recentDecodedQrRef = useRef<{ value: string; at: number } | null>(null)
 
   const [csvRows, setCsvRows] = useState<CsvRow[]>([])
   const [csvParseError, setCsvParseError] = useState<string>('')
@@ -225,6 +265,122 @@ export function Sync(): ReactElement {
   const [dbImportFile, setDbImportFile] = useState<File | null>(null)
   const [dbImportSummary, setDbImportSummary] = useState<string>('')
   const [dbImportProgress, setDbImportProgress] = useState<number>(0)
+  const [snapshotCollections, setSnapshotCollections] = useState<Record<SyncCollection, boolean>>({
+    scoutingData: true,
+    formSchemas: true,
+    analysisConfigs: true,
+    events: true,
+  })
+  const [clearScoutingDataModalOpened, setClearScoutingDataModalOpened] = useState(false)
+  const [clearScoutingDataConfirmText, setClearScoutingDataConfirmText] = useState('')
+  const [clearScoutingDataCount, setClearScoutingDataCount] = useState<number>(0)
+  const [isClearingScoutingData, setIsClearingScoutingData] = useState(false)
+  const [forceSmallQrChunks, setForceSmallQrChunks] = useState<boolean>(() => {
+    return readPersistedValue('sync_force_small_qr_chunks') === 'true'
+  })
+  const [qrPresentationMode, setQrPresentationMode] = useState(false)
+  const [qrImportHelpOpen, setQrImportHelpOpen] = useState(false)
+
+  const cameraSelectOptions = useMemo(
+    () => [{ value: '__auto__', label: 'Auto select best camera' }, ...qrCameraOptions],
+    [qrCameraOptions],
+  )
+
+  const selectedCameraValue = selectedQrCamera ?? '__auto__'
+  const showScanProgress = expectedQrTotal > 0 && (isScanning || qrPreview === null)
+  const qrChunkSize = forceSmallQrChunks ? TEST_QR_CHUNK_SIZE : QR_CHUNK_SIZE
+  const capturedChunkIndexes = useMemo(
+    () => Array.from(scannedChunks.keys()).sort((a, b) => a - b),
+    [scannedChunks],
+  )
+  const missingChunkIndexes = useMemo(
+    () => getMissingChunkNumbers(expectedQrTotal, scannedChunks),
+    [expectedQrTotal, scannedChunks],
+  )
+  const nextChunkToScan = useMemo(() => {
+    if (expectedQrTotal <= 0) {
+      return 1
+    }
+
+    return missingChunkIndexes[0] ?? expectedQrTotal
+  }, [expectedQrTotal, missingChunkIndexes])
+  const presentationQrSize = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return 560
+    }
+
+    return Math.max(420, Math.min(window.innerWidth - 140, window.innerHeight - 230, 820))
+  }, [])
+
+  const activeExportQr = qrChunks[currentQrIndex] ?? ''
+
+  const openQrPresentationMode = useCallback((): void => {
+    if (qrChunks.length === 0) {
+      return
+    }
+    setQrPresentationMode(true)
+  }, [qrChunks.length])
+
+  const closeQrPresentationMode = useCallback((): void => {
+    setQrPresentationMode(false)
+  }, [])
+
+  const showNextQr = useCallback((): void => {
+    if (qrChunks.length <= 1) {
+      return
+    }
+    setCurrentQrIndex((prev) => (prev + 1) % qrChunks.length)
+  }, [qrChunks.length])
+
+  const showPreviousQr = useCallback((): void => {
+    if (qrChunks.length <= 1) {
+      return
+    }
+    setCurrentQrIndex((prev) => (prev - 1 + qrChunks.length) % qrChunks.length)
+  }, [qrChunks.length])
+
+  useEffect(() => {
+    if (!qrPresentationMode) {
+      return
+    }
+
+    const previousBackground = document.body.style.backgroundColor
+    const previousTransition = document.body.style.transition
+    document.body.style.transition = 'background-color 180ms ease'
+    document.body.style.backgroundColor = '#f3f4f6'
+
+    return () => {
+      document.body.style.backgroundColor = previousBackground
+      document.body.style.transition = previousTransition
+    }
+  }, [qrPresentationMode])
+
+  useEffect(() => {
+    if (!qrPresentationMode) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        closeQrPresentationMode()
+        return
+      }
+
+      if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'n') {
+        showNextQr()
+        return
+      }
+
+      if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'p') {
+        showPreviousQr()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [closeQrPresentationMode, qrPresentationMode, showNextQr, showPreviousQr])
 
   const [serverPort, setServerPort] = useState<string>('41735')
   const [serverStatus, setServerStatus] = useState<SyncServerStatus>({
@@ -284,6 +440,92 @@ export function Sync(): ReactElement {
     }
   }, [clientAuthToken])
 
+  useEffect(() => {
+    try {
+      if (selectedQrCamera) {
+        localStorage.setItem('sync_qr_camera_id', selectedQrCamera)
+      } else {
+        localStorage.removeItem('sync_qr_camera_id')
+      }
+    } catch {
+      // ignore persistence failures
+    }
+  }, [selectedQrCamera])
+
+  useEffect(() => {
+    const handleQrChunkModeChanged = (event: Event): void => {
+      const detail = (event as CustomEvent<boolean>).detail
+      if (typeof detail === 'boolean') {
+        setForceSmallQrChunks(detail)
+        return
+      }
+
+      setForceSmallQrChunks(readPersistedValue('sync_force_small_qr_chunks') === 'true')
+    }
+
+    window.addEventListener('sync:force-small-qr-chunks-changed', handleQrChunkModeChanged)
+    return () => {
+      window.removeEventListener('sync:force-small-qr-chunks-changed', handleQrChunkModeChanged)
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('sync_force_small_qr_chunks', String(forceSmallQrChunks))
+    } catch {
+      // ignore persistence failures
+    }
+  }, [forceSmallQrChunks])
+
+  const getRemainingChunkLabel = (total: number, chunks: Map<number, string>): string => {
+    const remaining = Array.from({ length: total }, (_, index) => index + 1).filter((chunkIndex) => !chunks.has(chunkIndex))
+    if (remaining.length === 0) {
+      return 'All chunks captured.'
+    }
+
+    if (remaining.length <= 6) {
+      return `Remaining chunks: ${remaining.join(', ')}`
+    }
+
+    return `Remaining chunks: ${remaining.slice(0, 6).join(', ')} +${remaining.length - 6} more`
+  }
+
+  const loadQrCameras = useCallback(async (): Promise<QrCameraOption[]> => {
+    try {
+      const cameras = await Html5Qrcode.getCameras()
+      const options: QrCameraOption[] = cameras.map((camera, index) => ({
+        value: camera.id,
+        label: camera.label && camera.label.trim().length > 0 ? camera.label : `Camera ${index + 1}`,
+      }))
+
+      setQrCameraOptions(options)
+      if (options.length === 0) {
+        setSelectedQrCamera(null)
+        return options
+      }
+
+      if (selectedQrCamera && options.some((option) => option.value === selectedQrCamera)) {
+        return options
+      }
+
+      const preferred = options.find((option) => /back|rear|environment/i.test(option.label)) ?? options[0]
+      setSelectedQrCamera(preferred.value)
+      return options
+    } catch {
+      setQrCameraOptions([])
+      setSelectedQrCamera(null)
+      return []
+    }
+  }, [selectedQrCamera])
+
+  useEffect(() => {
+    if (activeTab !== 'qr') {
+      return
+    }
+
+    void loadQrCameras()
+  }, [activeTab, loadQrCameras])
+
   const getCollectionDocs = useCallback(
     async (collection: SyncCollection): Promise<Record<string, unknown>[]> => {
       if (!db) {
@@ -296,6 +538,16 @@ export function Sync(): ReactElement {
       }
       if (collection === 'formSchemas') {
         const docs = await db.collections.formSchemas.find().exec()
+        return docs.map((doc) => doc.toJSON())
+      }
+
+      if (collection === 'analysisConfigs') {
+        const docs = await db.collections.analysisConfigs.find().exec()
+        return docs.map((doc) => doc.toJSON())
+      }
+
+      if (collection === 'events') {
+        const docs = await db.collections.events.find().exec()
         return docs.map((doc) => doc.toJSON())
       }
 
@@ -375,7 +627,10 @@ export function Sync(): ReactElement {
         const formData =
           typeof row.formData === 'object' && row.formData !== null ? (row.formData as Record<string, unknown>) : {}
         const notes = typeof row.notes === 'string' ? row.notes : ''
-        const eventId = typeof row.eventId === 'string' && row.eventId.length > 0 && row.eventId !== 'unknown' ? row.eventId : null
+        const eventId =
+          typeof row.eventId === 'string' && row.eventId.length > 0 && row.eventId !== 'unknown' && row.eventId !== 'null'
+            ? row.eventId
+            : 'none'
         const deviceId = typeof row.deviceId === 'string' && row.deviceId.length > 0 ? row.deviceId : 'unknown'
 
         return {
@@ -391,6 +646,33 @@ export function Sync(): ReactElement {
           formData,
           notes,
           createdAt,
+        }
+      }
+
+      const normalizeEventRow = (row: Record<string, unknown>): Record<string, unknown> | null => {
+        const id =
+          typeof row.id === 'string' && row.id.length > 0
+            ? row.id
+            : typeof row.key === 'string' && row.key.length > 0
+              ? row.key
+              : ''
+
+        if (!id) {
+          return null
+        }
+
+        const now = new Date().toISOString()
+        const currentSeason = new Date().getFullYear()
+        const seasonRaw = Number(row.season)
+
+        return {
+          id,
+          name: typeof row.name === 'string' ? row.name : id,
+          season: Number.isInteger(seasonRaw) && seasonRaw > 1990 ? seasonRaw : currentSeason,
+          startDate: typeof row.startDate === 'string' ? row.startDate : '',
+          endDate: typeof row.endDate === 'string' ? row.endDate : '',
+          syncedAt: typeof row.syncedAt === 'string' ? row.syncedAt : now,
+          createdAt: typeof row.createdAt === 'string' ? row.createdAt : now,
         }
       }
 
@@ -426,6 +708,10 @@ export function Sync(): ReactElement {
             return db.collections.scoutingData.findOne(id).exec()
           case 'formSchemas':
             return db.collections.formSchemas.findOne(id).exec()
+          case 'analysisConfigs':
+            return db.collections.analysisConfigs.findOne(id).exec()
+          case 'events':
+            return db.collections.events.findOne(id).exec()
           default:
             throw new Error(`Unsupported collection: ${String(collection)}`)
         }
@@ -438,6 +724,12 @@ export function Sync(): ReactElement {
             return
           case 'formSchemas':
             await db.collections.formSchemas.insert(row as never)
+            return
+          case 'analysisConfigs':
+            await db.collections.analysisConfigs.insert(row as never)
+            return
+          case 'events':
+            await db.collections.events.insert(row as never)
             return
           default:
             throw new Error(`Unsupported collection: ${String(collection)}`)
@@ -453,6 +745,12 @@ export function Sync(): ReactElement {
           switch (collection) {
             case 'formSchemas':
               await db.collections.formSchemas.upsert(row as never)
+              return true
+            case 'analysisConfigs':
+              await db.collections.analysisConfigs.upsert(row as never)
+              return true
+            case 'events':
+              await db.collections.events.upsert(row as never)
               return true
             default:
               return false
@@ -475,6 +773,16 @@ export function Sync(): ReactElement {
             continue
           }
           row = normalizedScoutingDataRow
+        }
+
+        if (collection === 'events') {
+          const normalizedEventRow = normalizeEventRow(sourceRow)
+          if (!normalizedEventRow) {
+            result.errors += 1
+            result.errorMessages.push('Event row is missing required identifier.')
+            continue
+          }
+          row = normalizedEventRow
         }
 
         await enforceSingleActiveFormSchema(row)
@@ -569,7 +877,7 @@ export function Sync(): ReactElement {
     try {
       const payload = await buildPayload(exportCollection)
       const compressed = compressData(payload)
-      const chunks = splitIntoChunks(compressed, QR_CHUNK_SIZE)
+      const chunks = splitIntoChunks(compressed, qrChunkSize)
       const encodedChunks = chunks.map((chunk, index) =>
         JSON.stringify({ index: index + 1, total: chunks.length, payload: chunk } satisfies ChunkPayload),
       )
@@ -590,6 +898,13 @@ export function Sync(): ReactElement {
 
   const onQrScanSuccess = async (decodedText: string): Promise<void> => {
     try {
+      const now = Date.now()
+      const recentDecoded = recentDecodedQrRef.current
+      if (recentDecoded && recentDecoded.value === decodedText && now - recentDecoded.at < 900) {
+        return
+      }
+      recentDecodedQrRef.current = { value: decodedText, at: now }
+
       const parsed = JSON.parse(decodedText) as ChunkPayload
       
       if (
@@ -608,6 +923,7 @@ export function Sync(): ReactElement {
         const reset = new Map<number, string>()
         scannedChunksRef.current = reset
         setScannedChunks(reset)
+        setQrScanHint('Detected a different QR sequence. Scan chunks for the same export set.')
         notifications.show({
           color: 'yellow',
           title: 'QR sequence reset',
@@ -619,17 +935,18 @@ export function Sync(): ReactElement {
       setExpectedQrTotal(parsed.total)
 
       const nextChunks = new Map(scannedChunksRef.current)
+      const existingChunk = nextChunks.get(parsed.index)
+      if (existingChunk === parsed.payload) {
+        setQrScanHint(`Chunk ${parsed.index}/${parsed.total} already captured. ${getRemainingChunkLabel(parsed.total, nextChunks)}`)
+        return
+      }
+
       nextChunks.set(parsed.index, parsed.payload)
       scannedChunksRef.current = nextChunks
       setScannedChunks(nextChunks)
 
       if (nextChunks.size !== parsed.total) {
-        notifications.show({
-          color: 'blue',
-          title: `QR chunk ${nextChunks.size}/${parsed.total} captured`,
-          message: 'Scan the next QR code to continue.',
-          autoClose: 1500,
-        })
+        setQrScanHint(`Captured chunk ${parsed.index}/${parsed.total}. ${getRemainingChunkLabel(parsed.total, nextChunks)}`)
         return
       }
 
@@ -645,6 +962,7 @@ export function Sync(): ReactElement {
         setScannedChunks(reset)
         expectedQrTotalRef.current = 0
         setExpectedQrTotal(0)
+        setQrScanHint('Missing chunks detected. Please re-scan all chunks in order.')
         return
       }
 
@@ -653,12 +971,14 @@ export function Sync(): ReactElement {
       setQrImportPayload(reconstructed)
       setQrPreview(completedPayload)
       void stopScanner()
+      setQrScanHint('All chunks captured. Review payload details, then import.')
       notifications.show({
         color: 'green',
         title: 'QR scan complete',
         message: `Captured ${parsed.total} of ${parsed.total} chunks.`,
       })
     } catch (error: unknown) {
+      setQrScanHint('Scan failed. Ensure the QR is from Matchbook and fully visible.')
       notifications.show({
         color: 'red',
         title: 'QR scan error',
@@ -670,6 +990,7 @@ export function Sync(): ReactElement {
   const handleScanQr = async (): Promise<void> => {
     if (isScanning) {
       await stopScanner()
+      setQrScanHint('Scanner stopped.')
       return
     }
 
@@ -680,24 +1001,79 @@ export function Sync(): ReactElement {
     setScannedChunks(reset)
     expectedQrTotalRef.current = 0
     setExpectedQrTotal(0)
+    recentDecodedQrRef.current = null
+    setQrScanHint('Starting camera... point it at chunk 1.')
 
     try {
-      const scanner = new Html5Qrcode('sync-qr-scanner')
+      const scanner = new Html5Qrcode('sync-qr-scanner', {
+        verbose: false,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        useBarCodeDetectorIfSupported: true,
+      })
       scannerRef.current = scanner
-      
-      await scanner.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 260, height: 260 } },
-        (decodedText) => {
-          void onQrScanSuccess(decodedText)
+
+      const cameras = qrCameraOptions.length > 0 ? qrCameraOptions : await loadQrCameras()
+      const selectedCameraId = selectedQrCamera && cameras.some((camera) => camera.value === selectedQrCamera)
+        ? selectedQrCamera
+        : cameras[0]?.value
+
+      if (!selectedCameraId) {
+        throw new Error('No camera detected. Connect a camera or grant camera access, then try again.')
+      }
+
+      if (selectedCameraId && selectedQrCamera !== selectedCameraId) {
+        setSelectedQrCamera(selectedCameraId)
+      }
+
+      const scannerConfig = {
+        fps: 12,
+        aspectRatio: 1,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const adjustedHeight = Math.max(viewfinderHeight, MIN_QR_SCANNER_HEIGHT)
+          const minSide = Math.min(viewfinderWidth, adjustedHeight)
+          const size = Math.max(220, Math.min(340, Math.floor(minSide * 0.78)))
+          return { width: size, height: size }
         },
-        () => {
-          // Ignore frame processing errors
-        },
-      )
+        disableFlip: false,
+      }
+
+      try {
+        await scanner.start(
+          selectedCameraId ?? { facingMode: 'environment' },
+          scannerConfig,
+          (decodedText) => {
+            void onQrScanSuccess(decodedText)
+          },
+          () => {
+            // Ignore frame processing errors
+          },
+        )
+      } catch (primaryError) {
+        if (!selectedCameraId) {
+          throw primaryError
+        }
+
+        try {
+          await scanner.start(
+            { facingMode: 'environment' },
+            scannerConfig,
+            (decodedText) => {
+              void onQrScanSuccess(decodedText)
+            },
+            () => {
+              // Ignore frame processing errors
+            },
+          )
+        } catch {
+          throw primaryError
+        }
+      }
+
       setIsScanning(true)
+      setQrScanHint('Scanner active. Move to the next chunk after each successful scan.')
     } catch (error: unknown) {
       setIsScanning(false)
+      setQrScanHint('Unable to start scanner. Check camera permissions and retry.')
       notifications.show({
         color: 'red',
         title: 'Camera access failed',
@@ -837,7 +1213,7 @@ export function Sync(): ReactElement {
 
     return {
       id: row.id || crypto.randomUUID(),
-      eventId: row.eventId && row.eventId !== 'unknown' ? row.eventId : null,
+      eventId: row.eventId && row.eventId !== 'unknown' && row.eventId !== 'null' ? row.eventId : 'none',
       deviceId: row.deviceId || 'unknown',
       matchNumber,
       teamNumber,
@@ -889,16 +1265,29 @@ export function Sync(): ReactElement {
 
   const handleExportDatabase = async (): Promise<void> => {
     try {
-      const scoutingData = await getCollectionDocs('scoutingData')
-      const formSchemas = await getCollectionDocs('formSchemas')
+      const selectedCollections = allCollections.filter((collection) => snapshotCollections[collection])
+      if (selectedCollections.length === 0) {
+        notifications.show({
+          color: 'yellow',
+          title: 'Nothing selected',
+          message: 'Choose at least one collection before exporting a snapshot.',
+        })
+        return
+      }
+
+      const collections: Partial<Record<SyncCollection, Record<string, unknown>[]>> = {}
+      let totalRecords = 0
+
+      for (const collection of selectedCollections) {
+        const docs = await getCollectionDocs(collection)
+        collections[collection] = docs
+        totalRecords += docs.length
+      }
 
       const snapshot = {
         exportedAt: new Date().toISOString(),
-        version: 1,
-        collections: {
-          scoutingData,
-          formSchemas,
-        },
+        version: 2,
+        collections,
       }
 
       const serialized = JSON.stringify(snapshot, null, 2)
@@ -906,7 +1295,7 @@ export function Sync(): ReactElement {
       notifications.show({
         color: 'green',
         title: 'Database export complete',
-        message: `Exported ${scoutingData.length + formSchemas.length} total records.`,
+        message: `Exported ${totalRecords} records across ${selectedCollections.length} collection(s).`,
       })
     } catch (error: unknown) {
       handleError(error, 'Database export')
@@ -1113,7 +1502,7 @@ export function Sync(): ReactElement {
     }
   }
 
-  const handleClearScoutingData = async (): Promise<void> => {
+  const openClearScoutingDataModal = async (): Promise<void> => {
     if (!db) {
       notifications.show({ color: 'red', title: 'Database not ready', message: 'Please wait for initialization.' })
       return
@@ -1128,14 +1517,32 @@ export function Sync(): ReactElement {
       return
     }
 
-    const confirmed = window.confirm(
-      'WARNING: This will permanently delete all local scouting observations on this device. This cannot be undone. Continue?'
-    )
+    try {
+      const count = await db.collections.scoutingData.count().exec()
+      setClearScoutingDataCount(count)
+      setClearScoutingDataConfirmText('')
+      setClearScoutingDataModalOpened(true)
+    } catch (error: unknown) {
+      handleError(error, 'Prepare clear scouting data modal')
+    }
+  }
 
-    if (!confirmed) {
+  const handleClearScoutingData = async (): Promise<void> => {
+    if (!db) {
+      notifications.show({ color: 'red', title: 'Database not ready', message: 'Please wait for initialization.' })
       return
     }
 
+    if (clearScoutingDataConfirmText.trim().toUpperCase() !== 'DELETE') {
+      notifications.show({
+        color: 'yellow',
+        title: 'Confirmation required',
+        message: 'Type DELETE to confirm clearing scouting data.',
+      })
+      return
+    }
+
+    setIsClearingScoutingData(true)
     try {
       const docs = await db.collections.scoutingData.find().exec()
       await Promise.all(docs.map(async (doc) => await doc.remove()))
@@ -1144,8 +1551,14 @@ export function Sync(): ReactElement {
         title: 'Scouting data cleared',
         message: `Removed ${docs.length} scouting observation${docs.length !== 1 ? 's' : ''}.`,
       })
+
+      setClearScoutingDataModalOpened(false)
+      setClearScoutingDataConfirmText('')
+      setClearScoutingDataCount(0)
     } catch (error: unknown) {
       handleError(error, 'Clear scouting data')
+    } finally {
+      setIsClearingScoutingData(false)
     }
   }
 
@@ -1316,13 +1729,17 @@ export function Sync(): ReactElement {
   return (
     <Box className="container-wide" py="xl">
       <Stack gap={32}>
-        <Box className={styles.syncHeader}>
+        <Box className="animate-fadeInUp">
           <Group gap="md">
             <ThemeIcon 
               size={56} 
               radius="xl" 
               variant="light"
-              className={styles.syncHeaderIcon}
+              style={{
+                background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.15), rgba(26, 140, 255, 0.08))',
+                border: '1px solid rgba(26, 140, 255, 0.25)',
+                boxShadow: '0 4px 16px rgba(26, 140, 255, 0.2), 0 0 24px rgba(26, 140, 255, 0.15)',
+              }}
             >
               <IconRefresh size={28} stroke={1.8} />
             </ThemeIcon>
@@ -1342,7 +1759,15 @@ export function Sync(): ReactElement {
           onChange={(value) => setActiveTab(value ?? 'network')} 
           variant="pills" 
           radius="lg"
-          classNames={{ list: styles.tabsList }}
+          styles={{
+            list: {
+              background: 'rgba(21, 28, 40, 0.6)',
+              padding: '0.375rem',
+              borderRadius: '14px',
+              border: '1px solid rgba(148, 163, 184, 0.1)',
+              backdropFilter: 'blur(8px)',
+            },
+          }}
         >
           <Tabs.List>
             <Tabs.Tab value="network" leftSection={<IconWifi size={16} />}>Network</Tabs.Tab>
@@ -1353,13 +1778,56 @@ export function Sync(): ReactElement {
 
           <Tabs.Panel value="network" pt="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card 
+                p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]"
+              >
                 <Stack gap="lg">
                   <Group justify="space-between" align="center">
-                    <Text className={styles.syncCardTitle}>Hub Server</Text>
+                    <Group gap="xs">
+                      <Box
+                        style={{
+                          width: '4px',
+                          height: '18px',
+                          background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                          borderRadius: '2px',
+                          boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        }}
+                      />
+                      <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>
+                        Hub Server
+                      </Text>
+                    </Group>
                     <Badge 
-                      className={`${styles.statusBadge} ${serverStatus.running ? styles.statusBadgeRunning : styles.statusBadgeStopped}`}
                       radius="md"
+                      fw={700}
+                      tt="uppercase"
+                      style={{
+                        letterSpacing: '0.05em',
+                        fontSize: '0.7rem',
+                        padding: '0.35rem 0.75rem',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                        ...(serverStatus.running
+                          ? {
+                              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.08))',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              color: '#6ee7b7',
+                            }
+                          : {
+                              background: 'rgba(100, 116, 139, 0.1)',
+                              border: '1px solid rgba(100, 116, 139, 0.2)',
+                              color: '#94a3b8',
+                            }),
+                      }}
                     >
                       {serverStatus.running ? 'Running' : 'Stopped'}
                     </Badge>
@@ -1406,10 +1874,15 @@ export function Sync(): ReactElement {
                         <Button 
                           onClick={() => void handleStartServer()} 
                           disabled={!isHub || serverStatus.running}
-                          className={styles.syncButton}
                           size="md"
                           variant="gradient"
                           gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                          fw={700}
+                          style={{
+                            letterSpacing: '0.01em',
+                            transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          }}
+                          className="active:scale-[0.97]"
                         >
                           Start Server
                         </Button>
@@ -1418,8 +1891,13 @@ export function Sync(): ReactElement {
                           color="red" 
                           onClick={() => void handleStopServer()} 
                           disabled={!isHub || !serverStatus.running}
-                          className={styles.syncButton}
                           size="md"
+                          fw={700}
+                          style={{
+                            letterSpacing: '0.01em',
+                            transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                          }}
+                          className="active:scale-[0.97]"
                         >
                           Stop Server
                         </Button>
@@ -1429,11 +1907,36 @@ export function Sync(): ReactElement {
                         Refresh Status
                       </Button>
 
-                      <Paper className={styles.infoPanel}>
+                      <Paper
+                        p="lg"
+                        radius="md"
+                        style={{
+                          padding: '1.25rem',
+                          background: 'rgba(12, 18, 24, 0.6)',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(148, 163, 184, 0.1)',
+                        }}
+                      >
                         <Stack gap="sm">
                           <Box>
                             <Text size="sm" c="slate.4" fw={600} mb={4}>Server URL:</Text>
-                            <Code className={styles.networkUrlCode} block>
+                            <Code
+                              block
+                              style={{
+                                fontFamily: 'JetBrains Mono, monospace',
+                                fontSize: '0.85rem',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(8, 12, 20, 0.8)',
+                                border: '1px solid rgba(148, 163, 184, 0.15)',
+                                borderRadius: '8px',
+                                color: '#8ec5ff',
+                                fontWeight: 600,
+                                overflowX: 'auto',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.2s ease',
+                              }}
+                              className="mono-number hover:bg-[rgba(8,12,20,0.95)] hover:border-[rgba(26,140,255,0.25)]"
+                            >
                               {serverStatus.url ? `${serverStatus.url}/upload` : 'Not running'}
                             </Code>
                           </Box>
@@ -1461,7 +1964,18 @@ export function Sync(): ReactElement {
                           {quarantinedPayloads.length > 0 && (
                             <Stack gap={6} mt="md">
                               {quarantinedPayloads.slice(0, 3).map((item, index) => (
-                                <Box key={`${item.quarantinedAt}-${index}`} className={styles.quarantinedItem}>
+                                 <Box 
+                                  key={`${item.quarantinedAt}-${index}`}
+                                  p="xs"
+                                  style={{
+                                    background: 'rgba(245, 158, 11, 0.08)',
+                                    borderLeft: '3px solid rgba(245, 158, 11, 0.4)',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem',
+                                    lineHeight: 1.4,
+                                  }}
+                                  c="warning.3"
+                                >
                                   {new Date(item.quarantinedAt).toLocaleString()} - {item.reason}
                                 </Box>
                               ))}
@@ -1476,7 +1990,12 @@ export function Sync(): ReactElement {
                         disabled={!isHub || !serverStatus.running}
                         variant="gradient"
                         gradient={{ from: 'success.5', to: 'success.7' }}
-                        className={styles.syncButton}
+                        fw={700}
+                        style={{
+                          letterSpacing: '0.01em',
+                          transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        }}
+                        className="active:scale-[0.97]"
                         size="md"
                         leftSection={<IconDownload size={18} />}
                       >
@@ -1508,7 +2027,7 @@ export function Sync(): ReactElement {
                         <Button
                           variant="subtle"
                           color="red"
-                          onClick={() => void handleClearScoutingData()}
+                          onClick={() => void openClearScoutingDataModal()}
                           disabled={!isHub}
                           size="md"
                         >
@@ -1523,9 +2042,30 @@ export function Sync(): ReactElement {
                 </Stack>
               </Card>
 
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>Client Upload</Text>
+                  <Group gap="xs" mb="xs">
+                    <Box
+                      style={{
+                        width: '4px',
+                        height: '18px',
+                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                      }}
+                    />
+                    <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>Client Upload</Text>
+                  </Group>
                   <Text size="sm" c="slate.4">
                     Send your local data to a hub server over LAN.
                   </Text>
@@ -1565,7 +2105,7 @@ export function Sync(): ReactElement {
                     variant="gradient"
                     gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
                     leftSection={<IconUpload size={18} />}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
                     Upload to Hub
@@ -1576,10 +2116,31 @@ export function Sync(): ReactElement {
           </Tabs.Panel>
 
           <Tabs.Panel value="qr" pt="lg">
-            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" style={{ alignItems: 'start' }}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>QR Export</Text>
+                  <Group gap="xs" mb="xs">
+                    <Box
+                      style={{
+                        width: '4px',
+                        height: '18px',
+                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                      }}
+                    />
+                    <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>QR Export</Text>
+                  </Group>
                   <Select
                     label="Collection"
                     value={exportCollection}
@@ -1592,13 +2153,19 @@ export function Sync(): ReactElement {
                     size="md"
                   />
 
+                  {forceSmallQrChunks && (
+                    <Alert color="warning" variant="light" radius="md">
+                      Test mode enabled: small QR chunk size ({qrChunkSize} chars).
+                    </Alert>
+                  )}
+
                   <Button
                     loading={isQrExporting}
                     onClick={() => void handleQrExport()}
                     variant="gradient"
                     gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                     leftSection={<IconQrcode size={18} />}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
                     Generate QR Codes
@@ -1606,15 +2173,61 @@ export function Sync(): ReactElement {
 
                   {qrChunks.length > 0 && (
                     <Stack gap="lg" align="center">
-                      <Badge className={styles.qrChunkBadge} radius="md">
+                      <Badge
+                        radius="md"
+                        fw={700}
+                        className="mono-number"
+                        style={{
+                          fontFamily: 'JetBrains Mono, monospace',
+                          fontSize: '0.85rem',
+                          padding: '0.5rem 1rem',
+                          background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.15), rgba(26, 140, 255, 0.08))',
+                          border: '1px solid rgba(26, 140, 255, 0.3)',
+                          boxShadow: '0 2px 8px rgba(26, 140, 255, 0.2)',
+                        }}
+                      >
                         Code {currentQrIndex + 1} of {qrChunks.length}
                       </Badge>
-                      <Box className={styles.qrCodeContainer}>
-                        <QRCodeSVG value={qrChunks[currentQrIndex]} size={220} />
-                      </Box>
+                      <Paper
+                        p="lg" 
+                        radius="lg" 
+                        style={{ 
+                          backgroundColor: "#ffffff", 
+                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(26, 140, 255, 0.08), 0 0 0 8px rgba(26, 140, 255, 0.04)", 
+                          transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" 
+                        }} 
+                        className="cursor-zoom-in hover:scale-[1.02]"
+                        onClick={openQrPresentationMode}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Open large QR presentation mode"
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            openQrPresentationMode()
+                          }
+                        }}
+                      >
+                        <QRCodeSVG value={activeExportQr} size={220} />
+                      </Paper>
+
+                      <Group gap="xs" wrap="wrap" justify="center">
+                        <Button
+                          variant="light"
+                          size="xs"
+                          leftSection={<IconArrowsMaximize size={14} />}
+                          onClick={openQrPresentationMode}
+                        >
+                          Open Large QR
+                        </Button>
+                        <Text size="xs" c="slate.5">
+                          Tip: full-screen mode is easier for laptop-to-laptop scanning.
+                        </Text>
+                      </Group>
+
                       <Button
                         variant="light"
-                        onClick={() => setCurrentQrIndex((prev) => (prev + 1) % qrChunks.length)}
+                        onClick={showNextQr}
                         disabled={qrChunks.length <= 1}
                         size="md"
                       >
@@ -1625,9 +2238,43 @@ export function Sync(): ReactElement {
                 </Stack>
               </Card>
 
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>QR Import</Text>
+                  <Group gap="xs" mb="xs" justify="space-between" align="center">
+                    <Group gap="xs">
+                      <Box
+                        style={{
+                          width: '4px',
+                          height: '18px',
+                          background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                          borderRadius: '2px',
+                          boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        }}
+                      />
+                      <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>QR Import</Text>
+                    </Group>
+                    <Tooltip label="How to use QR Import" position="left">
+                      <ActionIcon
+                        variant="subtle"
+                        color="slate"
+                        size="lg"
+                        onClick={() => setQrImportHelpOpen(true)}
+                        aria-label="QR Import help"
+                      >
+                        <IconHelp size={18} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Group>
                   <Select
                     label="Import Collection"
                     value={importCollection}
@@ -1635,57 +2282,136 @@ export function Sync(): ReactElement {
                       if (allCollections.includes(value as SyncCollection)) {
                         setImportCollection(value as SyncCollection)
                         void stopScanner()
+                        setQrScanHint('Import collection changed. Start scanner to capture chunks.')
                       }
                     }}
                     data={collectionOptions}
                     size="md"
                   />
 
+                  <Select
+                    label="Camera"
+                    value={selectedCameraValue}
+                    onChange={(value) => {
+                      if (!value || value === '__auto__') {
+                        setSelectedQrCamera(null)
+                        return
+                      }
+                      setSelectedQrCamera(value)
+                    }}
+                    data={cameraSelectOptions}
+                    placeholder="Select camera"
+                    size="md"
+                    allowDeselect={false}
+                  />
+
+                  <Text size="xs" c="slate.4" mb="xs">
+                    {qrScanHint}
+                  </Text>
+
                   <Button
                     variant={isScanning ? 'filled' : 'light'}
                     color={isScanning ? 'red' : 'frc-blue'}
                     onClick={() => void handleScanQr()}
                     leftSection={<IconCamera size={18} />}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
-                    {isScanning ? 'Stop Scanner' : 'Scan QR'}
+                    {isScanning ? 'Stop Scanner' : qrPreview ? 'Scan Again' : 'Scan QR'}
                   </Button>
 
-                  <div 
-                    id="sync-qr-scanner" 
-                    style={{ 
-                      width: '100%', 
-                      maxWidth: 340, 
-                      borderRadius: 14, 
-                      overflow: 'hidden', 
-                      margin: '0 auto',
-                      border: '2px solid rgba(26, 140, 255, 0.2)'
-                    }} 
-                  />
+                  <Box className="relative mx-auto w-full max-w-[340px]">
+                    <div
+                      id="sync-qr-scanner"
+                      className="min-h-[240px] w-full overflow-hidden rounded-[14px] border-2 border-[rgba(26,140,255,0.2)] bg-[rgba(8,12,20,0.45)]"
+                    />
 
-                  {expectedQrTotal > 0 && (
-                    <Paper className={styles.syncSection}>
-                      <Stack gap="xs">
+                    {!isScanning && (
+                      <Box className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[14px] border border-dashed border-[rgba(148,163,184,0.28)] bg-[rgba(8,12,20,0.35)] px-4">
+                        <Text size="sm" c="slate.4" ta="center">
+                          Camera preview appears here when scanner is active.
+                        </Text>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {showScanProgress && (
+                    <Paper p="lg" radius="md" style={{ padding: "1rem", background: "rgba(12, 18, 24, 0.5)", borderRadius: "12px", border: "1px solid rgba(148, 163, 184, 0.08)", transition: "all 0.25s ease" }} className="hover:bg-[rgba(12,18,24,0.7)] hover:border-[rgba(148,163,184,0.12)]">
+                      <Stack gap="sm">
                         <Group justify="space-between">
                           <Text size="sm" c="slate.3" fw={600}>Scan Progress</Text>
-                          <Badge variant="light" className={styles.qrChunkBadge}>
+                          <Badge variant="light" fw={700} className="mono-number" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.85rem", padding: "0.5rem 1rem", background: "linear-gradient(135deg, rgba(26, 140, 255, 0.15), rgba(26, 140, 255, 0.08))", border: "1px solid rgba(26, 140, 255, 0.3)", boxShadow: "0 2px 8px rgba(26, 140, 255, 0.2)" }}>
                             {scannedChunks.size} / {expectedQrTotal}
                           </Badge>
                         </Group>
+
+                        <Text size="xs" c="slate.4">
+                          Next chunk to scan: <strong>{nextChunkToScan}</strong>
+                        </Text>
+
                         <Progress 
                           value={(scannedChunks.size / expectedQrTotal) * 100} 
-                          className={styles.progressBar}
-                          size="lg"
-                          radius="xl"
+                          size="lg" 
+                          radius="xl" 
+                          style={{ 
+                            height: "8px", 
+                            borderRadius: "999px", 
+                            overflow: "hidden", 
+                            background: "rgba(148, 163, 184, 0.12)", 
+                            boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)" 
+                          }}
                         />
+
+                        {capturedChunkIndexes.length > 0 && (
+                          <Text size="xs" c="slate.5" className="mono-number">
+                            Captured: {capturedChunkIndexes.join(', ')}
+                          </Text>
+                        )}
+
+                        {missingChunkIndexes.length > 0 && (
+                          <Text size="xs" c="slate.5" className="mono-number">
+                            Remaining: {missingChunkIndexes.join(', ')}
+                          </Text>
+                        )}
+
+                        <Group gap={6} wrap="wrap">
+                          {Array.from({ length: expectedQrTotal }, (_, index) => index + 1).map((chunkNumber) => {
+                            const captured = scannedChunks.has(chunkNumber)
+                            return (
+                              <Badge
+                                key={`chunk-${chunkNumber}`}
+                                size="xs"
+                                variant={captured ? 'filled' : 'outline'}
+                                color={captured ? 'green' : 'slate'}
+                              >
+                                {chunkNumber}
+                              </Badge>
+                            )
+                          })}
+                        </Group>
                       </Stack>
                     </Paper>
                   )}
 
                   {qrPreview ? (
                     <>
-                      <Code block className={styles.networkUrlCode}>
+                      <Code 
+                        block 
+                        className="mono-number hover:bg-[rgba(8,12,20,0.95)] hover:border-[rgba(26,140,255,0.25)]" 
+                        style={{ 
+                          fontFamily: "JetBrains Mono, monospace", 
+                          fontSize: "0.85rem", 
+                          padding: "0.75rem 1rem", 
+                          background: "rgba(8, 12, 20, 0.8)", 
+                          border: "1px solid rgba(148, 163, 184, 0.15)", 
+                          borderRadius: "8px", 
+                          color: "#8ec5ff", 
+                          fontWeight: 600, 
+                          overflowX: "auto", 
+                          whiteSpace: "nowrap", 
+                          transition: "all 0.2s ease" 
+                        }}
+                      >
                         {JSON.stringify({ collection: qrPreview.collection, count: qrPreview.count })}
                       </Code>
                       <Button
@@ -1693,16 +2419,23 @@ export function Sync(): ReactElement {
                         variant="gradient"
                         gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
                         leftSection={<IconCheck size={18} />}
-                        className={styles.syncButton}
+                        fw={700}
+                        style={{
+                          letterSpacing: '0.01em',
+                          transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        }}
+                        className="active:scale-[0.97]"
                         size="md"
                       >
                         Import QR Payload
                       </Button>
                     </>
                   ) : (
-                    <Text size="sm" c="slate.4" ta="center" py="md">
-                      Scan one or more QR chunks to preview import payload.
-                    </Text>
+                    <Alert color="slate" variant="light" radius="md">
+                      <Text size="sm" c="slate.3">
+                        Start scanner and scan chunk <strong>1</strong> to begin import.
+                      </Text>
+                    </Alert>
                   )}
                 </Stack>
               </Card>
@@ -1711,16 +2444,37 @@ export function Sync(): ReactElement {
 
           <Tabs.Panel value="csv" pt="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>CSV Export</Text>
+                  <Group gap="xs" mb="xs">
+                    <Box
+                      style={{
+                        width: '4px',
+                        height: '18px',
+                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                      }}
+                    />
+                    <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>CSV Export</Text>
+                  </Group>
                   <Text size="sm" c="slate.4">Export scoutingData as CSV for spreadsheet analysis.</Text>
                   <Button
                     onClick={() => void handleExportCsv()}
                     leftSection={<IconDownload size={18} />}
                     variant="gradient"
                     gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
                     Export CSV
@@ -1728,20 +2482,62 @@ export function Sync(): ReactElement {
                 </Stack>
               </Card>
 
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>CSV Import</Text>
+                  <Group gap="xs" mb="xs">
+                    <Box
+                      style={{
+                        width: '4px',
+                        height: '18px',
+                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                      }}
+                    />
+                    <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>CSV Import</Text>
+                  </Group>
                   <FileInput 
                     label="CSV File" 
                     accept=".csv" 
                     onChange={(file) => file && void parseCsvFile(file)} 
                     size="md"
                   />
-                  {isCsvLoading && <Progress value={100} animated className={styles.progressBar} size="lg" />}
+                  {isCsvLoading && (
+                    <Progress 
+                      value={100} 
+                      animated 
+                      size="lg" 
+                      radius="xl" 
+                      style={{ 
+                        height: "8px", 
+                        borderRadius: "999px", 
+                        overflow: "hidden", 
+                        background: "rgba(148, 163, 184, 0.12)", 
+                        boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)" 
+                      }} 
+                    />
+                  )}
                   {csvParseError && <Alert color="red" radius="lg">{csvParseError}</Alert>}
 
                   {csvRows.length > 0 && (
-                    <Box className={styles.csvTable}>
+                    <Paper 
+                      radius="md" 
+                      style={{ 
+                        borderRadius: "12px", 
+                        overflow: "hidden", 
+                        border: "1px solid rgba(148, 163, 184, 0.1)" 
+                      }}
+                    >
                       <Table.ScrollContainer minWidth={420}>
                         <Table striped highlightOnHover>
                           <Table.Thead>
@@ -1762,7 +2558,7 @@ export function Sync(): ReactElement {
                           </Table.Tbody>
                         </Table>
                       </Table.ScrollContainer>
-                    </Box>
+                    </Paper>
                   )}
 
                   <Button
@@ -1771,7 +2567,7 @@ export function Sync(): ReactElement {
                     disabled={csvRows.length === 0 || Boolean(csvParseError)}
                     variant="gradient"
                     gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
                     Import CSV
@@ -1785,16 +2581,62 @@ export function Sync(): ReactElement {
 
           <Tabs.Panel value="database" pt="lg">
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>Database Export</Text>
-                  <Text size="sm" c="slate.4">Export both scoutingData and formSchemas into one JSON snapshot.</Text>
+                  <Group gap="xs" mb="xs">
+                    <Box
+                      style={{
+                        width: '4px',
+                        height: '18px',
+                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                      }}
+                    />
+                    <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>Database Export</Text>
+                  </Group>
+                  <Text size="sm" c="slate.4">Choose which collections to include in the JSON snapshot.</Text>
+
+                  <Paper p="lg" radius="md" style={{ padding: "1rem", background: "rgba(12, 18, 24, 0.5)", borderRadius: "12px", border: "1px solid rgba(148, 163, 184, 0.08)", transition: "all 0.25s ease" }} className="hover:bg-[rgba(12,18,24,0.7)] hover:border-[rgba(148,163,184,0.12)]">
+                    <Stack gap="xs">
+                      <Text size="xs" c="slate.4" fw={600}>Include Collections</Text>
+                      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                        {allCollections.map((collection) => (
+                          <Checkbox
+                            key={`snapshot-${collection}`}
+                            label={snapshotCollectionLabels[collection]}
+                            checked={snapshotCollections[collection]}
+                            onChange={(event) => {
+                              setSnapshotCollections((previous) => ({
+                                ...previous,
+                                [collection]: event.currentTarget.checked,
+                              }))
+                            }}
+                            styles={{
+                              label: { color: 'var(--mantine-color-slate-2)' },
+                            }}
+                          />
+                        ))}
+                      </SimpleGrid>
+                    </Stack>
+                  </Paper>
+
                   <Button
                     onClick={() => void handleExportDatabase()}
                     leftSection={<IconDownload size={18} />}
                     variant="gradient"
                     gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
                     Export Database Snapshot
@@ -1802,9 +2644,30 @@ export function Sync(): ReactElement {
                 </Stack>
               </Card>
 
-              <Card p="xl" radius="lg" className={styles.syncCard}>
+              <Card                 p="xl" 
+                radius="lg"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                  boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
-                  <Text className={styles.syncCardTitle}>Database Import</Text>
+                  <Group gap="xs" mb="xs">
+                    <Box
+                      style={{
+                        width: '4px',
+                        height: '18px',
+                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        borderRadius: '2px',
+                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                      }}
+                    />
+                    <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>Database Import</Text>
+                  </Group>
                   <FileInput
                     label="Snapshot file"
                     accept="application/json"
@@ -1818,7 +2681,7 @@ export function Sync(): ReactElement {
                     disabled={!dbImportFile}
                     variant="gradient"
                     gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
-                    className={styles.syncButton}
+                    fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
                     Import Snapshot
@@ -1827,8 +2690,15 @@ export function Sync(): ReactElement {
                     <Progress 
                       value={dbImportProgress} 
                       animated 
-                      className={styles.progressBar} 
-                      size="lg"
+                      size="lg" 
+                      radius="xl" 
+                      style={{ 
+                        height: "8px", 
+                        borderRadius: "999px", 
+                        overflow: "hidden", 
+                        background: "rgba(148, 163, 184, 0.12)", 
+                        boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.3)" 
+                      }} 
                     />
                   )}
                   {dbImportSummary && <Alert color="blue" radius="lg">{dbImportSummary}</Alert>}
@@ -1837,47 +2707,6 @@ export function Sync(): ReactElement {
             </SimpleGrid>
           </Tabs.Panel>
 
-          <Tabs.Panel value="database" pt="lg">
-            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-              <Card p="lg" radius="lg" style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}>
-                <Stack gap="md">
-                  <Text fw={600} c="slate.0">Database Export</Text>
-                  <Text size="sm" c="slate.4">Export both scoutingData and formSchemas into one JSON snapshot.</Text>
-                  <Button
-                    onClick={() => void handleExportDatabase()}
-                    leftSection={<IconDownload size={16} />}
-                    variant="gradient"
-                    gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
-                  >
-                    Export Database Snapshot
-                  </Button>
-                </Stack>
-              </Card>
-
-              <Card p="lg" radius="lg" style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}>
-                <Stack gap="md">
-                  <Text fw={600} c="slate.0">Database Import</Text>
-                  <FileInput
-                    label="Snapshot file"
-                    accept="application/json"
-                    value={dbImportFile}
-                    onChange={setDbImportFile}
-                  />
-                  <Button
-                    onClick={() => void handleImportDatabase()}
-                    leftSection={<IconUpload size={16} />}
-                    disabled={!dbImportFile}
-                    variant="gradient"
-                    gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
-                  >
-                    Import Snapshot
-                  </Button>
-                  {dbImportProgress > 0 && <Progress value={dbImportProgress} animated />}
-                  {dbImportSummary && <Alert color="blue">{dbImportSummary}</Alert>}
-                </Stack>
-              </Card>
-            </SimpleGrid>
-          </Tabs.Panel>
         </Tabs>
 
         {!isHub && (
@@ -1885,6 +2714,168 @@ export function Sync(): ReactElement {
             Scout mode tip: use `formSchemas` sync to receive updated forms from the hub and `scoutingData` to send match entries.
           </Alert>
         )}
+
+      <Modal
+        opened={clearScoutingDataModalOpened}
+          onClose={() => {
+            if (isClearingScoutingData) {
+              return
+            }
+            setClearScoutingDataModalOpened(false)
+            setClearScoutingDataConfirmText('')
+          }}
+          title="Clear Scouting Data"
+          centered
+          radius="lg"
+          styles={{
+            header: { backgroundColor: 'var(--surface-raised)' },
+            body: { backgroundColor: 'var(--surface-raised)' },
+          }}
+        >
+          <Stack gap="md">
+            <Alert color="danger" variant="light" icon={<IconAlertTriangle size={16} />} radius="md">
+              This permanently deletes all local scouting observations on this device.
+            </Alert>
+
+            <Text size="sm" c="slate.3">
+              Records to delete: <strong>{clearScoutingDataCount}</strong>
+            </Text>
+
+            <TextInput
+              label="Type DELETE to confirm"
+              placeholder="DELETE"
+              value={clearScoutingDataConfirmText}
+              onChange={(event) => setClearScoutingDataConfirmText(event.currentTarget.value)}
+              disabled={isClearingScoutingData}
+            />
+
+            <Group justify="flex-end">
+              <Button
+                variant="subtle"
+                color="slate"
+                onClick={() => {
+                  setClearScoutingDataModalOpened(false)
+                  setClearScoutingDataConfirmText('')
+                }}
+                disabled={isClearingScoutingData}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="danger"
+                leftSection={<IconTrash size={16} />}
+                onClick={() => void handleClearScoutingData()}
+                loading={isClearingScoutingData}
+              >
+                Delete Data
+              </Button>
+            </Group>
+          </Stack>
+        </Modal>
+
+        <Modal
+          opened={qrPresentationMode}
+          onClose={closeQrPresentationMode}
+          fullScreen
+          withCloseButton={false}
+          styles={{
+            content: { backgroundColor: '#f3f4f6' },
+            body: {
+              backgroundColor: '#f3f4f6',
+              padding: '1rem',
+            },
+          }}
+        >
+          <Stack gap="md" align="center" className="min-h-screen">
+            <Group justify="space-between" w="100%" maw={1100}>
+              <Button
+                variant="filled"
+                color="dark"
+                leftSection={<IconArrowsMinimize size={16} />}
+                onClick={closeQrPresentationMode}
+              >
+                Exit Large QR
+              </Button>
+
+              <Badge color="dark" variant="filled" radius="md" className="mono-number" size="lg">
+                QR {currentQrIndex + 1} / {Math.max(qrChunks.length, 1)}
+              </Badge>
+
+              <Group gap="xs">
+                <Button variant="light" color="dark" onClick={showPreviousQr} disabled={qrChunks.length <= 1}>
+                  Previous
+                </Button>
+                <Button variant="filled" color="dark" onClick={showNextQr} disabled={qrChunks.length <= 1}>
+                  Next
+                </Button>
+              </Group>
+            </Group>
+
+            <Paper
+              radius="xl"
+              p="lg"
+              shadow="md"
+              style={{
+                backgroundColor: '#ffffff',
+                border: '2px solid #d4d4d8',
+              }}
+            >
+              <QRCodeSVG value={activeExportQr} size={presentationQrSize} />
+            </Paper>
+
+            <Text size="sm" c="dark.6" fw={500} ta="center" maw={900}>
+              Keep this screen bright and square to the scanner. Use Arrow Left/Right (or P/N) to switch chunks.
+            </Text>
+          </Stack>
+        </Modal>
+
+        <Modal
+          opened={qrImportHelpOpen}
+          onClose={() => setQrImportHelpOpen(false)}
+          title="How to Use QR Import"
+          centered
+          radius="lg"
+          size="md"
+        >
+          <Stack gap="md">
+            <Box>
+              <Text size="sm" fw={600} c="slate.1" mb="xs">Step-by-Step Instructions</Text>
+              <Stack gap="xs">
+                <Text size="sm" c="slate.3">
+                  <strong>1.</strong> Select the collection type you want to import (Scouting Data, Forms, etc.)
+                </Text>
+                <Text size="sm" c="slate.3">
+                  <strong>2.</strong> Choose your camera from the dropdown (or use auto-select)
+                </Text>
+                <Text size="sm" c="slate.3">
+                  <strong>3.</strong> Click "Scan QR" to activate the camera
+                </Text>
+                <Text size="sm" c="slate.3">
+                  <strong>4.</strong> Point your camera at each QR code chunk in order (1, 2, 3...)
+                </Text>
+                <Text size="sm" c="slate.3">
+                  <strong>5.</strong> Watch the progress bar fill as chunks are captured
+                </Text>
+                <Text size="sm" c="slate.3">
+                  <strong>6.</strong> When all chunks are scanned (100%), click "Import QR Payload"
+                </Text>
+              </Stack>
+            </Box>
+
+            <Box
+              p="sm"
+              style={{
+                background: 'rgba(26, 140, 255, 0.08)',
+                border: '1px solid rgba(26, 140, 255, 0.2)',
+                borderRadius: '8px',
+              }}
+            >
+              <Text size="xs" c="slate.3" fw={500}>
+                <strong>Tip:</strong> If you scan a wrong chunk or need to restart, click "Scan Again" to reset the capture.
+              </Text>
+            </Box>
+          </Stack>
+        </Modal>
       </Stack>
     </Box>
   )

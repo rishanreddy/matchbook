@@ -13,7 +13,7 @@ export interface AssignmentDocType {
 
 export const assignmentSchema: RxJsonSchema<AssignmentDocType> = {
   title: 'assignments schema',
-  version: 1,
+  version: 0,
   primaryKey: 'id',
   type: 'object',
   properties: {

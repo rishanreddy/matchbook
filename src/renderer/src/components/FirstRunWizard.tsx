@@ -28,7 +28,7 @@ import {
 } from '@tabler/icons-react'
 import { getTbaStatus } from '../lib/api/tba'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
-import { handleError } from '../lib/utils/errorHandler'
+import { getFriendlyErrorMessage, handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
 import { useDeviceStore } from '../stores/useDeviceStore'
 import { useDatabaseStore } from '../stores/useDatabase'
@@ -135,7 +135,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
       setApiTestMessage('Connection succeeded. TBA API key validated successfully.')
     } catch (error: unknown) {
       setApiTestState('error')
-      setApiTestMessage(error instanceof Error ? error.message : 'Failed to validate API key.')
+      setApiTestMessage(getFriendlyErrorMessage(error))
     } finally {
       setIsTestingApiKey(false)
     }
@@ -225,7 +225,13 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
       })
 
       localStorage.setItem('tba_api_key', tbaApiKey.trim())
-      localStorage.setItem('matchbook-first-run-complete', 'true')
+
+      await db.collections.appState.upsert({
+        id: 'global',
+        onboardingCompleted: true,
+        setupCompletedAt: now,
+        updatedAt: now,
+      })
 
       logger.info('First-run onboarding completed', {
         deviceId: resolvedDeviceId,
@@ -435,7 +441,12 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
           {activeStep < 2 ? (
             <Button
               onClick={handleNextStep}
-              disabled={isLoadingDefaults || isSubmitting}
+              disabled={
+                isLoadingDefaults ||
+                isSubmitting ||
+                (activeStep === 0 && !canContinueFromDeviceStep) ||
+                (activeStep === 1 && !canContinueFromApiStep)
+              }
               variant="gradient"
               gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
             >

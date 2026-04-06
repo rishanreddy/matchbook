@@ -41,6 +41,18 @@ const matchApi = new tbaClient.MatchApi()
 const teamApi = new tbaClient.TeamApi()
 const statusApi = new tbaClient.TBAApi()
 
+type IpcTbaResponse = {
+  ok: boolean
+  status: number
+  statusText: string
+  data: unknown
+  retryAfter: string | null
+}
+
+function hasElectronTbaBridge(): boolean {
+  return typeof window !== 'undefined' && typeof window.electronAPI?.tbaRequest === 'function'
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -69,23 +81,67 @@ function formatHttpErrorMessage(operation: string, status: number): string {
   return `TBA request failed for ${operation}: HTTP ${status}`
 }
 
-function shouldRetryStatus(status?: number): boolean {
-  if (status === undefined) {
+function isLikelyInvalidApiKeyFailure(status: number | undefined, message: string): boolean {
+  if (status === 401 || status === 403) {
     return true
   }
 
-  if (status === 429) {
+  const normalized = message.toLowerCase()
+  return (
+    (normalized.includes('invalid') && normalized.includes('api key')) ||
+    normalized.includes('api_key') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('forbidden') ||
+    normalized.includes('authentication')
+  )
+}
+
+function shouldRetryFailure(failure: RequestFailure): boolean {
+  if (isLikelyInvalidApiKeyFailure(failure.status, failure.message)) {
+    return false
+  }
+
+  if (failure.status === undefined) {
     return true
   }
 
-  return status >= 500
+  if (failure.status === 429) {
+    return true
+  }
+
+  return failure.status >= 500
+}
+
+function isBrowserOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+function isBrowserCorsBlockedFailure(message: string): boolean {
+  const normalized = message.toLowerCase()
+  return (
+    normalized.includes('access-control-allow-origin') ||
+    normalized.includes('origin is not allowed') ||
+    normalized.includes('request has been terminated') ||
+    normalized.includes('cors')
+  )
 }
 
 function mapClientFailure(operation: string, error: unknown, response: unknown): RequestFailure {
   const responseRecord = response as { status?: number; headers?: Record<string, string> } | undefined
   const errorRecord = error as { status?: number; message?: string } | undefined
-  const status = responseRecord?.status ?? errorRecord?.status
+  let status = responseRecord?.status ?? errorRecord?.status
   const retryAfter = responseRecord?.headers?.['retry-after']
+
+  const rawMessage =
+    (typeof errorRecord?.message === 'string' && errorRecord.message.trim().length > 0
+      ? errorRecord.message
+      : error instanceof Error
+        ? error.message
+        : '')
+
+  if (status === undefined && isLikelyInvalidApiKeyFailure(undefined, rawMessage)) {
+    status = 401
+  }
 
   if (status !== undefined) {
     return {
@@ -151,7 +207,7 @@ async function requestWithRetry<T>(operation: string, apiKey: string, execute: (
       lastFailure = error as RequestFailure
     }
 
-    const canRetry = attempt < MAX_RETRIES && shouldRetryStatus(lastFailure.status)
+    const canRetry = attempt < MAX_RETRIES && shouldRetryFailure(lastFailure)
     if (!canRetry) {
       logger.error('TBA request failed without retry', {
         operation,
@@ -174,10 +230,10 @@ async function requestWithRetry<T>(operation: string, apiKey: string, execute: (
   }
 
   if (!lastFailure) {
-    throw new AppError(`TBA request failed for ${operation}: Unknown error`, 'NO_INTERNET', { operation })
+    throw new AppError(`TBA request failed for ${operation}: Unknown error`, 'TBA_REQUEST_FAILED', { operation })
   }
 
-  if ([401, 403].includes(lastFailure.status ?? -1)) {
+  if (isLikelyInvalidApiKeyFailure(lastFailure.status, lastFailure.message)) {
     throw new AppError(lastFailure.message, 'INVALID_TBA_API_KEY', {
       operation,
       status: lastFailure.status,
@@ -186,11 +242,128 @@ async function requestWithRetry<T>(operation: string, apiKey: string, execute: (
     })
   }
 
-  throw new AppError(lastFailure.message, 'NO_INTERNET', {
+  if (isBrowserOffline()) {
+    throw new AppError(lastFailure.message, 'NO_INTERNET', {
+      operation,
+      status: lastFailure.status,
+      error: lastFailure.rawError,
+      transport: 'tba-api-v3client',
+    })
+  }
+
+  if (!hasElectronTbaBridge() && isBrowserCorsBlockedFailure(lastFailure.message)) {
+    throw new AppError(
+      'TBA API requests are blocked in browser mode by CORS. Run Matchbook in Electron mode (pnpm dev) and retry.',
+      'TBA_REQUEST_FAILED',
+      {
+        operation,
+        status: lastFailure.status,
+        error: lastFailure.rawError,
+        transport: 'tba-api-v3client',
+      },
+    )
+  }
+
+  throw new AppError(lastFailure.message, 'TBA_REQUEST_FAILED', {
     operation,
     status: lastFailure.status,
     error: lastFailure.rawError,
     transport: 'tba-api-v3client',
+  })
+}
+
+async function requestWithRetryIpc<T>(operation: string, endpoint: string, apiKey: string): Promise<T> {
+  if (!apiKey.trim()) {
+    throw new AppError('TBA request failed: Missing API key', 'INVALID_TBA_API_KEY', { operation })
+  }
+
+  if (!hasElectronTbaBridge()) {
+    throw new AppError('TBA IPC bridge is unavailable in this runtime.', 'TBA_REQUEST_FAILED', {
+      operation,
+      endpoint,
+    })
+  }
+
+  let lastFailure: RequestFailure | null = null
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
+    logger.debug('TBA request started', { operation, endpoint, attempt, transport: 'electron-ipc' })
+    try {
+      const response = (await window.electronAPI.tbaRequest(endpoint, apiKey)) as IpcTbaResponse
+
+      if (response.ok) {
+        logger.info('TBA request successful', { operation, endpoint, attempt, transport: 'electron-ipc' })
+        return response.data as T
+      }
+
+      lastFailure = {
+        status: response.status,
+        retryAfter: response.retryAfter ?? undefined,
+        message: formatHttpErrorMessage(operation, response.status),
+        rawError: response.data,
+      }
+    } catch (error: unknown) {
+      lastFailure = mapClientFailure(operation, error, undefined)
+    }
+
+    const canRetry = attempt < MAX_RETRIES && shouldRetryFailure(lastFailure)
+    if (!canRetry) {
+      logger.error('TBA request failed without retry', {
+        operation,
+        endpoint,
+        transport: 'electron-ipc',
+        status: lastFailure.status,
+        message: lastFailure.message,
+      })
+      break
+    }
+
+    const delayMs = getRetryDelay(attempt, lastFailure.retryAfter)
+    logger.warn('TBA request retry scheduled', {
+      operation,
+      endpoint,
+      attempt,
+      delayMs,
+      transport: 'electron-ipc',
+      status: lastFailure.status,
+    })
+    await sleep(delayMs)
+  }
+
+  if (!lastFailure) {
+    throw new AppError(`TBA request failed for ${operation}: Unknown error`, 'TBA_REQUEST_FAILED', {
+      operation,
+      endpoint,
+      transport: 'electron-ipc',
+    })
+  }
+
+  if (isLikelyInvalidApiKeyFailure(lastFailure.status, lastFailure.message)) {
+    throw new AppError(lastFailure.message, 'INVALID_TBA_API_KEY', {
+      operation,
+      endpoint,
+      status: lastFailure.status,
+      error: lastFailure.rawError,
+      transport: 'electron-ipc',
+    })
+  }
+
+  if (isBrowserOffline()) {
+    throw new AppError(lastFailure.message, 'NO_INTERNET', {
+      operation,
+      endpoint,
+      status: lastFailure.status,
+      error: lastFailure.rawError,
+      transport: 'electron-ipc',
+    })
+  }
+
+  throw new AppError(lastFailure.message, 'TBA_REQUEST_FAILED', {
+    operation,
+    endpoint,
+    status: lastFailure.status,
+    error: lastFailure.rawError,
+    transport: 'electron-ipc',
   })
 }
 
@@ -216,47 +389,55 @@ function normalizeEvent(raw: unknown): TBAEvent {
 }
 
 export async function getEventsByYear(year: number, apiKey: string): Promise<TBAEvent[]> {
-  const events = await requestWithRetry<unknown[]>(
-    `getEventsByYear(${year})`,
-    apiKey,
-    (callback) => eventApi.getEventsByYear(year, {}, callback),
-  )
+  const operation = `getEventsByYear(${year})`
+  const events = hasElectronTbaBridge()
+    ? await requestWithRetryIpc<unknown[]>(operation, `/events/${year}`, apiKey)
+    : await requestWithRetry<unknown[]>(operation, apiKey, (callback) => eventApi.getEventsByYear(year, {}, callback))
+
   return events.map((event) => normalizeEvent(event))
 }
 
 export async function getTbaStatus(apiKey: string): Promise<Record<string, unknown>> {
-  return requestWithRetry<Record<string, unknown>>('getStatus()', apiKey, (callback) => statusApi.getStatus({}, callback))
+  const operation = 'getStatus()'
+  if (hasElectronTbaBridge()) {
+    return requestWithRetryIpc<Record<string, unknown>>(operation, '/status', apiKey)
+  }
+
+  return requestWithRetry<Record<string, unknown>>(operation, apiKey, (callback) => statusApi.getStatus({}, callback))
 }
 
 export async function getEvent(eventKey: string, apiKey: string): Promise<TBAEvent> {
-  const event = await requestWithRetry<unknown>(
-    `getEvent(${eventKey})`,
-    apiKey,
-    (callback) => eventApi.getEvent(eventKey, {}, callback),
-  )
+  const operation = `getEvent(${eventKey})`
+  const event = hasElectronTbaBridge()
+    ? await requestWithRetryIpc<unknown>(operation, `/event/${eventKey}`, apiKey)
+    : await requestWithRetry<unknown>(operation, apiKey, (callback) => eventApi.getEvent(eventKey, {}, callback))
+
   return normalizeEvent(event)
 }
 
 export async function getEventMatches(eventKey: string, apiKey: string): Promise<TBAMatch[]> {
-  return requestWithRetry<TBAMatch[]>(
-    `getEventMatches(${eventKey})`,
-    apiKey,
-    (callback) => matchApi.getEventMatches(eventKey, {}, callback),
-  )
+  const operation = `getEventMatches(${eventKey})`
+  if (hasElectronTbaBridge()) {
+    return requestWithRetryIpc<TBAMatch[]>(operation, `/event/${eventKey}/matches`, apiKey)
+  }
+
+  return requestWithRetry<TBAMatch[]>(operation, apiKey, (callback) => matchApi.getEventMatches(eventKey, {}, callback))
 }
 
 export async function getEventTeams(eventKey: string, apiKey: string): Promise<TBATeam[]> {
-  return requestWithRetry<TBATeam[]>(
-    `getEventTeams(${eventKey})`,
-    apiKey,
-    (callback) => teamApi.getEventTeams(eventKey, {}, callback),
-  )
+  const operation = `getEventTeams(${eventKey})`
+  if (hasElectronTbaBridge()) {
+    return requestWithRetryIpc<TBATeam[]>(operation, `/event/${eventKey}/teams`, apiKey)
+  }
+
+  return requestWithRetry<TBATeam[]>(operation, apiKey, (callback) => teamApi.getEventTeams(eventKey, {}, callback))
 }
 
 export async function getTeam(teamKey: string, apiKey: string): Promise<TBATeam> {
-  return requestWithRetry<TBATeam>(
-    `getTeam(${teamKey})`,
-    apiKey,
-    (callback) => teamApi.getTeam(teamKey, {}, callback),
-  )
+  const operation = `getTeam(${teamKey})`
+  if (hasElectronTbaBridge()) {
+    return requestWithRetryIpc<TBATeam>(operation, `/team/${teamKey}`, apiKey)
+  }
+
+  return requestWithRetry<TBATeam>(operation, apiKey, (callback) => teamApi.getTeam(teamKey, {}, callback))
 }

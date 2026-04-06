@@ -14,7 +14,7 @@ const { autoUpdater } = updater
 const IS_DEV = !app.isPackaged && process.env.ELECTRON_RENDERER_URL?.startsWith('http://localhost') === true
 const FORCE_DEV_UPDATES = process.env.FORCE_DEV_UPDATES === 'true'
 const REPO_URL = 'https://github.com/rishanreddy/matchbook'
-const TBA_BASE_URL = 'https://www.blue-alliance.org/api/v3'
+const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3'
 const TBA_REQUEST_TIMEOUT_MS = 10_000
 
 let mainWindow: BrowserWindow | null = null

@@ -10,8 +10,11 @@ import '@mantine/notifications/styles.css'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { setupGlobalErrorHandlers } from './lib/utils/errorHandler'
+import { applyConfiguredSurveyJsLicenseKey } from './lib/utils/surveyLicense'
 
 setupGlobalErrorHandlers()
+
+applyConfiguredSurveyJsLicenseKey()
 
 const isElectronRuntime = typeof window !== 'undefined' && window.electronAPI
 

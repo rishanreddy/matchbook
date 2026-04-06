@@ -1,3 +1,5 @@
+import type { ScoutingDatabase } from '../db/collections'
+
 export type AnalysisValueKind = 'number' | 'boolean' | 'text'
 
 export type AnalysisChartType = 'bar' | 'line' | 'area'
@@ -23,6 +25,7 @@ export type AnalysisFieldConfig = {
 type PersistedConfigMap = Record<string, Partial<AnalysisFieldConfig>>
 
 const ANALYSIS_CONFIG_STORAGE_KEY = 'analysis_field_configs_v1'
+const ANALYSIS_CONFIG_DOC_ID = 'active'
 
 const SUPPORTED_CHART_TYPES: AnalysisChartType[] = ['bar', 'line', 'area']
 
@@ -116,6 +119,11 @@ export function getAnalysisConfigStorageKey(): string {
   return ANALYSIS_CONFIG_STORAGE_KEY
 }
 
+type AnalysisConfigContext = {
+  formSchemaId: string
+  formSchemaUpdatedAt: string
+}
+
 export function getAllowedAggregations(valueKind: AnalysisValueKind): AnalysisAggregation[] {
   if (valueKind === 'number') {
     return ['average', 'sum', 'min', 'max']
@@ -159,6 +167,20 @@ function normalizeFieldConfig(field: AnalysisFieldDefinition, persisted: Partial
         ? (aggregationCandidate as AnalysisAggregation)
         : getDefaultAggregation(field.valueKind),
   }
+}
+
+function toPersistedConfigMap(configs: AnalysisFieldConfig[]): PersistedConfigMap {
+  const payload: PersistedConfigMap = {}
+  configs.forEach((config) => {
+    payload[config.fieldName] = {
+      enabled: config.enabled,
+      chartType: config.chartType,
+      aggregation: config.aggregation,
+      fieldLabel: config.fieldLabel,
+      valueKind: config.valueKind,
+    }
+  })
+  return payload
 }
 
 function readPersistedConfigMap(): PersistedConfigMap {
@@ -206,5 +228,91 @@ export function saveAnalysisFieldConfigs(configs: AnalysisFieldConfig[]): void {
     window.dispatchEvent(new CustomEvent('analysis:config-updated'))
   } catch {
     // ignore persistence failures
+  }
+}
+
+function defaultConfigs(fields: AnalysisFieldDefinition[]): AnalysisFieldConfig[] {
+  return fields.map((field) => normalizeFieldConfig(field, undefined))
+}
+
+function normalizePersistedConfigMap(value: unknown): PersistedConfigMap {
+  const record = asRecord(value)
+  if (!record) {
+    return {}
+  }
+
+  return Object.entries(record).reduce<PersistedConfigMap>((acc, [key, entry]) => {
+    const entryRecord = asRecord(entry)
+    if (!entryRecord) {
+      return acc
+    }
+
+    const enabled = typeof entryRecord.enabled === 'boolean' ? entryRecord.enabled : undefined
+    const chartType =
+      typeof entryRecord.chartType === 'string' && SUPPORTED_CHART_TYPES.includes(entryRecord.chartType as AnalysisChartType)
+        ? (entryRecord.chartType as AnalysisChartType)
+        : undefined
+    const aggregation = typeof entryRecord.aggregation === 'string' ? (entryRecord.aggregation as AnalysisAggregation) : undefined
+    const fieldLabel = typeof entryRecord.fieldLabel === 'string' ? entryRecord.fieldLabel : undefined
+    const valueKind =
+      entryRecord.valueKind === 'number' || entryRecord.valueKind === 'boolean' || entryRecord.valueKind === 'text'
+        ? entryRecord.valueKind
+        : undefined
+
+    acc[key] = {
+      enabled,
+      chartType,
+      aggregation,
+      fieldLabel,
+      valueKind,
+    }
+
+    return acc
+  }, {})
+}
+
+export async function loadAnalysisFieldConfigsFromDatabase(
+  db: ScoutingDatabase,
+  context: AnalysisConfigContext,
+  fields: AnalysisFieldDefinition[],
+): Promise<AnalysisFieldConfig[]> {
+  if (fields.length === 0) {
+    return []
+  }
+
+  const existing = await db.collections.analysisConfigs.findOne(ANALYSIS_CONFIG_DOC_ID).exec()
+  if (!existing) {
+    const migratedLocalConfigs = loadAnalysisFieldConfigs(fields)
+    if (migratedLocalConfigs.some((config) => config.enabled)) {
+      await saveAnalysisFieldConfigsToDatabase(db, context, migratedLocalConfigs)
+    }
+    return migratedLocalConfigs
+  }
+
+  const doc = existing.toJSON()
+  if (doc.formSchemaId !== context.formSchemaId || doc.formSchemaUpdatedAt !== context.formSchemaUpdatedAt) {
+    return defaultConfigs(fields)
+  }
+
+  const persistedMap = normalizePersistedConfigMap(doc.configs)
+  return fields.map((field) => normalizeFieldConfig(field, persistedMap[field.name]))
+}
+
+export async function saveAnalysisFieldConfigsToDatabase(
+  db: ScoutingDatabase,
+  context: AnalysisConfigContext,
+  configs: AnalysisFieldConfig[],
+): Promise<void> {
+  const now = new Date().toISOString()
+  await db.collections.analysisConfigs.upsert({
+    id: ANALYSIS_CONFIG_DOC_ID,
+    formSchemaId: context.formSchemaId,
+    formSchemaUpdatedAt: context.formSchemaUpdatedAt,
+    configs: toPersistedConfigMap(configs),
+    updatedAt: now,
+  })
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('analysis:config-updated'))
   }
 }

@@ -57,7 +57,7 @@ export function DatabaseInitScreen({
                   <Text size="sm" c="slate.3">
                     {hasError
                       ? 'We could not finish startup using the current local cache.'
-                      : 'Preparing offline database storage, indexes, and migration state.'}
+                      : 'Preparing offline database storage, indexes, and local cache state.'}
                   </Text>
                 </Box>
               </Group>

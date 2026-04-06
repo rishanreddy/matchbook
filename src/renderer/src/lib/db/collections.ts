@@ -1,4 +1,6 @@
 import type { RxCollection, RxDatabase, RxDocument } from 'rxdb'
+import { analysisConfigsSchema, type AnalysisConfigsDocType } from './schemas/analysisConfigs.schema'
+import { appStateSchema, type AppStateDocType } from './schemas/appState.schema'
 import { assignmentSchema, type AssignmentDocType } from './schemas/assignments.schema'
 import { deviceSchema, type DeviceDocType } from './schemas/devices.schema'
 import { eventSchema, type EventDocType } from './schemas/events.schema'
@@ -6,17 +8,10 @@ import { formSchemaSchema, type FormSchemaDocType } from './schemas/formSchemas.
 import { matchSchema, type MatchDocType } from './schemas/matches.schema'
 import { scoutingDataSchema, type ScoutingDataDocType } from './schemas/scoutingData.schema'
 import { scoutSchema, type ScoutDocType } from './schemas/scouts.schema'
-import {
-  assignmentMigrations,
-  deviceMigrations,
-  eventMigrations,
-  formSchemaMigrations,
-  matchMigrations,
-  scoutMigrations,
-  scoutingDataMigrations,
-} from './utils/migrations'
 
 export type EventDocument = RxDocument<EventDocType>
+export type AnalysisConfigsDocument = RxDocument<AnalysisConfigsDocType>
+export type AppStateDocument = RxDocument<AppStateDocType>
 export type DeviceDocument = RxDocument<DeviceDocType>
 export type ScoutDocument = RxDocument<ScoutDocType>
 export type MatchDocument = RxDocument<MatchDocType>
@@ -25,6 +20,8 @@ export type FormSchemaDocument = RxDocument<FormSchemaDocType>
 export type ScoutingDataDocument = RxDocument<ScoutingDataDocType>
 
 export type ScoutingCollections = {
+  analysisConfigs: RxCollection<AnalysisConfigsDocType>
+  appState: RxCollection<AppStateDocType>
   events: RxCollection<EventDocType>
   devices: RxCollection<DeviceDocType>
   scouts: RxCollection<ScoutDocType>
@@ -37,11 +34,13 @@ export type ScoutingCollections = {
 export type ScoutingDatabase = RxDatabase<ScoutingCollections>
 
 export const collectionSchemas = {
-  events: { schema: eventSchema, migrationStrategies: eventMigrations },
-  devices: { schema: deviceSchema, migrationStrategies: deviceMigrations },
-  scouts: { schema: scoutSchema, migrationStrategies: scoutMigrations },
-  matches: { schema: matchSchema, migrationStrategies: matchMigrations },
-  assignments: { schema: assignmentSchema, migrationStrategies: assignmentMigrations },
-  formSchemas: { schema: formSchemaSchema, migrationStrategies: formSchemaMigrations },
-  scoutingData: { schema: scoutingDataSchema, migrationStrategies: scoutingDataMigrations },
+  analysisConfigs: { schema: analysisConfigsSchema },
+  appState: { schema: appStateSchema },
+  events: { schema: eventSchema },
+  devices: { schema: deviceSchema },
+  scouts: { schema: scoutSchema },
+  matches: { schema: matchSchema },
+  assignments: { schema: assignmentSchema },
+  formSchemas: { schema: formSchemaSchema },
+  scoutingData: { schema: scoutingDataSchema },
 }

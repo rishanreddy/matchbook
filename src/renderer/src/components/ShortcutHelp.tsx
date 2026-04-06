@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { Badge, Group, Modal, Stack, Text, Title } from '@mantine/core'
+import { Group, Kbd, Modal, Stack, Text, Title } from '@mantine/core'
 
 export type ShortcutHelpGroup = {
   category: string
@@ -22,9 +22,9 @@ export function ShortcutHelp({ opened, onClose, groups }: ShortcutHelpProps): Re
             {group.shortcuts.map((shortcut) => (
               <Group key={`${group.category}-${shortcut.keys}`} justify="space-between" wrap="nowrap">
                 <Text size="sm">{shortcut.description}</Text>
-                <Badge variant="light" aria-label={`Shortcut ${shortcut.keys}`}>
+                <Kbd aria-label={`Shortcut ${shortcut.keys}`}>
                   {shortcut.keys}
-                </Badge>
+                </Kbd>
               </Group>
             ))}
           </Stack>

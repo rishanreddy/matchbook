@@ -14,6 +14,7 @@ import {
   Stack,
   TextInput,
   Text,
+  ThemeIcon,
   Title,
   Tooltip,
 } from '@mantine/core'
@@ -253,8 +254,10 @@ export function EventManagement(): ReactElement {
   }
 
   return (
-    <Stack>
-      <Title order={2}>Event Management</Title>
+    <Stack gap="xl">
+      <Title order={2} c="slate.0" style={{ letterSpacing: '-0.02em' }}>
+        Event Management
+      </Title>
 
       {isApiKeyMissing && (
         <Alert icon={<IconInfoCircle size={16} />} color="yellow" title="Missing TBA API key" variant="light">
@@ -263,24 +266,35 @@ export function EventManagement(): ReactElement {
       )}
 
       <Card
-        withBorder
-        radius="lg"
         p="xl"
+        radius="lg"
         style={{
-          backgroundColor: 'var(--surface-raised)',
-          borderColor: 'var(--border-default)',
-          boxShadow: '0 20px 45px rgba(2, 6, 23, 0.35)',
+          background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.8) 0%, rgba(15, 21, 32, 0.9) 100%)',
+          border: '1px solid rgba(148, 163, 184, 0.14)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
+        className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)]"
       >
-        <Stack gap="md">
-          <Box>
-            <Text fw={600} c="slate.1">
+        <Stack gap="lg">
+          <Group gap="xs" align="center">
+            <Box
+              style={{
+                width: '4px',
+                height: '18px',
+                background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                borderRadius: '2px',
+                boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+              }}
+            />
+            <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>
               Import Events from TBA
             </Text>
-            <Text size="sm" c="slate.4">
-              Fetch events by season, then import only the event(s) you need.
-            </Text>
-          </Box>
+          </Group>
+          
+          <Text size="sm" c="slate.4" style={{ marginTop: '-0.5rem' }}>
+            Fetch events by season, then import only the event(s) you need.
+          </Text>
 
           <Box
             style={{
@@ -306,7 +320,14 @@ export function EventManagement(): ReactElement {
                   variant="gradient"
                   gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                   size="md"
-                  style={{ width: '100%', maxWidth: 260 }}
+                  fw={700}
+                  style={{
+                    width: '100%',
+                    maxWidth: 260,
+                    letterSpacing: '0.01em',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                  className="active:scale-[0.97]"
                 >
                   Fetch Events
                 </Button>
@@ -316,7 +337,7 @@ export function EventManagement(): ReactElement {
         </Stack>
       </Card>
 
-      <Group align="flex-end" wrap="wrap" grow>
+      <Group align="flex-end" wrap="wrap" grow style={{ gap: '1rem' }}>
         <TextInput
           label="Search events"
           placeholder="Search events by name, key, or location..."
@@ -329,6 +350,8 @@ export function EventManagement(): ReactElement {
               color="gray"
               aria-label="Clear search"
               onClick={() => setSearchQuery('')}
+              style={{ transition: 'all 0.2s ease' }}
+              className="hover:bg-slate-700"
             >
               <IconX size={16} />
             </ActionIcon>
@@ -343,7 +366,7 @@ export function EventManagement(): ReactElement {
       </Group>
 
       {hasActiveFilters && (
-        <Text size="sm" c="dimmed">
+        <Text size="sm" c="slate.4" fw={500}>
           Showing {filteredEvents.length} of {events.length} events
         </Text>
       )}
@@ -352,17 +375,67 @@ export function EventManagement(): ReactElement {
         <Grid>
           {['a', 'b', 'c', 'd'].map((placeholder) => (
             <Grid.Col key={placeholder} span={{ base: 12, md: 6 }}>
-              <Card withBorder radius="md" p="lg"><Skeleton height={120} /></Card>
+              <Card
+                withBorder
+                radius="md"
+                p="lg"
+                style={{
+                  background: 'rgba(21, 28, 40, 0.4)',
+                  borderColor: 'rgba(148, 163, 184, 0.1)',
+                }}
+              >
+                <Skeleton height={120} radius="md" />
+              </Card>
             </Grid.Col>
           ))}
         </Grid>
       ) : events.length === 0 ? (
-        <Card withBorder radius="md" p="lg">
-          <Text c="dimmed">No events fetched yet. Select a year and click &quot;Fetch Events&quot;.</Text>
+        <Card
+          p="xl"
+          radius="lg"
+          style={{
+            background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.6) 0%, rgba(15, 21, 32, 0.7) 100%)',
+            border: '1px solid rgba(148, 163, 184, 0.1)',
+            textAlign: 'center',
+          }}
+        >
+          <Stack gap="md" align="center">
+            <ThemeIcon size={64} radius="xl" variant="light" color="slate">
+              <IconCalendarEvent size={32} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={600} size="lg" c="slate.1" mb="xs">
+                No Events Fetched
+              </Text>
+              <Text size="sm" c="slate.4">
+                Select a year and click "Fetch Events" to load events from The Blue Alliance.
+              </Text>
+            </Box>
+          </Stack>
         </Card>
       ) : filteredEvents.length === 0 ? (
-        <Card withBorder radius="md" p="lg">
-          <Text c="dimmed">No events match the current filters.</Text>
+        <Card
+          p="xl"
+          radius="lg"
+          style={{
+            background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.6) 0%, rgba(15, 21, 32, 0.7) 100%)',
+            border: '1px solid rgba(148, 163, 184, 0.1)',
+            textAlign: 'center',
+          }}
+        >
+          <Stack gap="md" align="center">
+            <ThemeIcon size={64} radius="xl" variant="light" color="slate">
+              <IconSearch size={32} />
+            </ThemeIcon>
+            <Box>
+              <Text fw={600} size="lg" c="slate.1" mb="xs">
+                No Matching Events
+              </Text>
+              <Text size="sm" c="slate.4">
+                Try adjusting your search or filter to find events.
+              </Text>
+            </Box>
+          </Stack>
         </Card>
       ) : (
         <Grid>
@@ -374,28 +447,22 @@ export function EventManagement(): ReactElement {
             return (
               <Grid.Col key={event.key} span={{ base: 12, md: 6 }}>
                 <Card
-                  withBorder
-                  radius="md"
                   p="lg"
+                  radius="md"
                   h="100%"
                   style={{
-                    position: 'relative',
-                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    background: 'linear-gradient(145deg, rgba(21, 28, 40, 0.7) 0%, rgba(15, 21, 32, 0.85) 100%)',
+                    border: '1px solid rgba(148, 163, 184, 0.12)',
+                    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.25)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
-                  styles={{
-                    root: {
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                      },
-                    },
-                  }}
+                  className="hover:border-[rgba(26,140,255,0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.35)] hover:-translate-y-1"
                 >
                   <Stack gap="md">
                     {/* Header with title and TBA link */}
                     <Group justify="space-between" align="flex-start" wrap="nowrap">
                       <Box style={{ flex: 1, minWidth: 0 }}>
-                        <Text fw={600} size="lg" lineClamp={2}>
+                        <Text fw={700} size="lg" lineClamp={2} c="slate.0" style={{ letterSpacing: '-0.01em' }}>
                           {event.short_name ?? event.name}
                         </Text>
                       </Box>
@@ -406,6 +473,10 @@ export function EventManagement(): ReactElement {
                           size="lg"
                           onClick={() => handleOpenTBA(event.key)}
                           aria-label={`Open ${event.key} on TBA`}
+                          style={{
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                          }}
+                          className="hover:bg-[rgba(26,140,255,0.15)] active:scale-95"
                         >
                           <IconExternalLink size={20} />
                         </ActionIcon>
@@ -415,7 +486,15 @@ export function EventManagement(): ReactElement {
                     {/* Badges row */}
                     <Group gap="xs" wrap="wrap">
                       {isImported && (
-                        <Badge color="green" variant="light" leftSection={<Text size="xs">✓</Text>}>
+                        <Badge
+                          color="green"
+                          variant="light"
+                          leftSection={<Text size="xs">✓</Text>}
+                          style={{
+                            fontWeight: 600,
+                            boxShadow: '0 2px 6px rgba(16, 185, 129, 0.2)',
+                          }}
+                        >
                           Imported
                         </Badge>
                       )}
@@ -423,16 +502,17 @@ export function EventManagement(): ReactElement {
                         color="blue"
                         variant="light"
                         leftSection={getEventTypeIcon(event.event_type_string)}
+                        style={{ fontWeight: 600 }}
                       >
                         {event.event_type_string}
                       </Badge>
                       {event.week !== undefined && (
-                        <Badge color="cyan" variant="light">
+                        <Badge color="cyan" variant="light" style={{ fontWeight: 600 }}>
                           Week {event.week}
                         </Badge>
                       )}
                       {event.district && (
-                        <Badge color="grape" variant="light">
+                        <Badge color="grape" variant="light" style={{ fontWeight: 600 }}>
                           {event.district.abbreviation}
                         </Badge>
                       )}
@@ -441,15 +521,15 @@ export function EventManagement(): ReactElement {
                     {/* Event details */}
                     <Stack gap="xs">
                       <Group gap="xs" wrap="nowrap">
-                        <Text size="sm" c="dimmed" style={{ fontFamily: 'monospace' }}>
+                        <Text size="sm" c="slate.4" className="mono-number">
                           {event.key}
                         </Text>
                       </Group>
-                      <Text size="sm" fw={500}>
+                      <Text size="sm" fw={600} c="slate.1">
                         {formatDateRange(event.start_date, event.end_date)}
                       </Text>
                       {location && (
-                        <Text size="sm" c="dimmed" lineClamp={1}>
+                        <Text size="sm" c="slate.4" lineClamp={1}>
                           {location}
                         </Text>
                       )}
@@ -460,8 +540,16 @@ export function EventManagement(): ReactElement {
                       mt="xs"
                       onClick={() => void handleImportEvent(event)}
                       loading={isImporting}
-                      variant={isImported ? 'light' : 'filled'}
+                      variant={isImported ? 'light' : 'gradient'}
+                      gradient={isImported ? undefined : { from: 'frc-blue.5', to: 'frc-blue.7' }}
+                      color={isImported ? 'frc-blue' : undefined}
                       fullWidth
+                      fw={700}
+                      style={{
+                        letterSpacing: '0.01em',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                      }}
+                      className="active:scale-[0.97]"
                     >
                       {isImported ? 'Re-sync Event' : 'Import Event'}
                     </Button>

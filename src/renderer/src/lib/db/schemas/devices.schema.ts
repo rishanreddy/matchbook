@@ -10,7 +10,7 @@ export interface DeviceDocType {
 
 export const deviceSchema: RxJsonSchema<DeviceDocType> = {
   title: 'devices schema',
-  version: 1,
+  version: 0,
   primaryKey: 'id',
   type: 'object',
   properties: {

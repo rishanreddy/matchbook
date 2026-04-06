@@ -13,7 +13,7 @@ export interface MatchDocType {
 
 export const matchSchema: RxJsonSchema<MatchDocType> = {
   title: 'matches schema',
-  version: 1,
+  version: 0,
   primaryKey: 'key',
   type: 'object',
   properties: {

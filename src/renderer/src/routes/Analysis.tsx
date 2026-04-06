@@ -53,7 +53,7 @@ import {
   type AnalysisChartType,
   type AnalysisFieldConfig,
   extractSurveyAnalysisFields,
-  loadAnalysisFieldConfigs,
+  loadAnalysisFieldConfigsFromDatabase,
 } from '../lib/utils/analysisConfig'
 import { handleError } from '../lib/utils/errorHandler'
 import { useDatabaseStore } from '../stores/useDatabase'
@@ -494,7 +494,7 @@ export function Analysis(): ReactElement {
   const [scoutNameByDeviceId, setScoutNameByDeviceId] = useState<Map<string, string>>(new Map())
   const [sortBy, setSortBy] = useState<SortKey>('total')
   const [search, setSearch] = useState('')
-  const [analysisConfigRevision, setAnalysisConfigRevision] = useState(0)
+  const [analysisFieldConfigs, setAnalysisFieldConfigs] = useState<AnalysisFieldConfig[]>([])
   const [debouncedSearch] = useDebouncedValue(search, 200)
   const [expandedTeams, setExpandedTeams] = useState<Set<number>>(new Set())
   const [tableSortBy, setTableSortBy] = useState<'team' | 'match' | 'auto' | 'teleop' | 'endgame' | 'total' | 'timestamp'>('timestamp')
@@ -626,20 +626,6 @@ export function Analysis(): ReactElement {
       cancelled = true
     }
   }, [db])
-
-  useEffect(() => {
-    const refreshConfigs = (): void => {
-      setAnalysisConfigRevision((value) => value + 1)
-    }
-
-    window.addEventListener('analysis:config-updated', refreshConfigs)
-    window.addEventListener('focus', refreshConfigs)
-
-    return () => {
-      window.removeEventListener('analysis:config-updated', refreshConfigs)
-      window.removeEventListener('focus', refreshConfigs)
-    }
-  }, [])
 
   const teamStats = useMemo(() => calculateTeamStats(observations), [observations])
 
@@ -813,14 +799,56 @@ export function Analysis(): ReactElement {
     return extractSurveyAnalysisFields(activeFormSchema.surveyJson)
   }, [activeFormSchema, db])
 
-  const analysisFieldConfigs = useMemo(() => {
-    void analysisConfigRevision
-    return loadAnalysisFieldConfigs(analysisFields)
-  }, [analysisConfigRevision, analysisFields])
+  const analysisConfigContext = useMemo(() => {
+    if (!activeFormSchema) {
+      return null
+    }
+
+    return {
+      formSchemaId: activeFormSchema.id,
+      formSchemaUpdatedAt: activeFormSchema.updatedAt,
+    }
+  }, [activeFormSchema])
+
+  useEffect(() => {
+    if (!db || !analysisConfigContext) {
+      return
+    }
+
+    let cancelled = false
+
+    const loadConfigs = async (): Promise<void> => {
+      try {
+        const configs = await loadAnalysisFieldConfigsFromDatabase(db, analysisConfigContext, analysisFields)
+        if (!cancelled) {
+          setAnalysisFieldConfigs(configs)
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          handleError(error, 'Load analysis field configuration for analysis page')
+          setAnalysisFieldConfigs([])
+        }
+      }
+    }
+
+    void loadConfigs()
+    const subscription = db.collections.analysisConfigs.findOne('active').$.subscribe(() => {
+      void loadConfigs()
+    })
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
+  }, [analysisConfigContext, analysisFields, db])
 
   const customFieldMetrics = useMemo(() => {
+    if (!analysisConfigContext) {
+      return []
+    }
+
     return calculateCustomFieldMetrics(observations, analysisFieldConfigs)
-  }, [analysisFieldConfigs, observations])
+  }, [analysisConfigContext, analysisFieldConfigs, observations])
 
   const maxValues = useMemo(() => {
     const teams = Array.from(teamStats.values())
