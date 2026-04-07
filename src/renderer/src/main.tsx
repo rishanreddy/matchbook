@@ -1,24 +1,25 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { MantineProvider } from '@mantine/core'
-import { Notifications } from '@mantine/notifications'
-import { BrowserRouter, HashRouter } from 'react-router-dom'
-import { appTheme } from './theme'
-import './index.css'
-import '@mantine/core/styles.css'
-import '@mantine/notifications/styles.css'
-import App from './App.tsx'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { setupGlobalErrorHandlers } from './lib/utils/errorHandler'
-import { applyConfiguredSurveyJsLicenseKey } from './lib/utils/surveyLicense'
+import "./lib/styles/hide-banner.css";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { MantineProvider } from "@mantine/core";
+import { Notifications } from "@mantine/notifications";
+import { BrowserRouter, HashRouter } from "react-router-dom";
+import { appTheme } from "./theme";
+import "./index.css";
+import "@mantine/core/styles.css";
+import "@mantine/notifications/styles.css";
+import App from "./App.tsx";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { setupGlobalErrorHandlers } from "./lib/utils/errorHandler";
+import { applyConfiguredSurveyJsLicenseKey } from "./lib/utils/surveyLicense";
 
-setupGlobalErrorHandlers()
+setupGlobalErrorHandlers();
 
-applyConfiguredSurveyJsLicenseKey()
+applyConfiguredSurveyJsLicenseKey();
 
-const isElectronRuntime = typeof window !== 'undefined' && window.electronAPI
+const isElectronRuntime = typeof window !== "undefined" && window.electronAPI;
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={appTheme} defaultColorScheme="dark">
       <Notifications aria-live="polite" />
@@ -37,4 +38,4 @@ createRoot(document.getElementById('root')!).render(
       )}
     </MantineProvider>
   </StrictMode>,
-)
+);
