@@ -2,7 +2,6 @@ import type { ReactElement } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
-  Alert,
   Anchor,
   Badge,
   Box,
@@ -28,9 +27,9 @@ import {
   IconTarget,
   IconRefresh,
   IconForms,
-  IconInfoCircle,
 } from '@tabler/icons-react'
 import { Link } from 'react-router-dom'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import { brand } from '../config/brand'
 import { appShortcuts, getShortcutHotkey, loadShortcutBindings, type ShortcutBindings } from '../config/shortcuts'
 
@@ -78,16 +77,34 @@ export function Help(): ReactElement {
       <Stack gap={32}>
         {/* Header */}
         <Box className="animate-fadeInUp">
-          <Group gap="md">
-            <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
-              <IconHelp size={26} stroke={1.5} />
-            </ThemeIcon>
-            <Box>
-              <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
-                Help & Support
-              </Title>
-              <Text size="sm" c="slate.4">Guides, shortcuts, and troubleshooting</Text>
-            </Box>
+          <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
+            <Group gap="md">
+              <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+                <IconHelp size={26} stroke={1.5} />
+              </ThemeIcon>
+              <Box>
+                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                  Help & Support
+                </Title>
+                <Text size="sm" c="slate.4">Guides, shortcuts, and troubleshooting</Text>
+              </Box>
+            </Group>
+
+            <RouteHelpModal
+              title="Help Center"
+              description="Use this page for quick onboarding, shortcuts, and troubleshooting references."
+              steps={[
+                { title: 'Start with Quick Start', description: 'Follow role setup and sync flow before event kickoff.' },
+                { title: 'Learn Shortcuts', description: 'Use keyboard commands to move faster between pages.' },
+                { title: 'Report Issues', description: 'Send reproducible bug details with steps and screenshots.' },
+              ]}
+              tips={[
+                { text: 'Hub laptops should manage forms, events, and analytics.' },
+                { text: 'Scout laptops should focus on rapid match entry and sync.' },
+              ]}
+              tooltipLabel="How to use this page"
+              color="frc-blue"
+            />
           </Group>
         </Box>
 
@@ -288,15 +305,21 @@ export function Help(): ReactElement {
               Open project repository
             </Anchor>
 
-            <Alert 
-              icon={<IconInfoCircle size={16} />} 
-              color="frc-blue" 
-              variant="light" 
-              title="Video tutorials coming soon"
-              radius="md"
-            >
-              Official training videos will be added before production release.
-            </Alert>
+            <Paper p="md" radius="md" style={{ backgroundColor: 'rgba(26, 140, 255, 0.08)', border: '1px solid rgba(26, 140, 255, 0.2)' }}>
+              <Group gap="sm" wrap="nowrap" align="flex-start">
+                <ThemeIcon size={28} radius="md" variant="light" color="frc-blue">
+                  <IconBook size={14} />
+                </ThemeIcon>
+                <Stack gap={2}>
+                  <Text size="sm" fw={600} c="slate.1">
+                    Video tutorials coming soon
+                  </Text>
+                  <Text size="xs" c="slate.4">
+                    Official training videos will be added before production release.
+                  </Text>
+                </Stack>
+              </Group>
+            </Paper>
           </Stack>
         </Card>
 

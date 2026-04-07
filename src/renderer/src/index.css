@@ -241,6 +241,10 @@
     overscroll-behavior: contain;
   }
 
+  .app-shell-root .mantine-AppShell-main.app-main-content--no-scroll {
+    overflow: hidden;
+  }
+
   .app-nav-scroll {
     overflow-y: hidden;
   }
@@ -253,6 +257,11 @@
 
   .app-page-container {
     animation: pageEnter 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  }
+
+  .app-page-container--full {
+    height: 100%;
+    overflow: hidden;
   }
 
   .db-init-root {

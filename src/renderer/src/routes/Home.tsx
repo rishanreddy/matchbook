@@ -26,6 +26,7 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { useEventStore } from '../stores/useEventStore'
 import type { ScoutingDataDocument } from '../lib/db/collections'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import { handleError } from '../lib/utils/errorHandler'
 import { brand } from '../config/brand'
 
@@ -82,14 +83,32 @@ export function Home(): ReactElement {
         <Stack gap={40}>
           {/* Header with integrated event selector */}
           <Stack gap={24} className="animate-fadeInUp">
-            <Box>
-              <Title order={1} c="slate.0" className="text-[32px] font-bold">
-                {brand.name} Hub
-              </Title>
-              <Text size="md" c="slate.4" mt="xs">
-                Capture the floor truth and turn it into confident picklist decisions
-              </Text>
-            </Box>
+            <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+              <Box>
+                <Title order={1} c="slate.0" className="text-[32px] font-bold">
+                  {brand.name} Hub
+                </Title>
+                <Text size="md" c="slate.4" mt="xs">
+                  Capture the floor truth and turn it into confident picklist decisions
+                </Text>
+              </Box>
+
+              <RouteHelpModal
+                title="Hub Home"
+                description="This dashboard is your command center for sync, forms, and analysis."
+                steps={[
+                  { title: 'Select Event', description: 'Set the active event for schedules and assignments.' },
+                  { title: 'Monitor Progress', description: 'Track observations and unique teams scouted.' },
+                  { title: 'Run Actions', description: 'Open Sync, Analysis, or Form Builder from quick actions.' },
+                ]}
+                tips={[
+                  { text: 'Sync frequently between matches to keep analysis up to date.' },
+                  { text: 'Keep active event accurate each day of competition.' },
+                ]}
+                tooltipLabel="Hub dashboard help"
+                color="frc-blue"
+              />
+            </Group>
 
             {/* Integrated event selector bar */}
             <Box
@@ -249,23 +268,41 @@ export function Home(): ReactElement {
       <Stack gap={48} align="center" justify="center" className="min-h-[60vh]">
         {/* Hero section with integrated event selector */}
         <Stack gap={32} align="center" className="animate-fadeInUp">
-          <Box ta="center">
-            <ThemeIcon 
-              size={96} 
-              radius="xl" 
-              variant="gradient" 
-              gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
-              mb="xl"
-            >
-              <IconClipboardCheck size={48} />
-            </ThemeIcon>
-            <Title order={1} c="slate.0" className="text-4xl font-bold">
-              {brand.name} Scout Mode
-            </Title>
-            <Text size="lg" c="slate.4" mt="md" maw={480} mx="auto">
-              Watch a match, record what you see, then send your data to the lead scout
-            </Text>
-          </Box>
+          <Group justify="space-between" align="flex-start" w="100%" maw={640}>
+            <Box ta="center" style={{ flex: 1 }}>
+              <ThemeIcon 
+                size={96} 
+                radius="xl" 
+                variant="gradient" 
+                gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                mb="xl"
+              >
+                <IconClipboardCheck size={48} />
+              </ThemeIcon>
+              <Title order={1} c="slate.0" className="text-4xl font-bold">
+                {brand.name} Scout Mode
+              </Title>
+              <Text size="lg" c="slate.4" mt="md" maw={480} mx="auto">
+                Watch a match, record what you see, then send your data to the lead scout
+              </Text>
+            </Box>
+
+            <RouteHelpModal
+              title="Scout Home"
+              description="This view is optimized for fast match capture workflows."
+              steps={[
+                { title: 'Confirm Event', description: 'Choose active event for schedule-aware scouting.' },
+                { title: 'Open Scout Form', description: 'Tap Scout a Match and record one robot at a time.' },
+                { title: 'Send Data', description: 'Sync observations back to the Hub regularly.' },
+              ]}
+              tips={[
+                { text: 'If schedule data is missing, manual team and match entry still works.' },
+                { text: 'Sync between matches to reduce end-of-day backlog.' },
+              ]}
+              tooltipLabel="Scout mode help"
+              color="frc-blue"
+            />
+          </Group>
 
           {/* Integrated inline event selector */}
           <Box

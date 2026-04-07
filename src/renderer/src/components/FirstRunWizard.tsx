@@ -30,6 +30,7 @@ import { getTbaStatus } from '../lib/api/tba'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
 import { getFriendlyErrorMessage, handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
+import { RouteHelpModal } from './RouteHelpModal'
 import { useDeviceStore } from '../stores/useDeviceStore'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { brand } from '../config/brand'
@@ -283,6 +284,24 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
           <Text c="slate.3" size="md">
             Complete setup before using the app at an event.
           </Text>
+          <Group justify="center" mt="sm">
+            <RouteHelpModal
+              title="First-Run Setup"
+              description="Complete onboarding once per device before event use."
+              steps={[
+                { title: 'Register Device', description: 'Set a device name and choose Hub or Scout role.' },
+                { title: 'Validate Hub API', description: 'Hub devices must verify TBA API connectivity.' },
+                { title: 'Finish Setup', description: 'Save onboarding state and proceed to the app.' },
+              ]}
+              tips={[
+                { text: 'Hub role should be used only on the lead scout laptop.' },
+                { text: 'Scout name is optional but improves assignment visibility.' },
+              ]}
+              tooltipLabel="Onboarding help"
+              color="frc-blue"
+              iconSize={16}
+            />
+          </Group>
         </Box>
 
         <Group justify="space-between">

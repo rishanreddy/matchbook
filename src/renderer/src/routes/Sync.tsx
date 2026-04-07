@@ -2431,11 +2431,32 @@ export function Sync(): ReactElement {
                       </Button>
                     </>
                   ) : (
-                    <Alert color="slate" variant="light" radius="md">
-                      <Text size="sm" c="slate.3">
-                        Start scanner and scan chunk <strong>1</strong> to begin import.
-                      </Text>
-                    </Alert>
+                    <Paper
+                      p="md"
+                      radius="lg"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.09), rgba(26, 140, 255, 0.04))',
+                        border: '1px solid rgba(26, 140, 255, 0.24)',
+                        boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
+                      }}
+                    >
+                      <Group align="flex-start" gap="sm" wrap="nowrap">
+                        <ThemeIcon size={30} radius="md" variant="light" color="frc-blue">
+                          <IconCamera size={16} />
+                        </ThemeIcon>
+                        <Box style={{ flex: 1, minWidth: 0 }}>
+                          <Text size="sm" fw={600} c="slate.1">
+                            Ready to scan
+                          </Text>
+                          <Text size="xs" c="slate.4" mt={2}>
+                            Start scanner, then scan chunk <strong>1</strong> to begin import.
+                          </Text>
+                        </Box>
+                        <Badge size="sm" radius="sm" variant="light" color="frc-blue" className="mono-number">
+                          Chunk 1 first
+                        </Badge>
+                      </Group>
+                    </Paper>
                   )}
                 </Stack>
               </Card>
@@ -2617,9 +2638,10 @@ export function Sync(): ReactElement {
                             label={snapshotCollectionLabels[collection]}
                             checked={snapshotCollections[collection]}
                             onChange={(event) => {
+                              const checked = event.currentTarget.checked
                               setSnapshotCollections((previous) => ({
                                 ...previous,
-                                [collection]: event.currentTarget.checked,
+                                [collection]: checked,
                               }))
                             }}
                             styles={{

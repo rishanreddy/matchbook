@@ -26,6 +26,7 @@ import { notifications } from '@mantine/notifications'
 import { formatForDisplay, normalizeHotkey, useHotkeyRecorder } from '@tanstack/react-hotkeys'
 import {
   IconSettings,
+  IconCalendarEvent,
   IconKey,
   IconKeyboard,
   IconCode,
@@ -48,6 +49,7 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { getTbaStatus } from '../lib/api/tba'
 import { handleError } from '../lib/utils/errorHandler'
 import type { UpdaterActionResult } from '../types/electron'
+import type { EventDocType } from '../lib/db/schemas/events.schema'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import {
   appShortcuts,
@@ -68,6 +70,8 @@ import {
   loadAnalysisFieldConfigsFromDatabase,
   saveAnalysisFieldConfigsToDatabase,
 } from '../lib/utils/analysisConfig'
+import { RouteHelpModal } from '../components/RouteHelpModal'
+import { useEventStore } from '../stores/useEventStore'
 
 type SettingsProps = {
   appVersion: string
@@ -145,6 +149,20 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   const [deleteScoutingDataConfirmText, setDeleteScoutingDataConfirmText] = useState('')
   const [isDeletingScoutingData, setIsDeletingScoutingData] = useState(false)
   const [scoutingDataCount, setScoutingDataCount] = useState<number>(0)
+  const [events, setEvents] = useState<EventDocType[]>([])
+  const currentEventId = useEventStore((state) => state.currentEventId)
+  const setCurrentEvent = useEventStore((state) => state.setCurrentEvent)
+  const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
+
+  const selectedEvent = useMemo(() => events.find((event) => event.id === currentEventId) ?? null, [events, currentEventId])
+  const eventOptions = useMemo(
+    () =>
+      events.map((event) => ({
+        value: event.id,
+        label: `${event.name} (${event.season})`,
+      })),
+    [events],
+  )
 
   const applyShortcutBindings = (nextBindings: ShortcutBindings, message: string): void => {
     setShortcutBindings(nextBindings)
@@ -300,6 +318,40 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     }
 
     void loadActiveSchema()
+
+    return () => {
+      cancelled = true
+    }
+  }, [db])
+
+  useEffect(() => {
+    if (!db) {
+      setEvents([])
+      return
+    }
+
+    let cancelled = false
+
+    const loadEvents = async (): Promise<void> => {
+      try {
+        const eventDocs = await db.collections.events
+          .find({
+            sort: [{ startDate: 'desc' }],
+          })
+          .exec()
+
+        if (!cancelled) {
+          setEvents(eventDocs.map((doc) => doc.toJSON()))
+        }
+      } catch (error: unknown) {
+        if (!cancelled) {
+          handleError(error, 'Load event options for settings')
+          setEvents([])
+        }
+      }
+    }
+
+    void loadEvents()
 
     return () => {
       cancelled = true
@@ -485,6 +537,35 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     logger.info('Settings updated: tba_api_key')
   }
 
+  const handleCurrentEventChange = (value: string | null): void => {
+    if (!value) {
+      clearCurrentEvent()
+      notifications.show({
+        color: 'blue',
+        title: 'Current event cleared',
+        message: 'No default event is selected.',
+      })
+      return
+    }
+
+    const selected = events.find((event) => event.id === value)
+    if (!selected) {
+      notifications.show({
+        color: 'yellow',
+        title: 'Event unavailable',
+        message: 'Selected event is not in local storage.',
+      })
+      return
+    }
+
+    setCurrentEvent(selected.id, selected.season)
+    notifications.show({
+      color: 'green',
+      title: 'Current event updated',
+      message: `Set to ${selected.name} (${selected.season}).`,
+    })
+  }
+
   const handleTestConnection = async (): Promise<void> => {
     if (!tbaApiKey.trim()) {
       notifications.show({
@@ -667,18 +748,76 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       <Stack gap={32}>
         {/* Header */}
         <Box className="animate-fadeInUp">
-          <Group gap="md">
-            <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
-              <IconSettings size={26} stroke={1.5} />
-            </ThemeIcon>
-            <Box>
-              <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
-                Settings
-              </Title>
-              <Text size="sm" c="slate.4">Configure app preferences</Text>
-            </Box>
+          <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
+            <Group gap="md">
+              <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+                <IconSettings size={26} stroke={1.5} />
+              </ThemeIcon>
+              <Box>
+                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                  Settings
+                </Title>
+                <Text size="sm" c="slate.4">Configure app preferences</Text>
+              </Box>
+            </Group>
+
+            <RouteHelpModal
+              title="Settings Overview"
+              description="Configure runtime preferences, API credentials, shortcuts, and diagnostics."
+              steps={[
+                { title: 'General', description: 'Control device behavior and developer tools visibility.' },
+                { title: 'Analysis', description: 'Choose which scouting fields appear in analysis charts.' },
+                { title: 'Operations', description: 'Manage updates, logs, and maintenance actions.' },
+              ]}
+              tips={[
+                { text: 'Set TBA API key on Hub devices for event import workflows.' },
+                { text: 'Use destructive data actions only when you are sure.' },
+              ]}
+              tooltipLabel="How settings are organized"
+              color="frc-blue"
+            />
           </Group>
         </Box>
+
+        {/* Current Event */}
+        <Card p="lg" radius="lg" style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}>
+          <Stack gap="md">
+            <Group gap="sm">
+              <ThemeIcon size={32} radius="lg" variant="light" color="frc-orange">
+                <IconCalendarEvent size={16} />
+              </ThemeIcon>
+              <Text fw={600} c="slate.0" size="lg">Current Event</Text>
+            </Group>
+
+            <Text c="slate.4" size="sm">
+              Set the default event used across Home, Scout, Analysis, and Assignments.
+            </Text>
+
+            <Select
+              label="Active Event"
+              placeholder="Select imported event"
+              value={currentEventId}
+              onChange={handleCurrentEventChange}
+              data={eventOptions}
+              searchable
+              clearable
+              disabled={!db}
+              radius="md"
+            />
+
+            {selectedEvent ? (
+              <Badge variant="light" color="frc-blue" radius="md">
+                Selected: {selectedEvent.name} ({selectedEvent.season})
+              </Badge>
+            ) : (
+              <Text size="xs" c="slate.5">
+                {eventOptions.length === 0
+                  ? 'No imported events available yet. Import from Event Management first.'
+                  : 'No default event selected.'}
+              </Text>
+            )}
+          </Stack>
+        </Card>
 
         {/* General Settings */}
         <Card p="lg" radius="lg" style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}>

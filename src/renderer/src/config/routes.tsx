@@ -33,7 +33,7 @@ export function createAppRoutes({ appVersion, onOpenAbout }: CreateRoutesOptions
     { path: '/device-setup', element: <DeviceSetupRoute /> },
     { path: '/sync', element: <SyncRoute /> },
     { path: '/settings', element: <SettingsRoute appVersion={appVersion} onOpenAbout={onOpenAbout} /> },
-    { path: '/developer-tools', element: <DeveloperToolsRoute />, requiresDeveloperMode: true },
+    { path: '/developer-tools', element: <DeveloperToolsRoute appVersion={appVersion} />, requiresDeveloperMode: true },
     { path: '/form-builder', element: <FormBuilderRoute />, hubOnly: true },
     { path: '/help', element: <HelpRoute /> },
   ]

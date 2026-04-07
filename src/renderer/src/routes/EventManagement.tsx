@@ -2,7 +2,6 @@ import type { ReactElement } from 'react'
 import { useState } from 'react'
 import {
   ActionIcon,
-  Alert,
   Badge,
   Box,
   Button,
@@ -22,7 +21,6 @@ import { notifications } from '@mantine/notifications'
 import {
   IconCalendarEvent,
   IconExternalLink,
-  IconInfoCircle,
   IconMapPin,
   IconSearch,
   IconTrophy,
@@ -33,6 +31,7 @@ import { getEvent, getEventMatches, getEventsByYear, getEventTeams } from '../li
 import { formatDateRange } from '../lib/utils/dates'
 import type { TBAEvent } from '../types/tba'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import { notifyErrorWithRetry } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
 
@@ -255,14 +254,43 @@ export function EventManagement(): ReactElement {
 
   return (
     <Stack gap="xl">
-      <Title order={2} c="slate.0" style={{ letterSpacing: '-0.02em' }}>
-        Event Management
-      </Title>
+      <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+        <Title order={2} c="slate.0" style={{ letterSpacing: '-0.02em' }}>
+          Event Management
+        </Title>
+        <RouteHelpModal
+          title="Event Import Workflow"
+          description="Fetch event lists by season, then import only your competition events."
+          steps={[
+            { title: 'Fetch by Season', description: 'Load available events for the selected year.' },
+            { title: 'Filter Results', description: 'Search by name, key, or location and optionally event type.' },
+            { title: 'Import Event', description: 'Import matches and teams for scouting and assignments.' },
+          ]}
+          tips={[
+            { text: 'Set your TBA API key in Settings before importing.' },
+            { text: 'Re-importing updates stale matches and assignments safely.' },
+          ]}
+          tooltipLabel="How event import works"
+          color="frc-blue"
+        />
+      </Group>
 
       {isApiKeyMissing && (
-        <Alert icon={<IconInfoCircle size={16} />} color="yellow" title="Missing TBA API key" variant="light">
-          Set your The Blue Alliance API key in Settings before fetching or importing events.
-        </Alert>
+        <Box
+          p="sm"
+          style={{
+            backgroundColor: 'rgba(255, 136, 0, 0.08)',
+            border: '1px solid rgba(255, 136, 0, 0.24)',
+            borderRadius: '10px',
+          }}
+        >
+          <Text size="sm" c="frc-orange.3" fw={600}>
+            Missing TBA API key
+          </Text>
+          <Text size="xs" c="slate.3" mt={4}>
+            Set your The Blue Alliance API key in Settings before fetching or importing events.
+          </Text>
+        </Box>
       )}
 
       <Card
