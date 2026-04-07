@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
   ActionIcon,
-  Alert,
   Badge,
   Box,
   Button,
@@ -44,6 +43,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import { TeamSparkline } from '../components/charts/TeamSparkline'
 import type { ScoutingDataDocument } from '../lib/db/collections'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
@@ -917,9 +917,26 @@ export function Analysis(): ReactElement {
               </Box>
             </Group>
 
-            <Button variant="light" color="frc-blue" leftSection={<IconSettings size={16} />} onClick={() => navigate('/settings')}>
-              Analysis Settings
-            </Button>
+            <Group gap="sm">
+              <RouteHelpModal
+                title="Analysis Guide"
+                description="Use filters and metrics to compare teams before alliance selection."
+                steps={[
+                  { title: 'Pick Event Scope', description: 'Filter by event or season scope before reviewing rankings.' },
+                  { title: 'Sort by Phase', description: 'Switch between overall, auto, teleop, and endgame to spot specialists.' },
+                  { title: 'Validate with Table', description: 'Confirm anomalies using the detailed rows below cards and charts.' },
+                ]}
+                tips={[
+                  { text: 'Consistency often matters more than one high outlier score.' },
+                  { text: 'Enable more form fields in Settings to unlock richer analysis charts.' },
+                ]}
+                tooltipLabel="How to use analysis"
+                color="frc-blue"
+              />
+              <Button variant="light" color="frc-blue" leftSection={<IconSettings size={16} />} onClick={() => navigate('/settings')}>
+                Analysis Settings
+              </Button>
+            </Group>
           </Group>
         </Box>
 
@@ -984,9 +1001,21 @@ export function Analysis(): ReactElement {
             </Group>
 
             {customFieldMetrics.length === 0 ? (
-              <Alert color="yellow" variant="light" title="No custom fields enabled">
-                Open Settings and enable analysis for form fields to show custom charts here.
-              </Alert>
+              <Paper p="md" radius="md" style={{ backgroundColor: 'rgba(255, 136, 0, 0.08)', border: '1px solid rgba(255, 136, 0, 0.22)' }}>
+                <Group justify="space-between" gap="sm" wrap="wrap">
+                  <Box>
+                    <Text size="sm" fw={600} c="frc-orange.3">
+                      No custom fields enabled
+                    </Text>
+                    <Text size="xs" c="slate.3" mt={2}>
+                      Open Settings and enable analysis for form fields to show custom charts here.
+                    </Text>
+                  </Box>
+                  <Button size="xs" variant="light" color="frc-orange" leftSection={<IconSettings size={14} />} onClick={() => navigate('/settings')}>
+                    Open Settings
+                  </Button>
+                </Group>
+              </Paper>
             ) : (
               <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
                 {customFieldMetrics.map((metric) => (

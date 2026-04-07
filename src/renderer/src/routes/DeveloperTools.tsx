@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Badge,
@@ -10,6 +10,8 @@ import {
   Group,
   Modal,
   Paper,
+  ScrollArea,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -32,12 +34,17 @@ import {
   IconTools,
   IconTrash,
 } from '@tabler/icons-react'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { resetDatabase } from '../lib/db/database'
 import { handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
 
-export function DeveloperTools(): ReactElement {
+type DeveloperToolsProps = {
+  appVersion: string
+}
+
+export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const clearDatabaseState = useDatabaseStore((state) => state.clearState)
   const initializeDb = useDatabaseStore((state) => state.initialize)
@@ -55,6 +62,11 @@ export function DeveloperTools(): ReactElement {
   const [clearEventImportsConfirmText, setClearEventImportsConfirmText] = useState('')
   const [scoutingDataCount, setScoutingDataCount] = useState(0)
   const [eventImportCounts, setEventImportCounts] = useState({ events: 0, matches: 0, assignments: 0 })
+  const [previewCollection, setPreviewCollection] = useState<string | null>(null)
+  const [previewLimit, setPreviewLimit] = useState<string>('25')
+  const [previewDocs, setPreviewDocs] = useState<Record<string, unknown>[]>([])
+  const [previewTotalCount, setPreviewTotalCount] = useState<number>(0)
+  const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(false)
   const [forceSmallQrChunks, setForceSmallQrChunks] = useState<boolean>(() => {
     try {
       return localStorage.getItem('sync_force_small_qr_chunks') === 'true'
@@ -79,6 +91,27 @@ export function DeveloperTools(): ReactElement {
         : 'Sync QR exports reverted to normal chunk size.',
     })
   }
+
+  const collectionOptions = useMemo(
+    () =>
+      db
+        ? Object.keys(db.collections)
+            .sort((a, b) => a.localeCompare(b))
+            .map((name) => ({ value: name, label: name }))
+        : [],
+    [db],
+  )
+
+  useEffect(() => {
+    if (collectionOptions.length === 0) {
+      setPreviewCollection(null)
+      return
+    }
+
+    if (!previewCollection || !collectionOptions.some((option) => option.value === previewCollection)) {
+      setPreviewCollection(collectionOptions[0].value)
+    }
+  }, [collectionOptions, previewCollection])
 
   const loadDatabaseStats = async (): Promise<void> => {
     if (!db) {
@@ -107,6 +140,71 @@ export function DeveloperTools(): ReactElement {
     } finally {
       setIsLoadingStats(false)
     }
+  }
+
+  const loadCollectionPreview = async (): Promise<void> => {
+    if (!db || !previewCollection) {
+      notifications.show({
+        color: 'yellow',
+        title: 'Collection unavailable',
+        message: 'Select a collection after database initialization.',
+      })
+      return
+    }
+
+    const parsedLimit = Number.parseInt(previewLimit, 10)
+    const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 200) : 25
+    const collectionsMap = db.collections as Record<
+      string,
+      {
+        find: () => { exec: () => Promise<Array<{ toJSON: () => Record<string, unknown> }>> }
+        count: () => { exec: () => Promise<number> }
+      }
+    >
+    const collection = collectionsMap[previewCollection]
+
+    if (!collection) {
+      notifications.show({
+        color: 'red',
+        title: 'Collection missing',
+        message: `Collection "${previewCollection}" is not available on this database instance.`,
+      })
+      return
+    }
+
+    setIsLoadingPreview(true)
+    try {
+      const [count, docs] = await Promise.all([collection.count().exec(), collection.find().exec()])
+      const rows = docs.slice(0, safeLimit).map((doc) => doc.toJSON())
+      setPreviewTotalCount(count)
+      setPreviewDocs(rows)
+    } catch (error: unknown) {
+      handleError(error, `Load ${previewCollection} preview`)
+    } finally {
+      setIsLoadingPreview(false)
+    }
+  }
+
+  const copyPreviewJson = (): void => {
+    const payload = {
+      collection: previewCollection,
+      count: previewTotalCount,
+      rows: previewDocs,
+      exportedAt: new Date().toISOString(),
+    }
+
+    navigator.clipboard
+      .writeText(JSON.stringify(payload, null, 2))
+      .then(() => {
+        notifications.show({
+          color: 'green',
+          title: 'Copied',
+          message: 'Collection preview JSON copied to clipboard.',
+        })
+      })
+      .catch((error: unknown) => {
+        handleError(error, 'Copy collection preview JSON')
+      })
   }
 
   const handleResetDatabase = async (): Promise<void> => {
@@ -148,7 +246,7 @@ export function DeveloperTools(): ReactElement {
     const info = {
       collections: dbStats,
       timestamp: new Date().toISOString(),
-      version: '2.0.0',
+      version: appVersion,
     }
 
     navigator.clipboard
@@ -370,25 +468,54 @@ export function DeveloperTools(): ReactElement {
     <Box p="xl">
       <Stack gap="xl">
         {/* Header */}
-        <Group gap="md">
-          <ThemeIcon size={48} radius="lg" variant="gradient" gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}>
-            <IconTools size={28} stroke={1.5} />
-          </ThemeIcon>
-          <Box>
-            <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
-              Developer Tools
-            </Title>
-            <Text size="sm" c="slate.4">
-              Advanced diagnostics and utilities
-            </Text>
-          </Box>
+        <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
+          <Group gap="md">
+            <ThemeIcon size={48} radius="lg" variant="gradient" gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}>
+              <IconTools size={28} stroke={1.5} />
+            </ThemeIcon>
+            <Box>
+              <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                Developer Tools
+              </Title>
+              <Text size="sm" c="slate.4">
+                Advanced diagnostics and utilities
+              </Text>
+            </Box>
+          </Group>
+
+          <RouteHelpModal
+            title="Developer Tools"
+            description="Diagnostics and destructive maintenance tools for advanced operators."
+            steps={[
+              { title: 'Inspect First', description: 'Load stats/logs before running any destructive action.' },
+              { title: 'Use Targeted Clears', description: 'Prefer scoped delete tools over full database reset.' },
+              { title: 'Confirm Carefully', description: 'Read warnings and confirmation text before proceeding.' },
+            ]}
+            tips={[
+              { text: 'Export logs before data resets to keep troubleshooting context.' },
+              { text: 'Run major cleanup from the Hub device when possible.' },
+            ]}
+            tooltipLabel="Developer tools guidance"
+            color="frc-orange"
+          />
         </Group>
 
         {/* Warning Banner */}
-        <Alert icon={<IconAlertTriangle size={18} />} title="Caution" color="warning" radius="md">
-          These tools are intended for developers and advanced users. Misuse may result in data loss or application
-          instability.
-        </Alert>
+        <Paper p="md" radius="md" style={{ backgroundColor: 'rgba(255, 136, 0, 0.08)', border: '1px solid rgba(255, 136, 0, 0.24)' }}>
+          <Group gap="sm" wrap="nowrap" align="flex-start">
+            <ThemeIcon size={28} radius="md" color="warning" variant="light">
+              <IconAlertTriangle size={16} />
+            </ThemeIcon>
+            <Stack gap={2}>
+              <Text size="sm" fw={600} c="frc-orange.3">
+                Caution: advanced tooling
+              </Text>
+              <Text size="xs" c="slate.3">
+                These controls are intended for advanced users. Misuse may cause data loss or runtime instability.
+              </Text>
+            </Stack>
+          </Group>
+        </Paper>
 
         {/* Database Tools */}
         <Card shadow="sm" padding="lg" radius="md" withBorder>
@@ -476,6 +603,122 @@ export function DeveloperTools(): ReactElement {
                 </Stack>
               </Paper>
             )}
+
+            <Paper p="md" radius="md" style={{ backgroundColor: 'var(--surface-raised)' }}>
+              <Stack gap="md">
+                <Group justify="space-between" align="center" wrap="wrap">
+                  <Box>
+                    <Text size="sm" fw={600} c="slate.2">
+                      Collection Viewer
+                    </Text>
+                    <Text size="xs" c="slate.4">
+                      Inspect live document data from any local RxDB collection.
+                    </Text>
+                  </Box>
+                  <Badge color="frc-blue" variant="light" radius="md">
+                    {previewTotalCount} total row{previewTotalCount === 1 ? '' : 's'}
+                  </Badge>
+                </Group>
+
+                <Group align="flex-end" grow>
+                  <Select
+                    label="Collection"
+                    placeholder="Select collection"
+                    value={previewCollection}
+                    onChange={setPreviewCollection}
+                    data={collectionOptions}
+                    searchable
+                    disabled={!db}
+                  />
+                  <Select
+                    label="Rows"
+                    value={previewLimit}
+                    onChange={(value) => setPreviewLimit(value ?? '25')}
+                    data={[
+                      { value: '10', label: '10' },
+                      { value: '25', label: '25' },
+                      { value: '50', label: '50' },
+                      { value: '100', label: '100' },
+                    ]}
+                    w={120}
+                    allowDeselect={false}
+                  />
+                  <Button
+                    variant="light"
+                    color="frc-blue"
+                    leftSection={<IconRefresh size={16} />}
+                    onClick={() => void loadCollectionPreview()}
+                    loading={isLoadingPreview}
+                    disabled={!previewCollection}
+                  >
+                    Load Data
+                  </Button>
+                </Group>
+
+                {previewDocs.length === 0 ? (
+                  <Text size="sm" c="slate.4">
+                    No rows loaded yet. Pick a collection and click Load Data.
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    <Group justify="space-between" align="center">
+                      <Text size="xs" c="slate.4">
+                        Showing {previewDocs.length} row{previewDocs.length === 1 ? '' : 's'} of {previewTotalCount}.
+                      </Text>
+                      <Button size="xs" variant="subtle" color="slate" onClick={copyPreviewJson}>
+                        Copy Preview JSON
+                      </Button>
+                    </Group>
+
+                    <ScrollArea h={320} type="auto" offsetScrollbars>
+                      <Stack gap="xs">
+                        {previewDocs.map((doc, index) => {
+                          const idValue =
+                            typeof doc.id === 'string' || typeof doc.id === 'number' ? String(doc.id) : null
+
+                          return (
+                            <Paper
+                              key={`${previewCollection ?? 'collection'}-${idValue ?? index}`}
+                              p="xs"
+                              radius="md"
+                              style={{ backgroundColor: 'var(--surface-base)', border: '1px solid var(--border-subtle)' }}
+                            >
+                              <Group justify="space-between" mb="xs">
+                                <Badge size="xs" variant="light" color="frc-blue">
+                                  Row {index + 1}
+                                </Badge>
+                                {idValue && (
+                                  <Code className="mono-number" style={{ fontSize: '0.72rem' }}>
+                                    {idValue}
+                                  </Code>
+                                )}
+                              </Group>
+                              <Box
+                                component="pre"
+                                m={0}
+                                p="xs"
+                                style={{
+                                  overflowX: 'auto',
+                                  borderRadius: '8px',
+                                  backgroundColor: 'rgba(12, 18, 24, 0.75)',
+                                  border: '1px solid rgba(148, 163, 184, 0.14)',
+                                  color: 'var(--mantine-color-slate-2)',
+                                  fontFamily: 'JetBrains Mono, monospace',
+                                  fontSize: '0.72rem',
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                {JSON.stringify(doc, null, 2)}
+                              </Box>
+                            </Paper>
+                          )
+                        })}
+                      </Stack>
+                    </ScrollArea>
+                  </Stack>
+                )}
+              </Stack>
+            </Paper>
           </Stack>
         </Card>
 

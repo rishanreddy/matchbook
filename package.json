@@ -1,7 +1,7 @@
 {
   "name": "matchbook",
-  "private": true,
-  "version": "2.0.0",
+  "private": false,
+  "version": "2.0.1",
   "description": "Matchbook: offline-first FRC scouting and sync platform",
   "author": "Rishan Reddy",
   "license": "MIT",
@@ -38,7 +38,9 @@
     "electron:dist:win": "pnpm build:win",
     "electron:dist:mac": "pnpm build:mac",
     "electron:dist:linux": "pnpm build:linux",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "verify:production": "pnpm typecheck && pnpm lint && pnpm build",
     "preview": "electron-vite preview"
   },
   "dependencies": {
@@ -89,6 +91,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^17.4.0",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.9.3",

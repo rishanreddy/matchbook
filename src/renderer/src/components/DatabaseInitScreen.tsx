@@ -20,6 +20,7 @@ import {
   IconRotateClockwise,
   IconTrash,
 } from '@tabler/icons-react'
+import { RouteHelpModal } from './RouteHelpModal'
 
 type DatabaseInitScreenProps = {
   loading: boolean
@@ -61,9 +62,27 @@ export function DatabaseInitScreen({
                   </Text>
                 </Box>
               </Group>
-              <Badge variant="light" color="frc-orange.4" className="mono-number">
-                v{appVersion}
-              </Badge>
+              <Group gap="xs" wrap="nowrap">
+                <RouteHelpModal
+                  title="Database Startup"
+                  description="Matchbook initializes local storage before routes become available."
+                  steps={[
+                    { title: 'Retry First', description: 'Transient startup issues often clear on retry.' },
+                    { title: 'Reset If Needed', description: 'Use reset only if initialization repeatedly fails.' },
+                    { title: 'Re-open App', description: 'After reset, startup recreates local collections.' },
+                  ]}
+                  tips={[
+                    { text: 'Reset cache removes unsynced local data.' },
+                    { text: 'Schema upgrades may increase startup time.' },
+                  ]}
+                  tooltipLabel="Database startup help"
+                  color="frc-blue"
+                  iconSize={16}
+                />
+                <Badge variant="light" color="frc-orange.4" className="mono-number">
+                  v{appVersion}
+                </Badge>
+              </Group>
             </Group>
 
             <Progress

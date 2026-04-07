@@ -1,5 +1,6 @@
 import {
   AppShell,
+  Button,
   Badge,
   Box,
   Burger,
@@ -17,6 +18,7 @@ import { useDisclosure } from '@mantine/hooks'
 import {
   IconCalendarEvent,
   IconCommand,
+  IconDeviceFloppy,
   IconHelp,
   IconServer,
   IconUsers,
@@ -55,6 +57,7 @@ function App() {
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const location = useLocation()
   const pathname = location.pathname
+  const isFormBuilderRoute = pathname === '/form-builder'
   const navigate = useNavigate()
   const [appVersion, setAppVersion] = useState<string>('unknown')
   const initializeDb = useDatabaseStore((state) => state.initialize)
@@ -441,7 +444,7 @@ function App() {
       className="app-shell-root"
       header={{ height: 64 }}
       navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
-      padding="lg"
+      padding={isFormBuilderRoute ? 0 : 'lg'}
       styles={{
         header: {
           backgroundColor: 'var(--surface-raised)',
@@ -487,6 +490,22 @@ function App() {
           </Group>
           
           <Group gap="xs" className="app-header-actions">
+            {isFormBuilderRoute && (
+              <Button
+                size="sm"
+                radius="xl"
+                variant="gradient"
+                gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                leftSection={<IconDeviceFloppy size={14} />}
+                fw={700}
+                onClick={() => {
+                  window.dispatchEvent(new Event('matchbook:form-builder-save'))
+                }}
+              >
+                Save Form
+              </Button>
+            )}
+
             {/* Only show power-user tools for Hub devices */}
             {isHub && (
               <>
@@ -649,7 +668,12 @@ function App() {
         Skip to content
       </a>
       
-      <AppShell.Main id="main-content" tabIndex={-1} ref={mainRef} className="app-main-content">
+      <AppShell.Main
+        id="main-content"
+        tabIndex={-1}
+        ref={mainRef}
+        className={isFormBuilderRoute ? 'app-main-content app-main-content--no-scroll' : 'app-main-content'}
+      >
         <Text aria-live="polite" className="sr-only">
           Current page: {navItems.find((item) => item.to === location.pathname)?.label ?? 'App'}
         </Text>
@@ -667,7 +691,7 @@ function App() {
             isResetting={isResettingDatabase}
           />
         ) : (
-          <Box className="app-page-container">
+          <Box className={isFormBuilderRoute ? 'app-page-container app-page-container--full' : 'app-page-container'}>
             <Suspense fallback={<Text size="sm" c="slate.4">Loading page...</Text>}>
               <Routes>
                 {appRoutes

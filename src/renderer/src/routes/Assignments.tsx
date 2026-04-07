@@ -3,17 +3,28 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
   Badge,
+  Box,
   Button,
   Card,
   Group,
   Loader,
+  Paper,
   Select,
   Stack,
   Text,
+  ThemeIcon,
   Title,
   Tooltip,
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
+import {
+  IconCalendarEvent,
+  IconClipboardCheck,
+  IconSparkles,
+  IconUser,
+  IconUsers,
+} from '@tabler/icons-react'
+import { RouteHelpModal } from '../components/RouteHelpModal'
 import type { AssignmentDocType } from '../lib/db/schemas/assignments.schema'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
 import type { MatchDocType } from '../lib/db/schemas/matches.schema'
@@ -393,122 +404,249 @@ export function Assignments(): ReactElement {
   }
 
   return (
-    <Stack>
-      <Group justify="space-between" align="flex-end">
-        <Title order={2}>Scout Assignments</Title>
-        <Tooltip label="Automatically fill open slots in round-robin order">
-          <Button onClick={() => void handleAutoAssign()} disabled={!selectedEvent || scouts.length === 0} loading={isAutoAssigning}>
-            Auto-assign
-          </Button>
-        </Tooltip>
-      </Group>
+    <Box className="container-wide" py="xl">
+      <Stack gap={24}>
+        <Card
+          p="lg"
+          radius="lg"
+          style={{
+            background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.08), rgba(26, 140, 255, 0.03))',
+            border: '1px solid rgba(26, 140, 255, 0.2)',
+          }}
+          className="animate-fadeInUp"
+        >
+          <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
+            <Group gap="md" align="center" wrap="nowrap">
+              <ThemeIcon size={52} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+                <IconClipboardCheck size={24} stroke={1.6} />
+              </ThemeIcon>
+              <Box>
+                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                  Scout Assignments
+                </Title>
+                <Text size="sm" c="slate.4">
+                  Assign scouts to alliance stations with event-aware scheduling
+                </Text>
+              </Box>
+            </Group>
 
-      <Card withBorder radius="md" p="lg">
-        <Select
-          label="Event"
-          description="Assignments are created for the selected event"
-          placeholder="Select an event"
-          value={selectedEvent}
-          onChange={setSelectedEvent}
-          data={events.map((event) => ({ value: event.id, label: `${event.name} (${event.id})` }))}
-          searchable
-        />
-      </Card>
-
-      {isLoading ? (
-        <Group justify="center" py="xl">
-          <Loader />
-        </Group>
-      ) : !selectedEvent ? (
-        <Card withBorder radius="md" p="lg">
-          <Text c="dimmed">No events available. Import an event first on the Events page.</Text>
+            <Group gap="sm" wrap="nowrap">
+              <RouteHelpModal
+                title="Assignment Workflow"
+                description="Build assignments before matches begin so scouts can focus on data capture."
+                steps={[
+                  { title: 'Pick Event', description: 'Select an imported event to load qualification matches.' },
+                  { title: 'Assign Slots', description: 'Choose a scout for each alliance position in each match.' },
+                  { title: 'Auto-fill Gaps', description: 'Use Auto-assign to fill open positions in round-robin order.' },
+                ]}
+                tips={[
+                  { text: 'Import events first from Event Management to unlock schedules.' },
+                  { text: 'Assigned slots are locked to avoid accidental overwrites.' },
+                ]}
+                tooltipLabel="How assignments work"
+                color="frc-blue"
+              />
+              <Tooltip label="Automatically fill open slots in round-robin order">
+                <Button
+                  onClick={() => void handleAutoAssign()}
+                  disabled={!selectedEvent || scouts.length === 0}
+                  loading={isAutoAssigning}
+                  variant="gradient"
+                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                  leftSection={<IconSparkles size={16} />}
+                  fw={700}
+                  className="active:scale-[0.98]"
+                >
+                  Auto-assign
+                </Button>
+              </Tooltip>
+            </Group>
+          </Group>
         </Card>
-      ) : matches.length === 0 ? (
-        <Card withBorder radius="md" p="lg">
-          <Text c="dimmed">No qualification matches found for this event.</Text>
-        </Card>
-      ) : scouts.length === 0 ? (
-        <Card withBorder radius="md" p="lg">
-          <Text c="dimmed">No scouts found. Add scouts before assigning positions.</Text>
-        </Card>
-      ) : (
-        <Accordion variant="separated">
-          {matches.map((match) => (
-            <Accordion.Item key={match.key} value={match.key}>
-              <Accordion.Control>
-                <Group justify="space-between" wrap="nowrap">
-                  <Text fw={600}>Qualification Match {match.matchNumber}</Text>
-                  <Text size="sm" c="dimmed">
-                    {new Date(match.predictedTime).getTime() > 0
-                      ? new Date(match.predictedTime).toLocaleString()
-                      : 'Time unavailable'}
-                  </Text>
-                </Group>
-              </Accordion.Control>
-              <Accordion.Panel>
-                <Stack>
-                  {ALLIANCE_POSITIONS.map((position) => {
-                    const teamKey = getTeamFromMatch(toTBAMatch(match), position)
-                    const assignment = assignmentMap.get(`${match.key}:${position}`)
-                    const assignedScout = scouts.find((scout) => scout.id === assignment?.scoutId)
-                    const slotKey = `${match.key}:${position}`
 
-                    return (
-                      <Card key={slotKey} withBorder radius="md" p="sm">
-                        <Group align="flex-end" wrap="wrap">
-                          <Stack gap={2} style={{ minWidth: 170 }}>
-                            <Text fw={600}>{getAlliancePositionLabel(position)}</Text>
-                            <Text size="sm" c="dimmed">
-                              {teamKey ? formatTeamLabel(teamKey) : 'Team unavailable'}
-                            </Text>
-                          </Stack>
+        <Card
+          p="lg"
+          radius="lg"
+          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
+          className="animate-fadeInUp stagger-1"
+        >
+          <Stack gap="md">
+            <Select
+              label="Event"
+              description="Assignments are created for the selected event"
+              placeholder="Select an event"
+              value={selectedEvent}
+              onChange={setSelectedEvent}
+              data={events.map((event) => ({ value: event.id, label: `${event.name} (${event.id})` }))}
+              searchable
+              size="md"
+            />
 
-                          <Select
-                            placeholder="Select scout"
-                            data={scouts.map((scout) => ({ value: scout.id, label: scout.name }))}
-                            value={slotSelections[slotKey] ?? assignment?.scoutId ?? null}
-                            onChange={(value) => {
-                              if (!value) {
-                                return
+            <Group gap="xs" wrap="wrap">
+              <Badge color="frc-blue" variant="light" radius="md" leftSection={<IconCalendarEvent size={12} />}>
+                {matches.length} Matches
+              </Badge>
+              <Badge color="frc-orange" variant="light" radius="md" leftSection={<IconUsers size={12} />}>
+                {scouts.length} Scouts
+              </Badge>
+              <Badge color="success" variant="light" radius="md" leftSection={<IconUser size={12} />}>
+                {assignments.length} Assigned Slots
+              </Badge>
+            </Group>
+          </Stack>
+        </Card>
+
+        {isLoading ? (
+          <Card
+            p="xl"
+            radius="lg"
+            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
+          >
+            <Group justify="center" py="xl" gap="sm">
+              <Loader size="sm" color="frc-blue" />
+              <Text c="slate.4" size="sm">Loading event schedule and assignments...</Text>
+            </Group>
+          </Card>
+        ) : !selectedEvent ? (
+          <Card
+            p="xl"
+            radius="lg"
+            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
+          >
+            <Group gap="md" align="center" wrap="nowrap">
+              <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
+                <IconCalendarEvent size={18} />
+              </ThemeIcon>
+              <Text c="slate.3">No events available. Import an event first on the Event Management page.</Text>
+            </Group>
+          </Card>
+        ) : matches.length === 0 ? (
+          <Card
+            p="xl"
+            radius="lg"
+            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
+          >
+            <Group gap="md" align="center" wrap="nowrap">
+              <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
+                <IconCalendarEvent size={18} />
+              </ThemeIcon>
+              <Text c="slate.3">No qualification matches found for this event.</Text>
+            </Group>
+          </Card>
+        ) : scouts.length === 0 ? (
+          <Card
+            p="xl"
+            radius="lg"
+            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
+          >
+            <Group gap="md" align="center" wrap="nowrap">
+              <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
+                <IconUsers size={18} />
+              </ThemeIcon>
+              <Text c="slate.3">No scouts found. Register scouts in Device Setup before assigning positions.</Text>
+            </Group>
+          </Card>
+        ) : (
+          <Accordion
+            variant="separated"
+            radius="md"
+            className="animate-fadeInUp stagger-2"
+            styles={{
+              item: {
+                backgroundColor: 'var(--surface-raised)',
+                border: '1px solid var(--border-default)',
+              },
+              control: {
+                paddingBlock: '12px',
+              },
+            }}
+          >
+            {matches.map((match) => (
+              <Accordion.Item key={match.key} value={match.key}>
+                <Accordion.Control>
+                  <Group justify="space-between" wrap="nowrap">
+                    <Text fw={700} c="slate.1">Qualification Match {match.matchNumber}</Text>
+                    <Text size="sm" c="slate.4">
+                      {new Date(match.predictedTime).getTime() > 0
+                        ? new Date(match.predictedTime).toLocaleString()
+                        : 'Time unavailable'}
+                    </Text>
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="sm">
+                    {ALLIANCE_POSITIONS.map((position) => {
+                      const teamKey = getTeamFromMatch(toTBAMatch(match), position)
+                      const assignment = assignmentMap.get(`${match.key}:${position}`)
+                      const assignedScout = scouts.find((scout) => scout.id === assignment?.scoutId)
+                      const slotKey = `${match.key}:${position}`
+
+                      return (
+                        <Paper
+                          key={slotKey}
+                          p="md"
+                          radius="md"
+                          style={{ backgroundColor: 'var(--surface-base)', border: '1px solid var(--border-subtle)' }}
+                        >
+                          <Group align="flex-end" wrap="wrap" gap="sm">
+                            <Stack gap={2} style={{ minWidth: 170 }}>
+                              <Text fw={600} c="slate.1">{getAlliancePositionLabel(position)}</Text>
+                              <Text size="sm" c="slate.4">
+                                {teamKey ? formatTeamLabel(teamKey) : 'Team unavailable'}
+                              </Text>
+                            </Stack>
+
+                            <Select
+                              placeholder="Select scout"
+                              data={scouts.map((scout) => ({ value: scout.id, label: scout.name }))}
+                              value={slotSelections[slotKey] ?? assignment?.scoutId ?? null}
+                              onChange={(value) => {
+                                if (!value) {
+                                  return
+                                }
+
+                                setSlotSelections((prev) => ({ ...prev, [slotKey]: value }))
+                              }}
+                              disabled={Boolean(assignment)}
+                              searchable
+                              style={{ flex: 1, minWidth: 220 }}
+                              size="sm"
+                            />
+
+                            <Button
+                              onClick={() =>
+                                void handleAssignSlot(
+                                  selectedEvent,
+                                  match,
+                                  position,
+                                  slotSelections[slotKey] ?? assignment?.scoutId ?? '',
+                                )
                               }
+                              disabled={Boolean(assignment) || !(slotSelections[slotKey] ?? assignment?.scoutId)}
+                              loading={isAssigning}
+                              variant={assignment ? 'light' : 'gradient'}
+                              gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                              size="sm"
+                            >
+                              Assign
+                            </Button>
 
-                              setSlotSelections((prev) => ({ ...prev, [slotKey]: value }))
-                            }}
-                            disabled={Boolean(assignment)}
-                            searchable
-                            style={{ flex: 1, minWidth: 220 }}
-                          />
-
-                          <Button
-                            onClick={() =>
-                              void handleAssignSlot(
-                                selectedEvent,
-                                match,
-                                position,
-                                slotSelections[slotKey] ?? assignment?.scoutId ?? '',
-                              )
-                            }
-                            disabled={Boolean(assignment) || !(slotSelections[slotKey] ?? assignment?.scoutId)}
-                            loading={isAssigning}
-                          >
-                            Assign
-                          </Button>
-
-                          {assignment && (
-                            <Badge color="green" variant="light">
-                              Assigned: {assignedScout?.name ?? assignment.scoutId}
-                            </Badge>
-                          )}
-                        </Group>
-                      </Card>
-                    )
-                  })}
-                </Stack>
-              </Accordion.Panel>
-            </Accordion.Item>
-          ))}
-        </Accordion>
-      )}
-    </Stack>
+                            {assignment && (
+                              <Badge color="success" variant="light" radius="md">
+                                Assigned: {assignedScout?.name ?? assignment.scoutId}
+                              </Badge>
+                            )}
+                          </Group>
+                        </Paper>
+                      )
+                    })}
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            ))}
+          </Accordion>
+        )}
+      </Stack>
+    </Box>
   )
 }
