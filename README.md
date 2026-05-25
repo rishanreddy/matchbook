@@ -17,7 +17,7 @@ Desktop scouting app for FIRST Robotics Competition teams. Works offline at even
 Download the installer for your platform from the [releases page](https://github.com/rishanreddy/matchbook/releases/latest):
 
 - **Windows**: `.exe` installer (~150 MB)
-- **macOS**: `.dmg` installer (~160 MB)  
+- **macOS**: `.dmg` installer (~160 MB)
 - **Linux**: `.AppImage` or `.deb` package (~140 MB)
 
 ## Getting started
@@ -28,17 +28,23 @@ First time setup:
 2. Register your device as either "Hub" or "Scout"
 
 **If you're the hub device:**
+
 - Import your event from The Blue Alliance
 - Create a scouting form in the Form Builder
 - Assign scouts to matches
 
 **If you're a scout device:**
+
 - Open the Scout tab and start scouting
 - Submit data back to the hub using QR codes or network sync
 
 ## Tech stack
 
 Built with Electron, React, TypeScript, Mantine UI, and RxDB for offline-first data storage.
+
+## Acknowledgments
+
+This project was inspired in part by resources from [Lovat](https://learn.lovat.app/guides/welcome), which were useful in shaping ideas for Matchbook.
 
 ## Contributing
 
