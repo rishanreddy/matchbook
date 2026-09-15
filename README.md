@@ -38,6 +38,8 @@ First time setup:
 - Open the Scout tab and start scouting
 - Submit data back to the hub using QR codes or network sync
 
+For the team lead: follow the [competition-day checklist](docs/competition-day.md) before each event. It covers hub setup, offline fallback, backups, sync recovery, releases, and rollback.
+
 ## Tech stack
 
 Built with Electron, React, TypeScript, Mantine UI, and RxDB for offline-first data storage.
