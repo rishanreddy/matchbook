@@ -32,6 +32,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import {
   NETWORK_SYNC_COLLECTIONS,
   isSyncCollection,
+  normalizeHubUrl,
   validateSyncPayload as validateNetworkSyncPayload,
   type SyncCollection,
   type SyncPayload,
@@ -1345,14 +1346,6 @@ export function Sync(): ReactElement {
     }
   }
 
-  const normalizeServerUrl = (value: string): string => {
-    const withProtocol = /^https?:\/\//.test(value) ? value : `http://${value}`
-    // Strip trailing slash and /upload path if present
-    const normalized = withProtocol.replace(/\/$/, '').replace(/\/upload$/, '')
-    console.log('[normalizeServerUrl] input:', value, '→ output:', normalized)
-    return normalized
-  }
-
   const refreshServerStatus = useCallback(async (): Promise<void> => {
     if (!window.electronAPI) {
       return
@@ -1399,7 +1392,7 @@ export function Sync(): ReactElement {
       }
 
       const authToken = serverAuthToken.trim()
-      if (authToken.length > 0 && !isValidSyncToken(authToken)) {
+      if (!isValidSyncToken(authToken)) {
         notifications.show({
           color: 'yellow',
           title: 'Invalid sync token',
@@ -1407,7 +1400,7 @@ export function Sync(): ReactElement {
         })
         return
       }
-      const status = await window.electronAPI.startSyncServer(port, authToken.length > 0 ? authToken : undefined)
+      const status = await window.electronAPI.startSyncServer(port, authToken)
       setServerStatus(status)
       notifications.show({ color: 'green', title: 'Network server started', message: `Listening on port ${status.port}.` })
     } catch (error: unknown) {
@@ -1541,10 +1534,10 @@ export function Sync(): ReactElement {
     setIsUploadingNetwork(true)
     try {
       const payload = await buildPayload(networkCollection)
-      const baseUrl = normalizeServerUrl(serverUrlInput.trim())
+      const baseUrl = normalizeHubUrl(serverUrlInput)
       const authToken = clientAuthToken.trim()
-      if (authToken.length > 0 && !isValidSyncToken(authToken)) {
-        throw new Error(`Sync token must be exactly ${SYNC_TOKEN_LENGTH} characters.`)
+      if (!isValidSyncToken(authToken)) {
+        throw new Error(`Enter the ${SYNC_TOKEN_LENGTH}-character token from the hub before uploading.`)
       }
       const createBatch = (rows: Record<string, unknown>[]): SyncPayload => ({
         exportedAt: payload.exportedAt,
@@ -1598,7 +1591,7 @@ export function Sync(): ReactElement {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(authToken ? { 'x-sync-token': authToken } : {}),
+            'x-sync-token': authToken,
             },
             body: JSON.stringify(batch),
             signal: controller.signal,

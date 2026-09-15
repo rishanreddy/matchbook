@@ -55,7 +55,7 @@ export function SplashScreen({ visible, version, status = 'Preparing startup ser
 
   const activeStep = getStepIndex(status)
   const progressValue = activeStep <= 0 ? 26 : activeStep === 1 ? 62 : 92
-  const logoSrc = getPublicAssetPath('icons.svg')
+  const logoSrc = getPublicAssetPath('matchbook-logo.png')
 
   return (
     <Box

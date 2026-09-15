@@ -258,7 +258,11 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
   }
 
   const normalizedAuthToken = typeof authToken === 'string' ? authToken.trim() : ''
-  serverAuthToken = normalizedAuthToken.length > 0 ? normalizedAuthToken : null
+  if (!normalizedAuthToken) {
+    throw new Error('A sync token is required before starting the network sync server.')
+  }
+
+  serverAuthToken = normalizedAuthToken
 
   server = createServer((request, response) => {
     setCorsHeaders(response)
@@ -278,21 +282,19 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
       return
     }
 
+    const incomingTokenHeader = request.headers['x-sync-token']
+    const incomingToken = Array.isArray(incomingTokenHeader) ? incomingTokenHeader[0] : incomingTokenHeader
+    if (incomingToken !== serverAuthToken) {
+      sendJson(response, 401, { ok: false, error: 'Invalid sync token.' })
+      return
+    }
+
     if (request.method === 'GET' && urlPath === '/health') {
       sendJson(response, 200, { ok: true, status: getStatus() })
       return
     }
 
     if (request.method === 'POST' && urlPath === '/upload') {
-      if (serverAuthToken) {
-        const incomingTokenHeader = request.headers['x-sync-token']
-        const incomingToken = Array.isArray(incomingTokenHeader) ? incomingTokenHeader[0] : incomingTokenHeader
-        if (incomingToken !== serverAuthToken) {
-          sendJson(response, 401, { ok: false, error: 'Invalid sync token.' })
-          return
-        }
-      }
-
       void readJsonBody(request)
         .then(async (body) => {
           if (!isValidSyncPayload(body)) {

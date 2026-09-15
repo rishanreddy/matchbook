@@ -5,11 +5,17 @@ on:
     tags:
       - v*.*.*
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
 
     strategy:
       matrix:
@@ -17,37 +23,35 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Install Dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: build-linux
         if: matrix.os == 'ubuntu-latest'
-        run: pnpm run build:linux
+        run: pnpm build && pnpm exec electron-builder --linux --publish always
 
       - name: build-mac
         if: matrix.os == 'macos-latest'
-        run: pnpm run build:mac
+        run: pnpm build && pnpm exec electron-builder --mac --publish always
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: build-win
         if: matrix.os == 'windows-latest'
-        run: pnpm run build:win
-
-      - name: release
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          files: release/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm build && pnpm exec electron-builder --win --publish always

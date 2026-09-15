@@ -187,7 +187,7 @@ function createMainWindow(): BrowserWindow {
       preload: path.join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   })
 
@@ -207,6 +207,13 @@ function createMainWindow(): BrowserWindow {
     }
 
     return { action: 'deny' }
+  })
+
+  window.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault()
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url)
+    }
   })
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL
