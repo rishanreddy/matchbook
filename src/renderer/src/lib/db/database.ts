@@ -8,7 +8,6 @@ import { logger } from '../utils/logger'
 
 const DATABASE_NAME = 'matchbook-v4'
 const LEGACY_DATABASE_NAMES = ['matchbook-v3', 'matchbook-v2', 'matchbook']
-const DATABASE_RECOVERY_KEY = 'matchbook-database-recovery-v2'
 
 let databaseInstance: ScoutingDatabase | null = null
 let initializingPromise: Promise<ScoutingDatabase> | null = null
@@ -58,56 +57,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms)
   })
-}
-
-function hasRecoveryAttempted(): boolean {
-  if (typeof window === 'undefined') {
-    return false
-  }
-
-  try {
-    return window.localStorage.getItem(DATABASE_RECOVERY_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function markRecoveryAttempted(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    window.localStorage.setItem(DATABASE_RECOVERY_KEY, 'true')
-  } catch {
-    // ignore localStorage write failures
-  }
-}
-
-function clearRecoveryAttempted(): void {
-  if (typeof window === 'undefined') {
-    return
-  }
-
-  try {
-    window.localStorage.removeItem(DATABASE_RECOVERY_KEY)
-  } catch {
-    // ignore localStorage write failures
-  }
-}
-
-function isRecoverableDatabaseError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-
-  return (
-    message.includes('RxDB Error-Code: COL12') ||
-    message.includes('RxDB Error-Code: DB6') ||
-    message.includes('RxDB Error-Code: DM4') ||
-    message.includes('RxDB Error-Code: SNH') ||
-    message.includes('migrationStrategy is missing') ||
-    message.includes('another instance created this collection with a different schema') ||
-    message.includes('RxStorageInstanceDexie is closed')
-  )
 }
 
 function getUserFacingDatabaseErrorMessage(error: unknown): string {
@@ -232,31 +181,11 @@ export async function initializeDatabase(): Promise<ScoutingDatabase> {
         }
       }
 
-      clearRecoveryAttempted()
       databaseInstance = db
       logger.info('RxDB initialized successfully')
       return databaseInstance
     } catch (error: unknown) {
-      if (isRecoverableDatabaseError(error) && !hasRecoveryAttempted()) {
-        logger.warn('Recoverable database initialization error detected. Clearing local cache and retrying once.', {
-          error: error instanceof Error ? error.message : 'Unknown recoverable database error',
-        })
-
-        try {
-          markRecoveryAttempted()
-          await clearPersistentDatabaseStorage()
-
-          const recoveredDb = await createDatabaseWithStorage()
-          clearRecoveryAttempted()
-          databaseInstance = recoveredDb
-          logger.info('RxDB recovered successfully after clearing local cache')
-          return recoveredDb
-        } catch (recoveryError: unknown) {
-          logger.error('RxDB auto-recovery attempt failed', recoveryError)
-        }
-      }
-
-      logger.error('Failed to initialize RxDB', error)
+      logger.error('Failed to initialize RxDB without modifying local data', error)
       const causeMessage = error instanceof Error ? error.message : 'Unknown database error'
       throw new AppError(getUserFacingDatabaseErrorMessage(error), 'DATABASE_INIT_FAILED', {
         cause: error,
@@ -290,8 +219,6 @@ export async function resetDatabase(): Promise<number> {
   }
 
   initializingPromise = null
-  clearRecoveryAttempted()
-
   if (isLocalStorageAvailable()) {
     await clearPersistentDatabaseStorage()
     for (const legacyName of LEGACY_DATABASE_NAMES) {
@@ -304,7 +231,6 @@ export async function resetDatabase(): Promise<number> {
         })
       }
     }
-    clearRecoveryAttempted()
     logger.warn('Database reset requested, removed persistent RxDB storage')
     return 1
   }
