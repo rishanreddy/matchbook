@@ -238,10 +238,6 @@ export const appTheme = createTheme({
         tab: {
           fontWeight: 500,
           transition: 'all 0.2s ease',
-          '&[data-active]': {
-            color: 'var(--mantine-color-frc-blue-4)',
-            borderColor: 'var(--mantine-color-frc-blue-4)',
-          },
         },
       },
     },
@@ -278,12 +274,6 @@ export const appTheme = createTheme({
         root: {
           borderRadius: rem(10),
           transition: 'all 0.2s ease',
-          '&[data-active]': {
-            backgroundColor: 'rgba(29, 161, 242, 0.12)',
-          },
-          '&:hover': {
-            backgroundColor: 'rgba(148, 163, 184, 0.08)',
-          },
         },
       },
     },

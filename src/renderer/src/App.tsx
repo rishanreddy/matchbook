@@ -392,7 +392,7 @@ function App() {
 
   const shortcutHelpGroups = useMemo(() => createShortcutHelpGroups(shortcutBindings), [shortcutBindings])
 
-  const logoSrc = useMemo(() => getPublicAssetPath('icons.svg'), [])
+  const logoSrc = useMemo(() => getPublicAssetPath('matchbook-logo.png'), [])
 
   const renderNavGroup = (groupKey: string, groupLabel: string) => {
     // Filter items by group and by Hub status (non-Hub devices don't see hubOnly items)

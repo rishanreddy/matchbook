@@ -49,3 +49,34 @@ export function validateSyncPayload(value: unknown): SyncPayload {
 
   return value
 }
+
+function isPrivateLanHost(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+    return true
+  }
+
+  if (/^10(?:\.\d{1,3}){3}$/.test(hostname) || /^192\.168(?:\.\d{1,3}){2}$/.test(hostname)) {
+    return true
+  }
+
+  const private172 = hostname.match(/^172\.(\d{1,3})(?:\.\d{1,3}){2}$/)
+  return private172 !== null && Number(private172[1]) >= 16 && Number(private172[1]) <= 31
+}
+
+export function normalizeHubUrl(value: string): string {
+  const trimmedValue = value.trim()
+  const withProtocol = /^https?:\/\//i.test(trimmedValue) ? trimmedValue : `http://${trimmedValue}`
+
+  let url: URL
+  try {
+    url = new URL(withProtocol)
+  } catch {
+    throw new Error('Enter a valid private hub IP address and port.')
+  }
+
+  if (url.protocol !== 'http:' || !isPrivateLanHost(url.hostname)) {
+    throw new Error('Network sync is limited to a private local hub over HTTP.')
+  }
+
+  return url.origin
+}

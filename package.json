@@ -1,7 +1,7 @@
 {
   "name": "matchbook",
   "private": false,
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Matchbook: offline-first FRC scouting and sync platform",
   "author": "Rishan Reddy",
   "license": "MIT",
@@ -16,7 +16,7 @@
   "type": "module",
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.0.0",
     "pnpm": ">=10.0.0"
   },
   "main": "./out/main/index.js",
