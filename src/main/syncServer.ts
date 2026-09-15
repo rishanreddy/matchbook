@@ -4,24 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import { app, ipcMain } from 'electron'
-
-type SyncCollection =
-  | 'scoutingData'
-  | 'formSchemas'
-  | 'events'
-
-const supportedCollections: SyncCollection[] = [
-  'scoutingData',
-  'formSchemas',
-  'events',
-]
-
-type SyncPayload = {
-  exportedAt: string
-  collection: SyncCollection
-  count: number
-  data: Record<string, unknown>[]
-}
+import { isValidSyncPayload, type SyncPayload } from '../shared/syncProtocol'
 
 type FailedSyncPayload = {
   payload: SyncPayload
@@ -104,7 +87,7 @@ async function ensureQueueLoaded(): Promise<void> {
   payloadQueue.length = 0
   if (Array.isArray(parsedQueue)) {
     parsedQueue.forEach((item) => {
-      if (isSyncPayload(item)) {
+      if (isValidSyncPayload(item)) {
         payloadQueue.push(item)
       }
     })
@@ -120,7 +103,7 @@ async function ensureQueueLoaded(): Promise<void> {
         'payload' in item &&
         'reason' in item &&
         'quarantinedAt' in item &&
-        isSyncPayload((item as { payload: unknown }).payload)
+        isValidSyncPayload((item as { payload: unknown }).payload)
       ) {
         failedPayloadQueue.push({
           payload: (item as { payload: SyncPayload }).payload,
@@ -200,46 +183,6 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
       }
     })
   })
-}
-
-function isSyncPayload(candidate: unknown): candidate is SyncPayload {
-  if (typeof candidate !== 'object' || candidate === null) {
-    return false
-  }
-
-  const payload = candidate as Partial<SyncPayload>
-  if (!supportedCollections.includes(payload.collection as SyncCollection)) {
-    return false
-  }
-
-  if (typeof payload.exportedAt !== 'string' || payload.exportedAt.length === 0) {
-    return false
-  }
-
-  if (!Array.isArray(payload.data)) {
-    return false
-  }
-
-  const normalizedCount = Number(payload.count)
-  if (!Number.isInteger(normalizedCount) || normalizedCount !== payload.data.length) {
-    return false
-  }
-
-  const primaryField = getPrimaryFieldName()
-  const hasValidRows = payload.data.every((row) => {
-    if (typeof row !== 'object' || row === null) {
-      return false
-    }
-
-    const primaryValue = (row as Record<string, unknown>)[primaryField]
-    return typeof primaryValue === 'string' && primaryValue.length > 0
-  })
-
-  return hasValidRows
-}
-
-function getPrimaryFieldName(): 'id' {
-  return 'id'
 }
 
 function getAddressSortWeight(address: string): number {
@@ -352,7 +295,7 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
 
       void readJsonBody(request)
         .then(async (body) => {
-          if (!isSyncPayload(body)) {
+          if (!isValidSyncPayload(body)) {
             sendJson(response, 400, { ok: false, error: 'Invalid sync payload.' })
             return
           }

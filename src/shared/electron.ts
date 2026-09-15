@@ -1,14 +1,5 @@
-export type SyncCollection =
-  | 'scoutingData'
-  | 'formSchemas'
-  | 'events'
-
-export type SyncPayload = {
-  exportedAt: string
-  collection: SyncCollection
-  count: number
-  data: Record<string, unknown>[]
-}
+export type { SyncCollection, SyncPayload } from './syncProtocol'
+import type { SyncPayload } from './syncProtocol'
 
 export type SyncServerStatus = {
   running: boolean

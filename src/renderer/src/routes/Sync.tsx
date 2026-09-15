@@ -30,6 +30,13 @@ import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import Papa from 'papaparse'
 import { QRCodeSVG } from 'qrcode.react'
 import {
+  NETWORK_SYNC_COLLECTIONS,
+  isSyncCollection,
+  validateSyncPayload as validateNetworkSyncPayload,
+  type SyncCollection,
+  type SyncPayload,
+} from '../../../shared/syncProtocol'
+import {
   IconAlertTriangle,
   IconArrowsMaximize,
   IconArrowsMinimize,
@@ -54,19 +61,6 @@ type ChunkPayload = {
   index: number
   total: number
   payload: string
-}
-
-type SyncCollection =
-  | 'scoutingData'
-  | 'formSchemas'
-  | 'analysisConfigs'
-  | 'events'
-
-type SyncPayload = {
-  exportedAt: string
-  collection: SyncCollection
-  count: number
-  data: Record<string, unknown>[]
 }
 
 type CsvRow = Record<string, string>
@@ -116,22 +110,13 @@ const collectionOptions = [
   { value: 'events', label: 'Events' },
 ] satisfies Array<{ value: SyncCollection; label: string }>
 
-const allCollections: SyncCollection[] = [
-  'scoutingData',
-  'formSchemas',
-  'analysisConfigs',
-  'events',
-]
+const allCollections: readonly SyncCollection[] = NETWORK_SYNC_COLLECTIONS
 
 const snapshotCollectionLabels: Record<SyncCollection, string> = {
   scoutingData: 'Scouting Data',
   formSchemas: 'Form Schemas',
   analysisConfigs: 'Analysis Settings',
   events: 'Events',
-}
-
-function isSyncCollection(value: unknown): value is SyncCollection {
-  return typeof value === 'string' && allCollections.includes(value as SyncCollection)
 }
 
 function isRecordArray(value: unknown): value is Record<string, unknown>[] {
@@ -556,27 +541,7 @@ export function Sync(): ReactElement {
     [db],
   )
 
-  const validateSyncPayload = useCallback((payload: unknown): SyncPayload => {
-    if (typeof payload !== 'object' || payload === null) {
-      throw new Error('Invalid sync payload object.')
-    }
-
-    const candidate = payload as Partial<SyncPayload>
-    if (!isSyncCollection(candidate.collection)) {
-      throw new Error('Invalid collection in sync payload.')
-    }
-
-    if (!isRecordArray(candidate.data)) {
-      throw new Error('Sync payload data must be an array.')
-    }
-
-    return {
-      exportedAt: String(candidate.exportedAt ?? ''),
-      collection: candidate.collection,
-      count: Number(candidate.count ?? candidate.data.length),
-      data: candidate.data as Record<string, unknown>[],
-    }
-  }, [])
+  const validateSyncPayload = useCallback((payload: unknown): SyncPayload => validateNetworkSyncPayload(payload), [])
 
   const isDuplicateInsertError = useCallback((error: unknown): boolean => {
     if (typeof error === 'object' && error !== null && 'code' in error) {
