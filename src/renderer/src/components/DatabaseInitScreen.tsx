@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import {
   Alert,
   Badge,
@@ -6,10 +6,12 @@ import {
   Button,
   Container,
   Group,
+  Modal,
   Paper,
   Progress,
   Stack,
   Text,
+  TextInput,
   ThemeIcon,
   Title,
 } from '@mantine/core'
@@ -40,9 +42,53 @@ export function DatabaseInitScreen({
   isResetting,
 }: DatabaseInitScreenProps): ReactElement {
   const hasError = Boolean(error)
+  const [resetConfirmation, setResetConfirmation] = useState('')
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
+
+  const openResetDialog = (): void => {
+    setResetConfirmation('')
+    setIsResetDialogOpen(true)
+  }
+
+  const confirmReset = (): void => {
+    if (resetConfirmation.trim().toUpperCase() !== 'RESET') {
+      return
+    }
+
+    setIsResetDialogOpen(false)
+    onReset()
+  }
 
   return (
     <Box className="db-init-root">
+      <Modal
+        opened={isResetDialogOpen}
+        onClose={() => setIsResetDialogOpen(false)}
+        title="Reset local database cache?"
+        centered
+      >
+        <Stack gap="md">
+          <Alert icon={<IconAlertTriangle size={16} />} color="red" variant="light">
+            This permanently removes local scouting records, including records that have not been transferred to the hub.
+          </Alert>
+          <Text size="sm">Type RESET to confirm that you have a backup or accept this data loss.</Text>
+          <TextInput
+            label="Confirmation"
+            value={resetConfirmation}
+            onChange={(event) => setResetConfirmation(event.currentTarget.value)}
+            placeholder="RESET"
+            autoFocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setIsResetDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmReset} disabled={resetConfirmation.trim().toUpperCase() !== 'RESET'}>
+              Permanently reset
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Container size="sm" py="xl">
         <Paper className="db-init-panel" p="xl" radius="lg" withBorder>
           <Stack gap="lg">
@@ -134,7 +180,7 @@ export function DatabaseInitScreen({
                 color="red"
                 variant="light"
                 leftSection={<IconTrash size={16} />}
-                onClick={onReset}
+                onClick={openResetDialog}
                 loading={isResetting}
                 disabled={loading && !hasError}
               >
