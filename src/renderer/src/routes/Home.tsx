@@ -20,6 +20,7 @@ import {
   IconSettings,
   IconArrowRight,
   IconCalendarEvent,
+  IconFileDownload,
 } from '@tabler/icons-react'
 import { useIsHub } from '../stores/useDeviceStore'
 import { useDatabaseStore } from '../stores/useDatabase'
@@ -39,6 +40,7 @@ export function Home(): ReactElement {
   const [observationCount, setObservationCount] = useState(0)
   const [teamCount, setTeamCount] = useState(0)
   const [events, setEvents] = useState<EventDocType[]>([])
+  const [hasActiveForm, setHasActiveForm] = useState(false)
 
   useEffect(() => {
     if (!db) {
@@ -59,6 +61,24 @@ export function Home(): ReactElement {
     }
 
     void fetchEvents()
+  }, [db])
+
+  useEffect(() => {
+    if (!db) {
+      return
+    }
+
+    const subscription = db.collections.formSchemas.find({ selector: { isActive: true } }).$.subscribe({
+      next: (forms) => setHasActiveForm(forms.length > 0),
+      error: (error: unknown) => {
+        handleError(error, 'Observe active scouting form')
+        setHasActiveForm(false)
+      },
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [db])
 
   useEffect(() => {
@@ -359,17 +379,24 @@ export function Home(): ReactElement {
         <Stack gap="md" w="100%" maw={480} className="animate-fadeInUp stagger-1">
           <Button
             component={Link}
-            to="/scout"
+            to={hasActiveForm ? '/scout' : '/sync'}
             size="xl"
             radius="lg"
             fullWidth
             variant="gradient"
             gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+            leftSection={hasActiveForm ? <IconClipboardCheck size={20} /> : <IconFileDownload size={20} />}
             rightSection={<IconArrowRight size={20} />}
             classNames={{ root: 'h-16', label: 'text-lg font-bold' }}
           >
-            Scout a Match
+            {hasActiveForm ? 'Scout a Match' : 'Get the Scouting Form'}
           </Button>
+
+          {!hasActiveForm && (
+            <Text size="sm" c="slate.4" ta="center">
+              Receive the active form from the hub before recording your first match. Your device is otherwise ready to use offline.
+            </Text>
+          )}
 
           {observationCount > 0 && (
             <Button

@@ -4,7 +4,6 @@ import path from 'node:path'
 import process from 'node:process'
 import updater from 'electron-updater'
 import type { ProgressInfo, UpdateInfo } from 'electron-updater'
-import { registerDatabaseIpcHandlers } from './database'
 import { registerSyncServerIpcHandlers, stopSyncServer } from './syncServer'
 
 const { autoUpdater } = updater
@@ -290,7 +289,6 @@ function registerIpcHandlers(): void {
     autoUpdater.quitAndInstall()
     return { supported: true }
   })
-  registerDatabaseIpcHandlers()
   registerSyncServerIpcHandlers()
 }
 

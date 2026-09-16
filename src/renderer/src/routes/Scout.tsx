@@ -340,12 +340,13 @@ export function Scout(): ReactElement {
   }
 
   const surveyDraftKey = useMemo(() => {
-    if (!showForm || !isPositiveInteger(matchNumber) || !isPositiveInteger(teamNumber)) {
+    if (!showForm || !formSchema || !isPositiveInteger(matchNumber) || !isPositiveInteger(teamNumber)) {
       return null
     }
 
-    return `scout_draft_manual_${matchNumber}_${teamNumber}`
-  }, [showForm, matchNumber, teamNumber])
+    // Drafts must never be restored into a different event or a changed form.
+    return `scout_draft_${currentEventId ?? 'none'}_${formSchema.id}_${formSchema.updatedAt}_${matchNumber}_${teamNumber}`
+  }, [currentEventId, formSchema, showForm, matchNumber, teamNumber])
 
   const survey = useMemo(() => {
     if (!showForm || !formSchema) {
@@ -359,7 +360,12 @@ export function Scout(): ReactElement {
     model.textUpdateMode = 'onTyping'
 
     if (surveyDraftKey) {
-      const draftRaw = localStorage.getItem(surveyDraftKey)
+      let draftRaw: string | null = null
+      try {
+        draftRaw = localStorage.getItem(surveyDraftKey)
+      } catch (error: unknown) {
+        handleError(error, 'Access scouting form draft')
+      }
       if (draftRaw) {
         try {
           const parsedDraft = JSON.parse(draftRaw) as ScoutSurveyDraft
@@ -371,7 +377,11 @@ export function Scout(): ReactElement {
           }
         } catch (error: unknown) {
           handleError(error, 'Restore scouting form draft')
-          localStorage.removeItem(surveyDraftKey)
+          try {
+            localStorage.removeItem(surveyDraftKey)
+          } catch {
+            // The corrupted draft is non-critical; submission remains available.
+          }
         }
       }
     }
@@ -395,7 +405,11 @@ export function Scout(): ReactElement {
         data: survey.data as Record<string, unknown>,
         currentPageNo: survey.currentPageNo,
       }
-      localStorage.setItem(surveyDraftKey, JSON.stringify(payload))
+      try {
+        localStorage.setItem(surveyDraftKey, JSON.stringify(payload))
+      } catch (error: unknown) {
+        logger.warn('Unable to save scouting form draft; the active form remains usable.', error)
+      }
     }
 
     persistDraft()
@@ -459,7 +473,11 @@ export function Scout(): ReactElement {
         logger.info('Scout form submission successful', { matchNumber, teamNumber })
 
         if (surveyDraftKey) {
-          localStorage.removeItem(surveyDraftKey)
+          try {
+            localStorage.removeItem(surveyDraftKey)
+          } catch (error: unknown) {
+            logger.warn('Saved scouting record but could not remove its local draft.', error)
+          }
         }
 
         setShowForm(false)

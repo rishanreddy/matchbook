@@ -4,7 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import { app, ipcMain } from 'electron'
-import { isValidSyncPayload, type SyncPayload } from '../shared/syncProtocol'
+import { isValidSyncPayload, isValidSyncToken, type SyncPayload } from '../shared/syncProtocol'
 
 type FailedSyncPayload = {
   payload: SyncPayload
@@ -126,8 +126,9 @@ async function readJsonFile(filePath: string): Promise<unknown | null> {
       return null
     }
 
-    console.warn(`Failed reading sync queue file: ${filePath}`, error)
-    return null
+    throw new Error(`Unable to read the saved sync queue at ${filePath}. The file was left untouched to preserve recovery options.`, {
+      cause: error,
+    })
   }
 }
 
@@ -141,6 +142,15 @@ function sendJson(response: ServerResponse, statusCode: number, payload: Record<
   setCorsHeaders(response)
   response.writeHead(statusCode, { 'Content-Type': 'application/json' })
   response.end(JSON.stringify(payload))
+}
+
+class HttpRequestError extends Error {
+  readonly statusCode: number
+
+  constructor(message: string, statusCode: number) {
+    super(message)
+    this.statusCode = statusCode
+  }
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -157,8 +167,8 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
       totalBytes += chunk.length
       if (totalBytes > MAX_UPLOAD_BYTES) {
         hasRejected = true
-        request.destroy()
-        reject(new Error('Payload exceeds 5MB limit.'))
+        request.resume()
+        reject(new HttpRequestError('Payload exceeds 5MB limit.', 413))
         return
       }
       chunks.push(chunk)
@@ -173,7 +183,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
         const text = Buffer.concat(chunks).toString('utf8')
         resolve(JSON.parse(text))
       } catch {
-        reject(new Error('Invalid JSON body.'))
+        reject(new HttpRequestError('Invalid JSON body.', 400))
       }
     })
 
@@ -257,9 +267,9 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
     throw new Error('Invalid sync server port.')
   }
 
-  const normalizedAuthToken = typeof authToken === 'string' ? authToken.trim() : ''
-  if (!normalizedAuthToken) {
-    throw new Error('A sync token is required before starting the network sync server.')
+  const normalizedAuthToken = typeof authToken === 'string' ? authToken.trim().toUpperCase() : ''
+  if (!isValidSyncToken(normalizedAuthToken)) {
+    throw new Error('A sync token must be eight characters using A–Z (without I/O) and 2–9.')
   }
 
   serverAuthToken = normalizedAuthToken
@@ -295,6 +305,13 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
     }
 
     if (request.method === 'POST' && urlPath === '/upload') {
+      const declaredContentLength = Number(request.headers['content-length'])
+      if (Number.isFinite(declaredContentLength) && declaredContentLength > MAX_UPLOAD_BYTES) {
+        request.resume()
+        sendJson(response, 413, { ok: false, error: 'Payload exceeds 5MB limit.' })
+        return
+      }
+
       void readJsonBody(request)
         .then(async (body) => {
           if (!isValidSyncPayload(body)) {
@@ -309,7 +326,10 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
         })
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : 'Upload failed.'
-          sendJson(response, 400, { ok: false, error: message })
+          const statusCode = error instanceof HttpRequestError ? error.statusCode : 400
+          if (!response.writableEnded) {
+            sendJson(response, statusCode, { ok: false, error: message })
+          }
         })
       return
     }
@@ -319,11 +339,25 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
 
   try {
     await new Promise<void>((resolve, reject) => {
-      server?.once('error', reject)
-      server?.listen(resolvedPort, '0.0.0.0', () => {
+      const activeServer = server
+      if (!activeServer) {
+        reject(new Error('Sync server did not initialize.'))
+        return
+      }
+
+      const handleStartupError = (error: Error): void => {
+        activeServer.removeListener('listening', handleListening)
+        reject(error)
+      }
+      const handleListening = (): void => {
+        activeServer.removeListener('error', handleStartupError)
         currentPort = resolvedPort
         resolve()
-      })
+      }
+
+      activeServer.once('error', handleStartupError)
+      activeServer.once('listening', handleListening)
+      activeServer.listen(resolvedPort, '0.0.0.0')
     })
   } catch (error) {
     if (server) {
@@ -338,6 +372,10 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
     serverAuthToken = null
     throw error
   }
+
+  server.on('error', (error) => {
+    console.error('Network sync server error:', error)
+  })
 
   return getStatus()
 }

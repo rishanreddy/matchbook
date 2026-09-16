@@ -73,21 +73,6 @@ const electronApi: ElectronAPI = {
   retryQuarantinedSyncPayloads: (): Promise<SyncServerStatus> =>
     ipcRenderer.invoke('sync-server:failed-retry-all'),
   clearQuarantinedSyncPayloads: (): Promise<SyncServerStatus> => ipcRenderer.invoke('sync-server:failed-clear'),
-  db: {
-    initialize: (): Promise<{ ok: boolean; mode: string }> => ipcRenderer.invoke('db:initialize'),
-    query: (collection: string, query?: Record<string, unknown>): Promise<unknown[]> =>
-      ipcRenderer.invoke('db:query', collection, query),
-    insert: (collection: string, document: Record<string, unknown>): Promise<unknown> =>
-      ipcRenderer.invoke('db:insert', collection, document),
-    update: (
-      collection: string,
-      id: string,
-      patch: Record<string, unknown>,
-    ): Promise<Record<string, unknown>> => ipcRenderer.invoke('db:update', collection, id, patch),
-    delete: (collection: string, id: string): Promise<{ deleted: boolean }> =>
-      ipcRenderer.invoke('db:delete', collection, id),
-    sync: (): Promise<{ ok: boolean; syncedAt: string }> => ipcRenderer.invoke('db:sync'),
-  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronApi)

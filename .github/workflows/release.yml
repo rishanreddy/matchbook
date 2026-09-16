@@ -10,12 +10,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Verify tag matches package version
+        shell: bash
+        run: |
+          test "${GITHUB_REF_NAME#v}" = "$(node -p \"require('./package.json').version\")"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run release gates
+        run: pnpm verify:production
+
+  create-draft-release:
+    needs: verify-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Create the release draft before uploading artifacts
+        run: gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --generate-notes
+
   release:
+    needs: create-draft-release
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
 
     strategy:
       matrix:
@@ -40,11 +80,15 @@ jobs:
 
       - name: build-linux
         if: matrix.os == 'ubuntu-latest'
-        run: pnpm build && pnpm exec electron-builder --linux --publish always
+        run: pnpm build && pnpm exec electron-builder --linux --publish always --config.publish.releaseType=draft
+
+      - name: verify-linux-artifacts
+        if: matrix.os == 'ubuntu-latest'
+        run: node scripts/verify-release-artifacts.mjs linux
 
       - name: build-mac
         if: matrix.os == 'macos-latest'
-        run: pnpm build && pnpm exec electron-builder --mac --publish always
+        run: pnpm build && pnpm exec electron-builder --mac --publish always --config.publish.releaseType=draft
         env:
           CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
@@ -52,6 +96,25 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: verify-mac-artifacts
+        if: matrix.os == 'macos-latest'
+        run: node scripts/verify-release-artifacts.mjs mac
+
       - name: build-win
         if: matrix.os == 'windows-latest'
-        run: pnpm build && pnpm exec electron-builder --win --publish always
+        run: pnpm build && pnpm exec electron-builder --win --publish always --config.publish.releaseType=draft
+
+      - name: verify-windows-artifacts
+        if: matrix.os == 'windows-latest'
+        run: node scripts/verify-release-artifacts.mjs win
+
+  publish-release:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Publish verified release
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
