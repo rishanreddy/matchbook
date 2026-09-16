@@ -32,7 +32,9 @@ import { QRCodeSVG } from 'qrcode.react'
 import {
   NETWORK_SYNC_COLLECTIONS,
   isSyncCollection,
+  isValidSyncToken as isProtocolSyncToken,
   normalizeHubUrl,
+  SYNC_TOKEN_LENGTH,
   validateSyncPayload as validateNetworkSyncPayload,
   type SyncCollection,
   type SyncPayload,
@@ -101,7 +103,6 @@ const QR_CHUNK_SIZE = 1800
 const TEST_QR_CHUNK_SIZE = 320
 const MIN_QR_SCANNER_HEIGHT = 340
 const NETWORK_UPLOAD_MAX_BYTES = 4 * 1024 * 1024
-const SYNC_TOKEN_LENGTH = 8
 const SYNC_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 const collectionOptions = [
@@ -196,7 +197,7 @@ function normalizeSyncToken(value: string): string {
 }
 
 function isValidSyncToken(value: string): boolean {
-  return value.length === SYNC_TOKEN_LENGTH
+  return isProtocolSyncToken(value)
 }
 
 function readPersistedValue(key: string, fallback = ''): string {
@@ -261,6 +262,8 @@ export function Sync(): ReactElement {
   const [clearScoutingDataConfirmText, setClearScoutingDataConfirmText] = useState('')
   const [clearScoutingDataCount, setClearScoutingDataCount] = useState<number>(0)
   const [isClearingScoutingData, setIsClearingScoutingData] = useState(false)
+  const [clearQuarantineModalOpened, setClearQuarantineModalOpened] = useState(false)
+  const [clearQuarantineConfirmText, setClearQuarantineConfirmText] = useState('')
   const [forceSmallQrChunks, setForceSmallQrChunks] = useState<boolean>(() => {
     return readPersistedValue('sync_force_small_qr_chunks') === 'true'
   })
@@ -702,29 +705,31 @@ export function Sync(): ReactElement {
         }
       }
 
-      const updateExistingRow = async (row: Record<string, unknown>) => {
+      const updateExistingRow = async (
+        row: Record<string, unknown>,
+      ): Promise<'updated' | 'failed' | 'not-supported'> => {
         if (collection === 'scoutingData') {
-          return false
+          return 'not-supported'
         }
 
         try {
           switch (collection) {
             case 'formSchemas':
               await db.collections.formSchemas.upsert(row as never)
-              return true
+              return 'updated'
             case 'analysisConfigs':
               await db.collections.analysisConfigs.upsert(row as never)
-              return true
+              return 'updated'
             case 'events':
               await db.collections.events.upsert(row as never)
-              return true
+              return 'updated'
             default:
-              return false
+              return 'not-supported'
           }
         } catch (error: unknown) {
           result.errors += 1
           result.errorMessages.push(error instanceof Error ? error.message : `Failed updating existing ${collection} row.`)
-          return true
+          return 'failed'
         }
       }
 
@@ -751,8 +756,6 @@ export function Sync(): ReactElement {
           row = normalizedEventRow
         }
 
-        await enforceSingleActiveFormSchema(row)
-
         const primaryValue = row[primaryField]
         const primaryId = typeof primaryValue === 'string' ? primaryValue : ''
         if (!primaryId) {
@@ -764,8 +767,13 @@ export function Sync(): ReactElement {
         const existing = await findExisting(primaryId)
 
         if (existing) {
-          const handledAsUpdate = await updateExistingRow(row)
-          if (handledAsUpdate) {
+          const updateOutcome = await updateExistingRow(row)
+          if (updateOutcome === 'updated') {
+            await enforceSingleActiveFormSchema(row)
+            continue
+          }
+
+          if (updateOutcome === 'failed') {
             continue
           }
 
@@ -775,6 +783,7 @@ export function Sync(): ReactElement {
 
         try {
           await insertRow(row)
+          await enforceSingleActiveFormSchema(row)
           result.inserted += 1
         } catch (error: unknown) {
           if (isDuplicateInsertError(error)) {
@@ -1441,8 +1450,22 @@ export function Sync(): ReactElement {
     }
   }
 
+  const openClearQuarantineModal = (): void => {
+    setClearQuarantineConfirmText('')
+    setClearQuarantineModalOpened(true)
+  }
+
   const handleClearQuarantinedPayloads = async (): Promise<void> => {
     if (!window.electronAPI) {
+      return
+    }
+
+    if (clearQuarantineConfirmText.trim().toUpperCase() !== 'CLEAR') {
+      notifications.show({
+        color: 'yellow',
+        title: 'Confirmation required',
+        message: 'Type CLEAR to permanently remove quarantined payloads.',
+      })
       return
     }
 
@@ -1455,6 +1478,8 @@ export function Sync(): ReactElement {
         title: 'Quarantine cleared',
         message: 'All quarantined payload records were removed.',
       })
+      setClearQuarantineModalOpened(false)
+      setClearQuarantineConfirmText('')
     } catch (error: unknown) {
       handleError(error, 'Clear quarantined sync payloads')
     }
@@ -1812,7 +1837,7 @@ export function Sync(): ReactElement {
                           value={serverAuthToken}
                           onChange={(event) => setServerAuthToken(normalizeSyncToken(event.currentTarget.value))}
                           description={`Clients must provide this ${SYNC_TOKEN_LENGTH}-character code when uploading to hub`}
-                          placeholder="AB12CD34"
+                          placeholder="AB23CD45"
                           maxLength={SYNC_TOKEN_LENGTH}
                           disabled={!isHub || serverStatus.running}
                           size="md"
@@ -1973,7 +1998,7 @@ export function Sync(): ReactElement {
                         <Button
                           variant="subtle"
                           color="red"
-                          onClick={() => void handleClearQuarantinedPayloads()}
+                          onClick={openClearQuarantineModal}
                           disabled={!isHub || serverStatus.failedQueueLength === 0}
                           size="md"
                         >
@@ -2052,7 +2077,7 @@ export function Sync(): ReactElement {
                     label="Sync Token (if required)"
                     value={clientAuthToken}
                     onChange={(event) => setClientAuthToken(normalizeSyncToken(event.currentTarget.value))}
-                    placeholder="AB12CD34"
+                    placeholder="AB23CD45"
                     maxLength={SYNC_TOKEN_LENGTH}
                     size="md"
                   />
@@ -2694,6 +2719,37 @@ export function Sync(): ReactElement {
             Scout mode tip: use `formSchemas` sync to receive updated forms from the hub and `scoutingData` to send match entries.
           </Alert>
         )}
+
+      <Modal
+        opened={clearQuarantineModalOpened}
+        onClose={() => {
+          setClearQuarantineModalOpened(false)
+          setClearQuarantineConfirmText('')
+        }}
+        title="Permanently clear quarantine?"
+        centered
+      >
+        <Stack gap="md">
+          <Alert color="red" variant="light" icon={<IconAlertTriangle size={16} />}>
+            This permanently removes quarantined uploads. Requeue them unless their source data is known to be safely
+            stored elsewhere.
+          </Alert>
+          <TextInput
+            label="Type CLEAR to confirm"
+            placeholder="CLEAR"
+            value={clearQuarantineConfirmText}
+            onChange={(event) => setClearQuarantineConfirmText(event.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setClearQuarantineModalOpened(false)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={() => void handleClearQuarantinedPayloads()}>
+              Permanently clear
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Modal
         opened={clearScoutingDataModalOpened}

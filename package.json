@@ -41,7 +41,7 @@
     "electron:dist:linux": "pnpm build:linux",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
-    "verify:production": "pnpm typecheck && pnpm lint && pnpm build",
+    "verify:production": "pnpm test && pnpm typecheck && pnpm lint && pnpm build",
     "preview": "electron-vite preview"
   },
   "dependencies": {

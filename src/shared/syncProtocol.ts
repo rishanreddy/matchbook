@@ -14,6 +14,9 @@ export type SyncPayload = {
   data: Record<string, unknown>[]
 }
 
+export const SYNC_TOKEN_LENGTH = 8
+const SYNC_TOKEN_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/
+
 export function isSyncCollection(value: unknown): value is SyncCollection {
   return typeof value === 'string' && NETWORK_SYNC_COLLECTIONS.includes(value as SyncCollection)
 }
@@ -50,17 +53,44 @@ export function validateSyncPayload(value: unknown): SyncPayload {
   return value
 }
 
-function isPrivateLanHost(hostname: string): boolean {
+export function isValidSyncToken(value: unknown): value is string {
+  return typeof value === 'string' && SYNC_TOKEN_PATTERN.test(value)
+}
+
+function parseIpv4Address(hostname: string): number[] | null {
+  const octets = hostname.split('.')
+  if (octets.length !== 4) {
+    return null
+  }
+
+  const parsed = octets.map((octet) => {
+    if (!/^\d{1,3}$/.test(octet)) {
+      return null
+    }
+
+    const value = Number(octet)
+    return value >= 0 && value <= 255 ? value : null
+  })
+
+  return parsed.every((octet): octet is number => octet !== null) ? parsed : null
+}
+
+export function isPrivateLanHost(hostname: string): boolean {
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
     return true
   }
 
-  if (/^10(?:\.\d{1,3}){3}$/.test(hostname) || /^192\.168(?:\.\d{1,3}){2}$/.test(hostname)) {
+  const ipv4 = parseIpv4Address(hostname)
+  if (!ipv4) {
+    return false
+  }
+
+  const [first, second] = ipv4
+  if (first === 10 || (first === 192 && second === 168)) {
     return true
   }
 
-  const private172 = hostname.match(/^172\.(\d{1,3})(?:\.\d{1,3}){2}$/)
-  return private172 !== null && Number(private172[1]) >= 16 && Number(private172[1]) <= 31
+  return first === 172 && second >= 16 && second <= 31
 }
 
 export function normalizeHubUrl(value: string): string {
@@ -74,7 +104,7 @@ export function normalizeHubUrl(value: string): string {
     throw new Error('Enter a valid private hub IP address and port.')
   }
 
-  if (url.protocol !== 'http:' || !isPrivateLanHost(url.hostname)) {
+  if (url.protocol !== 'http:' || url.username || url.password || !isPrivateLanHost(url.hostname)) {
     throw new Error('Network sync is limited to a private local hub over HTTP.')
   }
 
