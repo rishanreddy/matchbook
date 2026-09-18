@@ -410,14 +410,14 @@ export function Assignments(): ReactElement {
           p="lg"
           radius="lg"
           style={{
-            background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.08), rgba(26, 140, 255, 0.03))',
-            border: '1px solid rgba(26, 140, 255, 0.2)',
+            background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
+            border: '1px solid rgba(154, 166, 182, 0.2)',
           }}
           className="animate-fadeInUp"
         >
           <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
             <Group gap="md" align="center" wrap="nowrap">
-              <ThemeIcon size={52} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+              <ThemeIcon size={52} radius="xl" variant="light">
                 <IconClipboardCheck size={24} stroke={1.6} />
               </ThemeIcon>
               <Box>
@@ -451,8 +451,6 @@ export function Assignments(): ReactElement {
                   onClick={() => void handleAutoAssign()}
                   disabled={!selectedEvent || scouts.length === 0}
                   loading={isAutoAssigning}
-                  variant="gradient"
-                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                   leftSection={<IconSparkles size={16} />}
                   fw={700}
                   className="active:scale-[0.98]"
@@ -625,7 +623,6 @@ export function Assignments(): ReactElement {
                               disabled={Boolean(assignment) || !(slotSelections[slotKey] ?? assignment?.scoutId)}
                               loading={isAssigning}
                               variant={assignment ? 'light' : 'gradient'}
-                              gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                               size="sm"
                             >
                               Assign

@@ -70,13 +70,15 @@ type CsvRow = Record<string, string>
 
 type ImportResult = {
   inserted: number
+  updated: number
   duplicates: number
   errors: number
   errorMessages: string[]
 }
+import { logger } from '../lib/utils/logger'
 
-function getPrimaryFieldName(): 'id' {
-  return 'id'
+function getPrimaryFieldName(collection: SyncCollection): 'id' | 'key' {
+  return collection === 'matches' ? 'key' : 'id'
 }
 
 type SyncServerStatus = {
@@ -103,6 +105,9 @@ const QR_CHUNK_SIZE = 1800
 const TEST_QR_CHUNK_SIZE = 320
 const MIN_QR_SCANNER_HEIGHT = 340
 const NETWORK_UPLOAD_MAX_BYTES = 4 * 1024 * 1024
+const MAX_QR_CHUNKS = 256
+const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024
+const MAX_IMPORT_ROWS = 10_000
 const SYNC_TOKEN_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
 const collectionOptions = [
@@ -110,6 +115,8 @@ const collectionOptions = [
   { value: 'formSchemas', label: 'Form Schemas' },
   { value: 'analysisConfigs', label: 'Analysis Settings' },
   { value: 'events', label: 'Events' },
+  { value: 'matches', label: 'Match Schedule' },
+  { value: 'assignments', label: 'Scout Assignments' },
 ] satisfies Array<{ value: SyncCollection; label: string }>
 
 const allCollections: readonly SyncCollection[] = NETWORK_SYNC_COLLECTIONS
@@ -119,6 +126,8 @@ const snapshotCollectionLabels: Record<SyncCollection, string> = {
   formSchemas: 'Form Schemas',
   analysisConfigs: 'Analysis Settings',
   events: 'Events',
+  matches: 'Match Schedule',
+  assignments: 'Scout Assignments',
 }
 
 function isRecordArray(value: unknown): value is Record<string, unknown>[] {
@@ -129,11 +138,12 @@ function mergeImportResults(results: ImportResult[]): ImportResult {
   return results.reduce<ImportResult>(
     (acc, result) => ({
       inserted: acc.inserted + result.inserted,
+      updated: acc.updated + result.updated,
       duplicates: acc.duplicates + result.duplicates,
       errors: acc.errors + result.errors,
       errorMessages: [...acc.errorMessages, ...result.errorMessages],
     }),
-    { inserted: 0, duplicates: 0, errors: 0, errorMessages: [] },
+    { inserted: 0, updated: 0, duplicates: 0, errors: 0, errorMessages: [] },
   )
 }
 
@@ -257,6 +267,8 @@ export function Sync(): ReactElement {
     formSchemas: true,
     analysisConfigs: true,
     events: true,
+    matches: true,
+    assignments: true,
   })
   const [clearScoutingDataModalOpened, setClearScoutingDataModalOpened] = useState(false)
   const [clearScoutingDataConfirmText, setClearScoutingDataConfirmText] = useState('')
@@ -389,7 +401,6 @@ export function Sync(): ReactElement {
   const [clientAuthToken, setClientAuthToken] = useState<string>(() => normalizeSyncToken(readPersistedValue('sync_client_auth_token')))
   const [isUploadingNetwork, setIsUploadingNetwork] = useState<boolean>(false)
   const [isConsumingNetwork, setIsConsumingNetwork] = useState<boolean>(false)
-  const [networkCollection, setNetworkCollection] = useState<SyncCollection>('scoutingData')
 
   const networkAvailable = typeof window.electronAPI !== 'undefined'
   const serverUrlIsLoopback = useMemo(() => {
@@ -539,6 +550,14 @@ export function Sync(): ReactElement {
         const docs = await db.collections.events.find().exec()
         return docs.map((doc) => doc.toJSON())
       }
+      if (collection === 'matches') {
+        const docs = await db.collections.matches.find().exec()
+        return docs.map((doc) => doc.toJSON())
+      }
+      if (collection === 'assignments') {
+        const docs = await db.collections.assignments.find().exec()
+        return docs.map((doc) => doc.toJSON())
+      }
 
       throw new Error(`Unsupported collection: ${String(collection)}`)
     },
@@ -570,8 +589,8 @@ export function Sync(): ReactElement {
       }
 
       const collection = forcedCollection ?? payload.collection
-      const result: ImportResult = { inserted: 0, duplicates: 0, errors: 0, errorMessages: [] }
-      const primaryField = getPrimaryFieldName()
+      const result: ImportResult = { inserted: 0, updated: 0, duplicates: 0, errors: 0, errorMessages: [] }
+      const primaryField = getPrimaryFieldName(collection)
 
       const normalizeScoutingDataRow = (row: Record<string, unknown>): Record<string, unknown> | null => {
         const id = typeof row.id === 'string' && row.id.length > 0 ? row.id : crypto.randomUUID()
@@ -681,6 +700,10 @@ export function Sync(): ReactElement {
             return db.collections.analysisConfigs.findOne(id).exec()
           case 'events':
             return db.collections.events.findOne(id).exec()
+          case 'matches':
+            return db.collections.matches.findOne(id).exec()
+          case 'assignments':
+            return db.collections.assignments.findOne(id).exec()
           default:
             throw new Error(`Unsupported collection: ${String(collection)}`)
         }
@@ -699,6 +722,12 @@ export function Sync(): ReactElement {
             return
           case 'events':
             await db.collections.events.insert(row as never)
+            return
+          case 'matches':
+            await db.collections.matches.insert(row as never)
+            return
+          case 'assignments':
+            await db.collections.assignments.insert(row as never)
             return
           default:
             throw new Error(`Unsupported collection: ${String(collection)}`)
@@ -722,6 +751,12 @@ export function Sync(): ReactElement {
               return 'updated'
             case 'events':
               await db.collections.events.upsert(row as never)
+              return 'updated'
+            case 'matches':
+              await db.collections.matches.upsert(row as never)
+              return 'updated'
+            case 'assignments':
+              await db.collections.assignments.upsert(row as never)
               return 'updated'
             default:
               return 'not-supported'
@@ -770,6 +805,7 @@ export function Sync(): ReactElement {
           const updateOutcome = await updateExistingRow(row)
           if (updateOutcome === 'updated') {
             await enforceSingleActiveFormSchema(row)
+            result.updated += 1
             continue
           }
 
@@ -853,6 +889,11 @@ export function Sync(): ReactElement {
       const payload = await buildPayload(exportCollection)
       const compressed = compressData(payload)
       const chunks = splitIntoChunks(compressed, qrChunkSize)
+      if (chunks.length > MAX_QR_CHUNKS) {
+        throw new Error(
+          `This export needs ${chunks.length} QR codes. QR transfer is limited to ${MAX_QR_CHUNKS} codes; use network sync or a database snapshot instead.`,
+        )
+      }
       const encodedChunks = chunks.map((chunk, index) =>
         JSON.stringify({ index: index + 1, total: chunks.length, payload: chunk } satisfies ChunkPayload),
       )
@@ -887,6 +928,7 @@ export function Sync(): ReactElement {
         !Number.isInteger(parsed.total) ||
         parsed.index < 1 ||
         parsed.total < 1 ||
+        parsed.total > MAX_QR_CHUNKS ||
         parsed.index > parsed.total ||
         typeof parsed.payload !== 'string' ||
         parsed.payload.length === 0
@@ -1075,7 +1117,7 @@ export function Sync(): ReactElement {
       notifications.show({
         color: result.errors > 0 ? 'yellow' : 'green',
         title: result.errors > 0 ? 'QR import finished with errors' : 'QR import complete',
-        message: `${result.inserted} imported, ${result.duplicates} duplicates, ${result.errors} errors.`,
+        message: `${result.inserted} imported, ${result.updated} updated, ${result.duplicates} duplicates, ${result.errors} errors.`,
       })
 
       if (result.errors > 0 && result.errorMessages.length > 0) {
@@ -1140,6 +1182,12 @@ export function Sync(): ReactElement {
     setCsvRows([])
     setIsCsvLoading(true)
 
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      setCsvParseError('CSV files must be 10 MB or smaller. Split the file before importing.')
+      setIsCsvLoading(false)
+      return
+    }
+
     Papa.parse<CsvRow>(file, {
       header: true,
       skipEmptyLines: true,
@@ -1154,6 +1202,13 @@ export function Sync(): ReactElement {
         if (results.errors.length > 0) {
           const first = results.errors[0]
           setCsvParseError(`CSV parse error on row ${first.row ?? '?'}: ${first.message}`)
+        }
+
+        if (results.data.length > MAX_IMPORT_ROWS) {
+          setCsvRows([])
+          setCsvParseError(`CSV imports are limited to ${MAX_IMPORT_ROWS.toLocaleString()} rows. Split the file before importing.`)
+          setIsCsvLoading(false)
+          return
         }
 
         setCsvRows(results.data)
@@ -1226,7 +1281,7 @@ export function Sync(): ReactElement {
         data: docs,
       })
 
-      const summary = `${result.inserted} imported, ${result.duplicates} duplicates, ${result.errors + invalidRows} errors.`
+      const summary = `${result.inserted} imported, ${result.updated} updated, ${result.duplicates} duplicates, ${result.errors + invalidRows} errors.`
       setCsvImportSummary(summary)
       notifications.show({
         color: result.errors + invalidRows > 0 ? 'yellow' : 'green',
@@ -1283,6 +1338,10 @@ export function Sync(): ReactElement {
     }
 
     try {
+      if (dbImportFile.size > MAX_IMPORT_FILE_BYTES) {
+        throw new Error('Database snapshots must be 10 MB or smaller. Split the snapshot before importing.')
+      }
+
       setDbImportSummary('')
       setDbImportProgress(10)
       const text = await dbImportFile.text()
@@ -1302,6 +1361,9 @@ export function Sync(): ReactElement {
         if (!isRecordArray(parsed.data)) {
           throw new Error('Snapshot has invalid data payload for collection import.')
         }
+        if (parsed.data.length > MAX_IMPORT_ROWS) {
+          throw new Error(`Snapshot collections are limited to ${MAX_IMPORT_ROWS.toLocaleString()} rows each.`)
+        }
         taskMap.set(parsed.collection, parsed.data)
       }
 
@@ -1314,6 +1376,9 @@ export function Sync(): ReactElement {
 
           if (!isRecordArray(rawData)) {
             throw new Error(`Snapshot collection '${collection}' must be an array of objects.`)
+          }
+          if (rawData.length > MAX_IMPORT_ROWS) {
+            throw new Error(`Snapshot collection '${collection}' exceeds the ${MAX_IMPORT_ROWS.toLocaleString()} row import limit.`)
           }
 
           taskMap.set(collection, rawData)
@@ -1341,7 +1406,7 @@ export function Sync(): ReactElement {
       }
 
       const merged = mergeImportResults(results)
-      const summary = `${merged.inserted} imported, ${merged.duplicates} duplicates, ${merged.errors} errors.`
+      const summary = `${merged.inserted} imported, ${merged.updated} updated, ${merged.duplicates} duplicates, ${merged.errors} errors.`
       setDbImportSummary(summary)
       notifications.show({
         color: merged.errors > 0 ? 'yellow' : 'green',
@@ -1558,7 +1623,9 @@ export function Sync(): ReactElement {
 
     setIsUploadingNetwork(true)
     try {
-      const payload = await buildPayload(networkCollection)
+      // LAN upload intentionally only accepts scout observations. Configuration changes
+      // must use an explicit QR or database snapshot transfer for operator review.
+      const payload = await buildPayload('scoutingData')
       const baseUrl = normalizeHubUrl(serverUrlInput)
       const authToken = clientAuthToken.trim()
       if (!isValidSyncToken(authToken)) {
@@ -1605,7 +1672,7 @@ export function Sync(): ReactElement {
       let latestQueueLength: number | undefined
       for (const batch of batches) {
         const uploadUrl = `${baseUrl}/upload`
-        console.log('[Client Upload] POST to:', uploadUrl)
+        logger.debug('Client upload: posting batch to hub', { uploadUrl })
         
         const controller = new AbortController()
         const timeout = window.setTimeout(() => controller.abort(), 20000)
@@ -1625,7 +1692,10 @@ export function Sync(): ReactElement {
           window.clearTimeout(timeout)
         }
         
-        console.log('[Client Upload] Response:', response.status, response.statusText)
+        logger.debug('Client upload: hub responded', {
+          status: response.status,
+          statusText: response.statusText,
+        })
 
         if (!response.ok) {
           const text = await response.text()
@@ -1682,7 +1752,7 @@ export function Sync(): ReactElement {
           acknowledged += 1
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : 'Unknown payload processing error.'
-          results.push({ inserted: 0, duplicates: 0, errors: 1, errorMessages: [message] })
+          results.push({ inserted: 0, updated: 0, duplicates: 0, errors: 1, errorMessages: [message] })
           await window.electronAPI.quarantineHeadSyncPayload(message)
           quarantined += 1
         }
@@ -1692,7 +1762,7 @@ export function Sync(): ReactElement {
       notifications.show({
         color: merged.errors > 0 ? 'yellow' : 'green',
         title: 'Network sync applied',
-        message: `${merged.inserted} imported, ${merged.duplicates} duplicates, ${merged.errors} errors from ${acknowledged} acknowledged and ${quarantined} quarantined payload(s).`,
+        message: `${merged.inserted} imported, ${merged.updated} updated, ${merged.duplicates} duplicates, ${merged.errors} errors from ${acknowledged} acknowledged and ${quarantined} quarantined payload(s).`,
       })
       await refreshServerStatus()
     } catch (error: unknown) {
@@ -1719,9 +1789,9 @@ export function Sync(): ReactElement {
               radius="xl" 
               variant="light"
               style={{
-                background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.15), rgba(26, 140, 255, 0.08))',
-                border: '1px solid rgba(26, 140, 255, 0.25)',
-                boxShadow: '0 4px 16px rgba(26, 140, 255, 0.2), 0 0 24px rgba(26, 140, 255, 0.15)',
+                background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.15), rgba(154, 166, 182, 0.08))',
+                border: '1px solid rgba(154, 166, 182, 0.25)',
+                boxShadow: '0 4px 16px rgba(154, 166, 182, 0.2), 0 0 24px rgba(154, 166, 182, 0.15)',
               }}
             >
               <IconRefresh size={28} stroke={1.8} />
@@ -1740,15 +1810,14 @@ export function Sync(): ReactElement {
         <Tabs 
           value={activeTab} 
           onChange={(value) => setActiveTab(value ?? 'network')} 
-          variant="pills" 
-          radius="lg"
+          variant="default"
+          radius="sm"
+          color="gray"
           styles={{
+            // A selected tab only needs to look selected. Filling it with the accent
+            // put a second loud element beside the page's actual primary action.
             list: {
-              background: 'rgba(21, 28, 40, 0.6)',
-              padding: '0.375rem',
-              borderRadius: '14px',
-              border: '1px solid rgba(148, 163, 184, 0.1)',
-              backdropFilter: 'blur(8px)',
+              borderBottom: '1px solid var(--border-default)',
             },
           }}
         >
@@ -1772,7 +1841,7 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]"
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]"
               >
                 <Stack gap="lg">
                   <Group justify="space-between" align="center">
@@ -1781,9 +1850,9 @@ export function Sync(): ReactElement {
                         style={{
                           width: '4px',
                           height: '18px',
-                          background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                          background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                           borderRadius: '2px',
-                          boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                          boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                         }}
                       />
                       <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>
@@ -1792,11 +1861,9 @@ export function Sync(): ReactElement {
                     </Group>
                     <Badge 
                       radius="md"
-                      fw={700}
-                      tt="uppercase"
+                      fw={600}
                       style={{
-                        letterSpacing: '0.05em',
-                        fontSize: '0.7rem',
+                        fontSize: '0.75rem',
                         padding: '0.35rem 0.75rem',
                         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
                         ...(serverStatus.running
@@ -1858,8 +1925,6 @@ export function Sync(): ReactElement {
                           onClick={() => void handleStartServer()} 
                           disabled={!isHub || serverStatus.running}
                           size="md"
-                          variant="gradient"
-                          gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                           fw={700}
                           style={{
                             letterSpacing: '0.01em',
@@ -1912,13 +1977,13 @@ export function Sync(): ReactElement {
                                 background: 'rgba(8, 12, 20, 0.8)',
                                 border: '1px solid rgba(148, 163, 184, 0.15)',
                                 borderRadius: '8px',
-                                color: '#8ec5ff',
+                                color: 'var(--accent)',
                                 fontWeight: 600,
                                 overflowX: 'auto',
                                 whiteSpace: 'nowrap',
                                 transition: 'all 0.2s ease',
                               }}
-                              className="mono-number hover:bg-[rgba(8,12,20,0.95)] hover:border-[rgba(26,140,255,0.25)]"
+                              className="mono-number hover:bg-[rgba(8,12,20,0.95)] hover:border-[rgba(154, 166, 182, 0.25)]"
                             >
                               {serverStatus.url ? `${serverStatus.url}/upload` : 'Not running'}
                             </Code>
@@ -1971,8 +2036,6 @@ export function Sync(): ReactElement {
                         onClick={() => void handleConsumeNetworkPayloads()}
                         loading={isConsumingNetwork}
                         disabled={!isHub || !serverStatus.running}
-                        variant="gradient"
-                        gradient={{ from: 'success.5', to: 'success.7' }}
                         fw={700}
                         style={{
                           letterSpacing: '0.01em',
@@ -2035,35 +2098,23 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs">
                     <Box
                       style={{
                         width: '4px',
                         height: '18px',
-                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                         borderRadius: '2px',
-                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                       }}
                     />
                     <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>Client Upload</Text>
                   </Group>
                   <Text size="sm" c="slate.4">
-                    Send your local data to a hub server over LAN.
+                    Send scouting observations to a hub server over LAN. Forms and configuration use QR or database snapshots.
                   </Text>
-
-                  <Select
-                    label="Collection"
-                    value={networkCollection}
-                    onChange={(value) => {
-                      if (allCollections.includes(value as SyncCollection)) {
-                        setNetworkCollection(value as SyncCollection)
-                      }
-                    }}
-                    data={collectionOptions}
-                    size="md"
-                  />
 
                   <TextInput
                     label="Hub URL"
@@ -2085,8 +2136,6 @@ export function Sync(): ReactElement {
                   <Button
                     onClick={() => void handleUploadToHub()}
                     loading={isUploadingNetwork}
-                    variant="gradient"
-                    gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
                     leftSection={<IconUpload size={18} />}
                     fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
@@ -2110,16 +2159,16 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs">
                     <Box
                       style={{
                         width: '4px',
                         height: '18px',
-                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                         borderRadius: '2px',
-                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                       }}
                     />
                     <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>QR Export</Text>
@@ -2145,8 +2194,6 @@ export function Sync(): ReactElement {
                   <Button
                     loading={isQrExporting}
                     onClick={() => void handleQrExport()}
-                    variant="gradient"
-                    gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                     leftSection={<IconQrcode size={18} />}
                     fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
@@ -2164,9 +2211,9 @@ export function Sync(): ReactElement {
                           fontFamily: 'JetBrains Mono, monospace',
                           fontSize: '0.85rem',
                           padding: '0.5rem 1rem',
-                          background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.15), rgba(26, 140, 255, 0.08))',
-                          border: '1px solid rgba(26, 140, 255, 0.3)',
-                          boxShadow: '0 2px 8px rgba(26, 140, 255, 0.2)',
+                          background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.15), rgba(154, 166, 182, 0.08))',
+                          border: '1px solid rgba(154, 166, 182, 0.3)',
+                          boxShadow: '0 2px 8px rgba(154, 166, 182, 0.2)',
                         }}
                       >
                         Code {currentQrIndex + 1} of {qrChunks.length}
@@ -2176,7 +2223,7 @@ export function Sync(): ReactElement {
                         radius="lg" 
                         style={{ 
                           backgroundColor: "#ffffff", 
-                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(26, 140, 255, 0.08), 0 0 0 8px rgba(26, 140, 255, 0.04)", 
+                          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(154, 166, 182, 0.08), 0 0 0 8px rgba(154, 166, 182, 0.04)", 
                           transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" 
                         }} 
                         className="cursor-zoom-in hover:scale-[1.02]"
@@ -2231,7 +2278,7 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs" justify="space-between" align="center">
                     <Group gap="xs">
@@ -2239,9 +2286,9 @@ export function Sync(): ReactElement {
                         style={{
                           width: '4px',
                           height: '18px',
-                          background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                          background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                           borderRadius: '2px',
-                          boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                          boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                         }}
                       />
                       <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>QR Import</Text>
@@ -2306,7 +2353,7 @@ export function Sync(): ReactElement {
                   <Box className="relative mx-auto w-full max-w-[340px]">
                     <div
                       id="sync-qr-scanner"
-                      className="min-h-[240px] w-full overflow-hidden rounded-[14px] border-2 border-[rgba(26,140,255,0.2)] bg-[rgba(8,12,20,0.45)]"
+                      className="min-h-[240px] w-full overflow-hidden rounded-[14px] border-2 border-[rgba(154, 166, 182, 0.2)] bg-[rgba(8,12,20,0.45)]"
                     />
 
                     {!isScanning && (
@@ -2323,7 +2370,7 @@ export function Sync(): ReactElement {
                       <Stack gap="sm">
                         <Group justify="space-between">
                           <Text size="sm" c="slate.3" fw={600}>Scan Progress</Text>
-                          <Badge variant="light" fw={700} className="mono-number" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.85rem", padding: "0.5rem 1rem", background: "linear-gradient(135deg, rgba(26, 140, 255, 0.15), rgba(26, 140, 255, 0.08))", border: "1px solid rgba(26, 140, 255, 0.3)", boxShadow: "0 2px 8px rgba(26, 140, 255, 0.2)" }}>
+                          <Badge variant="light" fw={700} className="mono-number" style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "0.85rem", padding: "0.5rem 1rem", background: "linear-gradient(135deg, rgba(154, 166, 182, 0.15), rgba(154, 166, 182, 0.08))", border: "1px solid rgba(154, 166, 182, 0.3)", boxShadow: "0 2px 8px rgba(154, 166, 182, 0.2)" }}>
                             {scannedChunks.size} / {expectedQrTotal}
                           </Badge>
                         </Group>
@@ -2380,7 +2427,7 @@ export function Sync(): ReactElement {
                     <>
                       <Code 
                         block 
-                        className="mono-number hover:bg-[rgba(8,12,20,0.95)] hover:border-[rgba(26,140,255,0.25)]" 
+                        className="mono-number hover:bg-[rgba(8,12,20,0.95)] hover:border-[rgba(154, 166, 182, 0.25)]" 
                         style={{ 
                           fontFamily: "JetBrains Mono, monospace", 
                           fontSize: "0.85rem", 
@@ -2388,7 +2435,7 @@ export function Sync(): ReactElement {
                           background: "rgba(8, 12, 20, 0.8)", 
                           border: "1px solid rgba(148, 163, 184, 0.15)", 
                           borderRadius: "8px", 
-                          color: "#8ec5ff", 
+                          color: "var(--accent)", 
                           fontWeight: 600, 
                           overflowX: "auto", 
                           whiteSpace: "nowrap", 
@@ -2399,8 +2446,6 @@ export function Sync(): ReactElement {
                       </Code>
                       <Button
                         onClick={() => void handleImportQr()}
-                        variant="gradient"
-                        gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
                         leftSection={<IconCheck size={18} />}
                         fw={700}
                         style={{
@@ -2418,8 +2463,8 @@ export function Sync(): ReactElement {
                       p="md"
                       radius="lg"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.09), rgba(26, 140, 255, 0.04))',
-                        border: '1px solid rgba(26, 140, 255, 0.24)',
+                        background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.09), rgba(154, 166, 182, 0.04))',
+                        border: '1px solid rgba(154, 166, 182, 0.24)',
                         boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.04)',
                       }}
                     >
@@ -2458,16 +2503,16 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs">
                     <Box
                       style={{
                         width: '4px',
                         height: '18px',
-                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                         borderRadius: '2px',
-                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                       }}
                     />
                     <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>CSV Export</Text>
@@ -2476,8 +2521,6 @@ export function Sync(): ReactElement {
                   <Button
                     onClick={() => void handleExportCsv()}
                     leftSection={<IconDownload size={18} />}
-                    variant="gradient"
-                    gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                     fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
@@ -2496,16 +2539,16 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs">
                     <Box
                       style={{
                         width: '4px',
                         height: '18px',
-                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                         borderRadius: '2px',
-                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                       }}
                     />
                     <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>CSV Import</Text>
@@ -2569,8 +2612,6 @@ export function Sync(): ReactElement {
                     onClick={() => void handleImportCsv()}
                     leftSection={<IconUpload size={18} />}
                     disabled={csvRows.length === 0 || Boolean(csvParseError)}
-                    variant="gradient"
-                    gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
                     fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
@@ -2595,16 +2636,16 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs">
                     <Box
                       style={{
                         width: '4px',
                         height: '18px',
-                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                         borderRadius: '2px',
-                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                       }}
                     />
                     <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>Database Export</Text>
@@ -2639,8 +2680,6 @@ export function Sync(): ReactElement {
                   <Button
                     onClick={() => void handleExportDatabase()}
                     leftSection={<IconDownload size={18} />}
-                    variant="gradient"
-                    gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                     fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
@@ -2659,16 +2698,16 @@ export function Sync(): ReactElement {
                   overflow: 'hidden',
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
-                className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)] hover:-translate-y-[2px]">
+                className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)] hover:-translate-y-[2px]">
                 <Stack gap="lg">
                   <Group gap="xs" mb="xs">
                     <Box
                       style={{
                         width: '4px',
                         height: '18px',
-                        background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                        background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                         borderRadius: '2px',
-                        boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                        boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
                       }}
                     />
                     <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>Database Import</Text>
@@ -2684,8 +2723,6 @@ export function Sync(): ReactElement {
                     onClick={() => void handleImportDatabase()}
                     leftSection={<IconUpload size={18} />}
                     disabled={!dbImportFile}
-                    variant="gradient"
-                    gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}
                     fw={700} style={{ letterSpacing: "0.01em", transition: "all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)" }} className="active:scale-[0.97]"
                     size="md"
                   >
@@ -2901,8 +2938,8 @@ export function Sync(): ReactElement {
             <Box
               p="sm"
               style={{
-                background: 'rgba(26, 140, 255, 0.08)',
-                border: '1px solid rgba(26, 140, 255, 0.2)',
+                background: 'rgba(154, 166, 182, 0.08)',
+                border: '1px solid rgba(154, 166, 182, 0.2)',
                 borderRadius: '8px',
               }}
             >

@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,24 +7,51 @@
    CSS Custom Properties
    ============================================ */
 :root {
-  /* Brand Colors */
-  --frc-blue: #1a8cff;
-  --frc-blue-glow: rgba(26, 140, 255, 0.5);
-  --frc-orange: #ff8800;
-  --frc-orange-glow: rgba(255, 136, 0, 0.5);
-  
-  /* Surface Colors */
-  --surface-base: #0c1218;
-  --surface-raised: #151c28;
-  --surface-overlay: #1e293b;
-  --surface-elevated: #334155;
-  
-  /* Border Colors */
-  --border-subtle: rgba(148, 163, 184, 0.08);
-  --border-default: rgba(148, 163, 184, 0.12);
-  --border-strong: rgba(148, 163, 184, 0.2);
-  --border-accent: rgba(26, 140, 255, 0.3);
-  
+  /* Accent — the one colour Matchbook uses to mean "act here".
+     Red and blue are deliberately NOT used for app chrome: in FRC they mean
+     alliance, and a blue button sitting next to blue-alliance data is ambiguous
+     at a glance. Amber reads as an instrument/field colour and collides with
+     neither alliance. */
+  --accent-rgb: 255, 176, 32;
+  --accent: rgb(var(--accent-rgb));
+  --accent-strong: #e09410;
+  --accent-glow: rgba(var(--accent-rgb), 0.5);
+
+  /* Alliance colours. Reserved for match and alliance data only. Always paired
+     with a text label, because colour alone fails colour-blind scouts. */
+  --alliance-red: #e4483f;
+  --alliance-red-rgb: 228, 72, 63;
+  --alliance-blue: #2f7dea;
+  --alliance-blue-rgb: 47, 125, 234;
+
+  /* Legacy aliases kept so existing rules keep resolving during the theme pass. */
+  --frc-blue: var(--accent);
+  --frc-blue-glow: var(--accent-glow);
+  --frc-orange: var(--accent);
+  --frc-orange-glow: var(--accent-glow);
+
+  /* Surfaces — cool graphite, tuned for arena lighting and laptop screens at
+     half brightness. */
+  --surface-base: #0e1116;
+  --surface-raised: #161b22;
+  --surface-overlay: #1d242d;
+  --surface-elevated: #2a323d;
+
+  /* Borders */
+  --border-subtle: rgba(154, 166, 182, 0.09);
+  --border-default: rgba(154, 166, 182, 0.14);
+  --border-strong: rgba(154, 166, 182, 0.24);
+  --border-accent: rgba(var(--accent-rgb), 0.35);
+
+  /* Text */
+  --text-primary: #e8ebef;
+  --text-secondary: #a7b0bd;
+  --text-muted: #828c9a;
+
+  /* Interaction states */
+  --surface-hover: rgba(154, 166, 182, 0.06);
+  --surface-active: rgba(154, 166, 182, 0.10);
+
   /* Animation Timings */
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
@@ -34,9 +60,9 @@
 
 @layer components {
   .surface-card {
-    @apply rounded-xl border;
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
     background-color: var(--surface-raised);
-    border-color: var(--border-default);
   }
 
   .surface-base-panel {
@@ -44,135 +70,78 @@
     background-color: var(--surface-base);
   }
 
+  /* Interactive chrome is deliberately quiet: a background change on hover, a
+     hairline and the accent to mark what is active. No scale, glow or gradient -
+     motion and colour here competed with the data the screen exists to show. */
   .app-icon-action {
-    @apply rounded-lg transition-all duration-200;
-    position: relative;
-  }
-
-  .app-icon-action::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(135deg, rgba(26, 140, 255, 0.2), rgba(26, 140, 255, 0.05));
-    opacity: 0;
-    transition: opacity 0.25s ease-out;
+    border-radius: 6px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    color: var(--text-muted);
   }
 
   .app-icon-action:hover {
-    background-color: rgba(26, 140, 255, 0.12);
-    transform: scale(1.08);
-    box-shadow: 0 0 16px rgba(26, 140, 255, 0.2);
-  }
-
-  .app-icon-action:hover::before {
-    opacity: 1;
-  }
-
-  .app-icon-action:active {
-    transform: scale(0.96);
+    background-color: var(--surface-hover);
+    color: var(--text-primary);
   }
 
   .app-nav-root {
-    @apply relative mb-2 overflow-hidden rounded-xl transition-all duration-200;
-    border: 1px solid transparent;
-    padding: 10px 12px;
+    position: relative;
+    margin-bottom: 2px;
+    border-radius: 6px;
+    padding: 7px 10px;
     background: transparent;
+    transition: background-color 0.15s ease;
   }
 
-  .app-nav-root::before {
+  .app-nav-root:hover {
+    background-color: var(--surface-hover);
+  }
+
+  .app-nav-root[data-active] {
+    background-color: var(--surface-active);
+  }
+
+  /* The active row is marked by a single accent rule at its leading edge. */
+  .app-nav-root[data-active]::before {
     content: '';
     position: absolute;
     left: 0;
     top: 50%;
     transform: translateY(-50%);
-    width: 3px;
-    height: 0;
-    background: linear-gradient(180deg, #1a8cff, #0d7de6);
-    border-radius: 0 3px 3px 0;
-    opacity: 0;
-    transition: height 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease-out;
-  }
-
-  .app-nav-root::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(135deg, rgba(26, 140, 255, 0.12) 0%, rgba(26, 140, 255, 0.04) 100%);
-    opacity: 0;
-    transition: opacity 0.25s ease-out;
-  }
-
-  .app-nav-root:hover {
-    background-color: rgba(26, 140, 255, 0.06);
-    border-color: rgba(26, 140, 255, 0.15);
-    transform: translateX(3px);
-  }
-
-  .app-nav-root:hover::before {
-    height: 24px;
-    opacity: 0.85;
-  }
-
-  .app-nav-root:hover::after {
-    opacity: 1;
-  }
-
-  .app-nav-root[data-active] {
-    background: linear-gradient(90deg, rgba(26, 140, 255, 0.16), rgba(26, 140, 255, 0.05));
-    border-color: rgba(26, 140, 255, 0.3);
-    box-shadow: 0 2px 12px rgba(26, 140, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    transform: translateX(0);
-  }
-
-  .app-nav-root[data-active]::before {
-    height: 28px;
-    opacity: 1;
-    box-shadow: 0 0 16px rgba(26, 140, 255, 0.6), 0 0 4px rgba(26, 140, 255, 0.8);
-  }
-
-  .app-nav-root[data-active]::after {
-    opacity: 0.6;
+    width: 2px;
+    height: 16px;
+    border-radius: 0 2px 2px 0;
+    background: var(--accent);
   }
 
   .app-nav-section {
-    margin-inline-end: 12px;
+    margin-inline-end: 10px;
   }
 
   .app-nav-icon {
-    color: rgba(203, 213, 225, 0.82);
-    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: var(--text-muted);
+    transition: color 0.15s ease;
   }
 
-  .app-nav-root:hover .app-nav-icon {
-    color: rgba(241, 245, 249, 0.98);
-    background-color: rgba(26, 140, 255, 0.18);
-    transform: scale(1.08);
-  }
-
+  .app-nav-root:hover .app-nav-icon,
   .app-nav-root[data-active] .app-nav-icon {
-    color: #75beff;
-    background-color: rgba(26, 140, 255, 0.25);
-    box-shadow: 0 0 12px rgba(26, 140, 255, 0.3);
+    color: var(--text-primary);
   }
 
   .app-nav-label {
-    @apply text-sm font-semibold;
-    color: rgba(226, 232, 240, 0.88);
-    letter-spacing: 0.01em;
-    transition: all 0.2s ease-out;
+    font-size: 13px;
+    font-weight: 450;
+    color: var(--text-secondary);
+    transition: color 0.15s ease;
   }
 
   .app-nav-root:hover .app-nav-label {
-    color: rgba(248, 250, 252, 1);
-    letter-spacing: 0.015em;
+    color: var(--text-primary);
   }
 
   .app-nav-root[data-active] .app-nav-label {
-    color: #8ec5ff;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+    color: var(--text-primary);
+    font-weight: 550;
   }
 
   .app-logo-container {
@@ -197,21 +166,11 @@
   .app-sidebar-footer {
     @apply border-t px-4 py-4 text-center;
     border-color: rgba(148, 163, 184, 0.12);
-    background: linear-gradient(180deg, transparent, rgba(12, 18, 24, 0.4));
+    background: transparent;
   }
 
   .app-sidebar-footer-text {
     @apply flex items-center justify-center gap-2 text-[11px] font-semibold text-slate-400;
-  }
-
-  .app-sidebar-footer-text::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #1a8cff, #ff8800);
-    box-shadow: 0 0 8px rgba(26, 140, 255, 0.5);
-    animation: pulseGentleDot 3s ease-in-out infinite;
   }
 
   @keyframes pulseGentleDot {
@@ -266,15 +225,11 @@
 
   .db-init-root {
     @apply grid min-h-[calc(100vh-140px)] items-center;
-    background:
-      radial-gradient(circle at 20% 0%, rgba(29, 161, 242, 0.13), transparent 44%),
-      radial-gradient(circle at 92% 100%, rgba(255, 136, 0, 0.11), transparent 38%);
   }
 
   .db-init-panel {
-    border-color: rgba(29, 161, 242, 0.22);
-    background: linear-gradient(165deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.95) 100%);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+    border-color: var(--border-default);
+    background: var(--surface-raised);
   }
 
   .db-init-title {
@@ -287,14 +242,14 @@
   }
 
   .db-init-callout {
-    border-color: rgba(29, 161, 242, 0.28);
-    background: rgba(29, 161, 242, 0.09);
+    border-color: var(--border-default);
+    background: var(--surface-overlay);
   }
 
   .wizard-modal-content {
-    border: 1px solid rgba(122, 191, 255, 0.24);
-    background: #121c29;
-    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.62);
+    border: 1px solid var(--border-default);
+    background: var(--surface-raised);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
     overflow: hidden;
   }
 
@@ -308,25 +263,22 @@
 
   .onboarding-header {
     padding: 32px 36px 26px;
-    background:
-      linear-gradient(112deg, rgba(26, 140, 255, 0.16), transparent 54%),
-      linear-gradient(180deg, rgba(9, 18, 32, 0.72), rgba(9, 18, 32, 0));
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    border-bottom: 1px solid var(--border-default);
   }
 
   .onboarding-mark {
     display: grid;
-    width: 54px;
-    height: 54px;
+    width: 48px;
+    height: 48px;
     place-items: center;
-    border: 1px solid rgba(122, 191, 255, 0.34);
-    border-radius: 16px;
-    background: rgba(26, 140, 255, 0.16);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 28px rgba(0, 86, 180, 0.18);
+    border: 1px solid var(--border-default);
+    border-radius: 8px;
+    background: var(--surface-overlay);
+    color: var(--text-primary);
   }
 
   .onboarding-kicker {
-    color: #8ec5ff;
+    color: var(--accent);
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -371,15 +323,14 @@
   }
 
   .onboarding-role:hover {
-    background: rgba(26, 140, 255, 0.08);
+    background: rgba(var(--accent-rgb), 0.08);
     border-color: rgba(122, 191, 255, 0.38);
     transform: none;
   }
 
   .onboarding-role--selected {
-    background: linear-gradient(145deg, rgba(26, 140, 255, 0.18), rgba(26, 140, 255, 0.06));
-    border-color: #2b93ff;
-    box-shadow: inset 3px 0 0 #75beff, 0 0 0 1px rgba(122, 191, 255, 0.12);
+    background: var(--surface-active);
+    border-color: var(--accent);
   }
 
   .onboarding-role-content {
@@ -396,13 +347,13 @@
   }
 
   .onboarding-role-icon--scout {
-    color: #8ec5ff;
-    background: rgba(26, 140, 255, 0.16);
+    color: var(--text-primary);
+    background: var(--surface-active);
   }
 
   .onboarding-role-icon--hub {
-    color: #ffc999;
-    background: rgba(255, 136, 0, 0.14);
+    color: var(--text-primary);
+    background: var(--surface-active);
   }
 
   .onboarding-role-name {
@@ -417,7 +368,7 @@
   }
 
   .onboarding-info-card {
-    background: rgba(26, 140, 255, 0.07);
+    background: rgba(var(--accent-rgb), 0.07);
     border-color: rgba(122, 191, 255, 0.22);
   }
 
@@ -461,20 +412,21 @@ body,
    Typography Utilities
    ============================================ */
 .mono-number {
-  font-family: 'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  letter-spacing: -0.01em;
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, var(--frc-blue) 0%, var(--frc-orange) 100%);
+  background: var(--accent);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-glow {
-  text-shadow: 0 0 20px var(--frc-blue-glow), 0 0 40px rgba(26, 140, 255, 0.3);
+  text-shadow: 0 0 20px var(--frc-blue-glow), 0 0 40px rgba(var(--accent-rgb), 0.3);
 }
 
 .leading-relaxed-plus {
@@ -490,12 +442,12 @@ body,
    ============================================ */
 .survey-runtime-container .sd-root-modern {
   --sjs-primary-backcolor: var(--frc-blue);
-  --sjs-primary-backcolor-light: rgba(26, 140, 255, 0.18);
+  --sjs-primary-backcolor-light: rgba(var(--accent-rgb), 0.18);
   --sjs-primary-backcolor-dark: rgba(90, 174, 255, 1);
   --sjs-primary-forecolor: rgba(246, 250, 255, 1);
   --sjs-secondary-backcolor: var(--frc-orange);
-  --sjs-secondary-backcolor-light: rgba(255, 136, 0, 0.18);
-  --sjs-secondary-backcolor-semi-light: rgba(255, 136, 0, 0.34);
+  --sjs-secondary-backcolor-light: rgba(var(--accent-rgb), 0.18);
+  --sjs-secondary-backcolor-semi-light: rgba(var(--accent-rgb), 0.34);
   --sjs-general-backcolor: rgba(9, 18, 32, 0.98);
   --sjs-general-backcolor-dark: rgba(11, 23, 41, 0.98);
   --sjs-general-backcolor-dim: rgba(14, 27, 48, 0.96);
@@ -558,7 +510,7 @@ body,
 .skip-link:focus {
   top: 8px;
   outline: none;
-  box-shadow: 0 0 0 2px var(--frc-blue-glow);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .sr-only {
@@ -574,7 +526,7 @@ body,
 }
 
 :focus-visible {
-  outline: 2px solid var(--frc-blue);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -649,182 +601,19 @@ body,
 }
 
 /* ============================================
-   Background Patterns
+   Surface effects
    ============================================ */
-
-/* Subtle dot grid pattern */
-.pattern-dots {
-  background-image: radial-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-/* Modern grid pattern */
-.grid-pattern {
-  background-color: var(--surface-base);
-  background-image: 
-    linear-gradient(rgba(26, 140, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(26, 140, 255, 0.05) 1px, transparent 1px);
-  background-size: 32px 32px;
-  position: relative;
-}
-
-.grid-pattern::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(26, 140, 255, 0.12), transparent 70%);
-  pointer-events: none;
-}
-
-/* Noise texture overlay */
-.noise-overlay {
-  position: relative;
-}
-
-.noise-overlay::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-  opacity: 0.03;
-  pointer-events: none;
-  mix-blend-mode: overlay;
-}
-
-/* Hexagon pattern */
-.hex-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='40' height='46' viewBox='0 0 40 46' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 0l20 11.547v23.094L20 46 0 34.641V11.547z' fill='none' stroke='rgba(26, 140, 255, 0.08)' stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 40px 46px;
-}
-
-/* Data grid for technical displays */
-.data-grid {
-  background-color: rgba(12, 18, 24, 0.8);
-  background-image: 
-    repeating-linear-gradient(0deg, rgba(26, 140, 255, 0.04) 0px, transparent 1px, transparent 3px),
-    repeating-linear-gradient(90deg, rgba(26, 140, 255, 0.04) 0px, transparent 1px, transparent 3px);
-  background-size: 4px 4px;
-}
-
-/* ============================================
-   Glassmorphism Effects
-   ============================================ */
+/* Everything that used to live here - grid patterns, noise overlays, hex tiling,
+   CRT scanlines, glassmorphism, coloured glow halos, gradient borders - was unused
+   decoration. Only `.glass` and `.frc-accent-line` were ever applied, and both are
+   now flat. Surfaces are distinguished by a hairline, not by an effect. */
 .glass {
-  background: rgba(21, 28, 40, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background-color: var(--surface-raised);
   border: 1px solid var(--border-default);
 }
 
-.glass-heavy {
-  background: rgba(21, 28, 40, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-default);
-}
-
-.glass-light {
-  background: rgba(30, 41, 59, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-subtle);
-}
-
-/* ============================================
-   Glow Effects
-   ============================================ */
-.glow-blue {
-  box-shadow: 
-    0 0 20px var(--frc-blue-glow),
-    0 0 40px rgba(26, 140, 255, 0.2),
-    0 4px 16px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(26, 140, 255, 0.4);
-}
-
-.glow-orange {
-  box-shadow: 
-    0 0 20px var(--frc-orange-glow),
-    0 0 40px rgba(255, 136, 0, 0.2),
-    0 4px 16px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 136, 0, 0.4);
-}
-
-.glow-subtle {
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.4),
-    0 0 0 1px var(--border-default),
-    0 0 20px rgba(26, 140, 255, 0.08);
-}
-
-/* ============================================
-   Card Styles
-   ============================================ */
-.card-premium {
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(21, 28, 40, 0.8) 100%);
-  border: 1px solid var(--border-default);
-  box-shadow: 
-    0 4px 16px rgba(0, 0, 0, 0.35),
-    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
-  transition: all 0.3s var(--ease-out-expo);
-}
-
-.card-premium:hover {
-  border-color: var(--border-strong);
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-    0 0 40px rgba(26, 140, 255, 0.06);
-  transform: translateY(-2px);
-}
-
-.card-interactive {
-  transition: all 0.25s var(--ease-out-expo);
-  cursor: pointer;
-}
-
-.card-interactive:hover {
-  transform: translateY(-4px) scale(1.01);
-}
-
-.card-interactive:active {
-  transform: translateY(-2px) scale(0.99);
-}
-
-/* ============================================
-   FRC Brand Elements
-   ============================================ */
 .frc-accent-line {
-  position: relative;
-}
-
-.frc-accent-line::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--frc-blue) 0%, var(--frc-orange) 100%);
-  opacity: 0.9;
-}
-
-.frc-gradient-border {
-  position: relative;
-  border: none;
-  background: var(--surface-raised);
-}
-
-.frc-gradient-border::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  background: linear-gradient(135deg, var(--frc-blue), var(--frc-orange));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
+  border-bottom: 1px solid var(--border-default);
 }
 
 /* ============================================
@@ -850,22 +639,18 @@ body,
 
 .status-dot-ok {
   background: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
 }
 
 .status-dot-warning {
   background: #f59e0b;
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
 }
 
 .status-dot-error {
   background: #ef4444;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
 }
 
 .status-dot-pending {
   background: #64748b;
-  box-shadow: 0 0 8px rgba(100, 116, 139, 0.4);
 }
 
 .status-dot-pending::after {
@@ -951,19 +736,19 @@ body,
 /* Glow animations */
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 20px var(--frc-blue-glow), 0 0 40px rgba(26, 140, 255, 0.2);
+    box-shadow: 0 0 20px var(--frc-blue-glow), 0 0 40px rgba(var(--accent-rgb), 0.2);
   }
   50% {
-    box-shadow: 0 0 30px var(--frc-blue-glow), 0 0 60px rgba(26, 140, 255, 0.35);
+    box-shadow: 0 0 30px var(--frc-blue-glow), 0 0 60px rgba(var(--accent-rgb), 0.35);
   }
 }
 
 @keyframes subtleGlow {
   0%, 100% {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(26, 140, 255, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(var(--accent-rgb), 0.1);
   }
   50% {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 8px rgba(26, 140, 255, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 8px rgba(var(--accent-rgb), 0.2);
   }
 }
 
@@ -1201,12 +986,12 @@ body,
    Selection Styling
    ============================================ */
 ::selection {
-  background: rgba(26, 140, 255, 0.3);
+  background: rgba(var(--accent-rgb), 0.3);
   color: #fff;
 }
 
 ::-moz-selection {
-  background: rgba(26, 140, 255, 0.3);
+  background: rgba(var(--accent-rgb), 0.3);
   color: #fff;
 }
 
@@ -1319,12 +1104,12 @@ body,
   --ctr-caption-with-actions-text-color: rgba(241, 245, 249, 0.95);
   --ctr-label-text-color: rgba(226, 232, 240, 0.95);
   --ctr-list-item-text-color: rgba(226, 232, 240, 0.95);
-  --ctr-list-item-background-color-hovered: rgba(26, 140, 255, 0.14);
-  --ctr-list-item-background-color-selected: rgba(26, 140, 255, 0.22);
+  --ctr-list-item-background-color-hovered: rgba(var(--accent-rgb), 0.14);
+  --ctr-list-item-background-color-selected: rgba(var(--accent-rgb), 0.22);
   --ctr-menu-background-color: rgba(8, 18, 34, 0.97);
   --ctr-menu-item-text-color: rgba(226, 232, 240, 0.95);
   --ctr-button-background-color-cta: var(--frc-blue);
-  --ctr-button-background-color-cta-hovered: #1279d8;
+  --ctr-button-background-color-cta-hovered: var(--accent-strong);
   --ctr-button-text-color-cta: rgba(255, 255, 255, 0.98);
 }
 
@@ -1352,11 +1137,11 @@ body,
 
 .survey-creator-container .svc-tab-preview .sd-root-modern {
   --sjs-primary-backcolor: var(--frc-blue);
-  --sjs-primary-backcolor-light: rgba(26, 140, 255, 0.18);
+  --sjs-primary-backcolor-light: rgba(var(--accent-rgb), 0.18);
   --sjs-primary-backcolor-dark: rgba(90, 174, 255, 1);
   --sjs-primary-forecolor: rgba(246, 250, 255, 1);
   --sjs-secondary-backcolor: var(--frc-orange);
-  --sjs-secondary-backcolor-light: rgba(255, 136, 0, 0.18);
+  --sjs-secondary-backcolor-light: rgba(var(--accent-rgb), 0.18);
   --sjs-general-backcolor: rgba(9, 18, 32, 0.98);
   --sjs-general-backcolor-dark: rgba(11, 23, 41, 0.98);
   --sjs-general-backcolor-dim: rgba(14, 27, 48, 0.96);
@@ -1373,4 +1158,39 @@ body,
 .survey-creator-container .svc-tab-preview .sd-root-modern .sd-page {
   background: rgba(8, 18, 34, 0.68);
   border: 1px solid rgba(101, 132, 171, 0.42);
+}
+
+/* ============================================
+   Update banner
+   ============================================ */
+.update-banner {
+  margin-bottom: var(--mantine-spacing-lg);
+  padding: 14px 16px;
+  border: 1px solid var(--border-accent);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  background-color: rgba(var(--accent-rgb), 0.07);
+  color: var(--mantine-color-slate-1);
+}
+
+.update-banner svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ============================================
+   Current event card
+   ============================================ */
+.current-event-card {
+  display: block;
+  text-decoration: none;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 9px 10px;
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.current-event-card:hover {
+  background-color: var(--surface-hover);
 }

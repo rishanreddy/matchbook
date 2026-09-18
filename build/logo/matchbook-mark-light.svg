@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Matchbook">
+  <rect x="5" y="2.5" width="22" height="27" rx="3.5" fill="#ffffff" stroke="#0e1116" stroke-width="2"/>
+  <path d="M6 23.5h20" stroke="#ffb020" stroke-width="4.2"/>
+  <g stroke="#0e1116" stroke-width="2.1" stroke-linecap="round">
+    <path d="M10.8 20.5v-9"/>
+    <path d="M16 20.5v-9"/>
+    <path d="M21.2 20.5v-9"/>
+  </g>
+  <g fill="#0e1116">
+    <circle cx="10.8" cy="9.6" r="1.85"/>
+    <circle cx="16" cy="9.6" r="1.85"/>
+    <circle cx="21.2" cy="9.6" r="1.85"/>
+  </g>
+</svg>

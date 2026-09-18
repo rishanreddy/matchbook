@@ -79,7 +79,7 @@ export function Help(): ReactElement {
         <Box className="animate-fadeInUp">
           <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
             <Group gap="md">
-              <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+              <ThemeIcon size={48} radius="xl" variant="light">
                 <IconHelp size={26} stroke={1.5} />
               </ThemeIcon>
               <Box>
@@ -305,7 +305,7 @@ export function Help(): ReactElement {
               Open project repository
             </Anchor>
 
-            <Paper p="md" radius="md" style={{ backgroundColor: 'rgba(26, 140, 255, 0.08)', border: '1px solid rgba(26, 140, 255, 0.2)' }}>
+            <Paper p="md" radius="md" style={{ backgroundColor: 'rgba(154, 166, 182, 0.08)', border: '1px solid rgba(154, 166, 182, 0.2)' }}>
               <Group gap="sm" wrap="nowrap" align="flex-start">
                 <ThemeIcon size={28} radius="md" variant="light" color="frc-blue">
                   <IconBook size={14} />

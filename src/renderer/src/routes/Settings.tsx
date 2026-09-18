@@ -750,7 +750,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
         <Box className="animate-fadeInUp">
           <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
             <Group gap="md">
-              <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+              <ThemeIcon size={48} radius="xl" variant="light">
                 <IconSettings size={26} stroke={1.5} />
               </ThemeIcon>
               <Box>
@@ -1246,9 +1246,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
                 Check for Updates
               </Button>
               {updateState === 'available' && (
-                <Button 
-                  variant="gradient"
-                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                <Button
                   onClick={() => void handleDownloadUpdate()}
                   leftSection={<IconDownload size={16} />}
                   radius="md"
@@ -1258,9 +1256,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               )}
               {updateState === 'downloaded' && (
                 <Button 
-                  color="success" 
-                  variant="gradient"
-                  gradient={{ from: 'success.5', to: 'success.7' }}
+                  color="success"
                   onClick={() => void handleInstallUpdate()}
                   leftSection={<IconRocket size={16} />}
                   radius="md"

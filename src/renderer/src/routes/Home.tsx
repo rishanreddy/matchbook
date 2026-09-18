@@ -18,7 +18,6 @@ import {
   IconChartBar,
   IconCloudUpload,
   IconSettings,
-  IconArrowRight,
   IconCalendarEvent,
   IconFileDownload,
 } from '@tabler/icons-react'
@@ -109,7 +108,7 @@ export function Home(): ReactElement {
                   {brand.name} Hub
                 </Title>
                 <Text size="md" c="slate.4" mt="xs">
-                  Capture the floor truth and turn it into confident picklist decisions
+                  Collect match data from your scout laptops and rank teams for alliance selection.
                 </Text>
               </Box>
 
@@ -134,9 +133,8 @@ export function Home(): ReactElement {
             <Box
               p="lg"
               style={{
-                backgroundColor: 'rgba(255, 136, 0, 0.04)',
-                border: '1px solid rgba(255, 136, 0, 0.12)',
-                borderRadius: '12px',
+                border: '1px solid var(--border-default)',
+                borderRadius: '8px',
               }}
             >
               <Group gap="md" wrap="nowrap" align="center">
@@ -144,8 +142,8 @@ export function Home(): ReactElement {
                   <IconCalendarEvent size={18} />
                 </ThemeIcon>
                 <Box style={{ flex: 1, minWidth: 0 }}>
-                  <Text size="xs" c="slate.4" fw={500} className="uppercase tracking-[0.05em]">
-                    Current Event
+                  <Text size="xs" c="slate.4">
+                    Current event
                   </Text>
                   {currentEvent ? (
                     <Text fw={600} size="sm" c="slate.1" mt={2} truncate>
@@ -184,7 +182,7 @@ export function Home(): ReactElement {
                       color="frc-orange"
                       size="sm"
                     >
-                      Import Events
+                      Import events
                     </Button>
                   )}
                 </Group>
@@ -192,88 +190,83 @@ export function Home(): ReactElement {
             </Box>
           </Stack>
 
-          {/* Stats - visually grouped under event context */}
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" className="animate-fadeInUp stagger-1">
-            <Card p="xl" radius="lg" className="glass surface-card">
-              <Group justify="space-between" align="flex-start">
+            <Card p="xl" radius="lg" className="surface-card">
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
                 <Box>
-                  <Text size="xs" c="slate.4" fw={500} className="uppercase tracking-[0.05em]">
-                    Observations
-                  </Text>
-                  <Text fw={700} size="2rem" c="slate.0" className="mono-number" mt="xs">
+                  <Text fw={600} size="2rem" c="slate.0" className="mono-number" lh={1.1}>
                     {observationCount}
                   </Text>
+                  <Text size="sm" c="slate.2" mt={4}>
+                    {observationCount === 1 ? 'match observation' : 'match observations'}
+                  </Text>
+                  <Text size="xs" c="slate.4" mt={6}>
+                    {observationCount === 0
+                      ? 'Nothing recorded yet. Scout data lands here once devices sync.'
+                      : 'Collected on this hub.'}
+                  </Text>
                 </Box>
-                <ThemeIcon size={48} radius="lg" variant="light" color="frc-blue">
-                  <IconClipboardCheck size={24} />
+                <ThemeIcon size={44} radius="md" variant="light" color="slate">
+                  <IconClipboardCheck size={22} />
                 </ThemeIcon>
               </Group>
             </Card>
 
-            <Card p="xl" radius="lg" className="glass surface-card">
-              <Group justify="space-between" align="flex-start">
+            <Card p="xl" radius="lg" className="surface-card">
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
                 <Box>
-                  <Text size="xs" c="slate.4" fw={500} className="uppercase tracking-[0.05em]">
-                    Teams Scouted
-                  </Text>
-                  <Text fw={700} size="2rem" c="slate.0" className="mono-number" mt="xs">
+                  <Text fw={600} size="2rem" c="slate.0" className="mono-number" lh={1.1}>
                     {teamCount}
                   </Text>
+                  <Text size="sm" c="slate.2" mt={4}>
+                    {teamCount === 1 ? 'team covered' : 'teams covered'}
+                  </Text>
+                  <Text size="xs" c="slate.4" mt={6}>
+                    {teamCount === 0
+                      ? 'Alliance picks need at least a few teams scouted.'
+                      : 'Ready for alliance comparison.'}
+                  </Text>
                 </Box>
-                <ThemeIcon size={48} radius="lg" variant="light" color="frc-orange">
-                  <IconChartBar size={24} />
+                <ThemeIcon size={44} radius="md" variant="light" color="slate">
+                  <IconChartBar size={22} />
                 </ThemeIcon>
               </Group>
             </Card>
           </SimpleGrid>
 
-          {/* Quick Actions - clear visual separation */}
           <Stack gap="lg" className="animate-fadeInUp stagger-2">
-            <Text fw={600} size="sm" c="slate.3" className="uppercase tracking-[0.05em]">
-              Quick Actions
+            <Text fw={600} size="sm" c="slate.2">
+              Next steps
             </Text>
-            
+
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               <Button
                 component={Link}
                 to="/sync"
-                size="xl"
-                radius="lg"
-                variant="gradient"
-                gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
-                leftSection={<IconCloudUpload size={22} />}
-                rightSection={<IconArrowRight size={18} />}
-                classNames={{ root: 'h-[72px]', label: 'text-base font-semibold' }}
+                size="md"
+                leftSection={<IconCloudUpload size={18} />}
               >
-                Receive Scout Data
+                Receive scout data
               </Button>
 
               <Button
                 component={Link}
                 to="/analysis"
-                size="xl"
-                radius="lg"
-                variant="light"
-                color="frc-blue"
-                leftSection={<IconChartBar size={22} />}
-                rightSection={<IconArrowRight size={18} />}
-                classNames={{ root: 'h-[72px]', label: 'text-base font-semibold' }}
+                size="md"
+                variant="default"
+                leftSection={<IconChartBar size={18} />}
               >
-                View Team Stats
+                Compare teams
               </Button>
 
               <Button
                 component={Link}
                 to="/form-builder"
-                size="xl"
-                radius="lg"
-                variant="light"
-                color="slate"
-                leftSection={<IconSettings size={22} />}
-                rightSection={<IconArrowRight size={18} />}
-                classNames={{ root: 'h-[72px]', label: 'text-base font-semibold' }}
+                size="md"
+                variant="default"
+                leftSection={<IconSettings size={18} />}
               >
-                Edit Scouting Form
+                Edit scouting form
               </Button>
             </SimpleGrid>
           </Stack>
@@ -293,8 +286,8 @@ export function Home(): ReactElement {
               <ThemeIcon 
                 size={96} 
                 radius="xl" 
-                variant="gradient" 
-                gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                variant="light"
+                color="slate"
                 mb="xl"
               >
                 <IconClipboardCheck size={48} />
@@ -330,8 +323,7 @@ export function Home(): ReactElement {
             maw={480}
             p="md"
             style={{
-              backgroundColor: 'rgba(255, 136, 0, 0.03)',
-              border: '1px solid rgba(255, 136, 0, 0.1)',
+              border: '1px solid var(--border-default)',
               borderRadius: '12px',
             }}
           >
@@ -340,8 +332,8 @@ export function Home(): ReactElement {
                 <IconCalendarEvent size={14} />
               </ThemeIcon>
               <Box style={{ flex: 1, minWidth: 0 }}>
-                <Text size="xs" c="slate.4" fw={500} className="uppercase tracking-[0.05em]">
-                  Current Event
+                <Text size="xs" c="slate.4">
+                  Current event
                 </Text>
                 {currentEvent ? (
                   <Text fw={600} size="sm" c="slate.1" mt={2} truncate>
@@ -380,16 +372,11 @@ export function Home(): ReactElement {
           <Button
             component={Link}
             to={hasActiveForm ? '/scout' : '/sync'}
-            size="xl"
-            radius="lg"
+            size="lg"
             fullWidth
-            variant="gradient"
-            gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
             leftSection={hasActiveForm ? <IconClipboardCheck size={20} /> : <IconFileDownload size={20} />}
-            rightSection={<IconArrowRight size={20} />}
-            classNames={{ root: 'h-16', label: 'text-lg font-bold' }}
           >
-            {hasActiveForm ? 'Scout a Match' : 'Get the Scouting Form'}
+            {hasActiveForm ? 'Scout a match' : 'Get the scouting form'}
           </Button>
 
           {!hasActiveForm && (

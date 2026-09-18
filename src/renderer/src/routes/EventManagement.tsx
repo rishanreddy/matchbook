@@ -302,7 +302,7 @@ export function EventManagement(): ReactElement {
           boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
-        className="hover:border-[rgba(26,140,255,0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(26,140,255,0.08)]"
+        className="hover:border-[rgba(154, 166, 182, 0.22)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_0_1px_rgba(255,255,255,0.04)_inset,0_0_32px_rgba(154, 166, 182, 0.08)]"
       >
         <Stack gap="lg">
           <Group gap="xs" align="center">
@@ -310,9 +310,9 @@ export function EventManagement(): ReactElement {
               style={{
                 width: '4px',
                 height: '18px',
-                background: 'linear-gradient(180deg, #1a8cff, #0d7de6)',
+                background: 'linear-gradient(180deg, var(--accent), #0d7de6)',
                 borderRadius: '2px',
-                boxShadow: '0 0 8px rgba(26, 140, 255, 0.4)',
+                boxShadow: '0 0 8px rgba(154, 166, 182, 0.4)',
               }}
             />
             <Text fw={700} c="slate.0" size="lg" style={{ letterSpacing: '-0.01em' }}>
@@ -345,8 +345,6 @@ export function EventManagement(): ReactElement {
                 <Button
                   onClick={() => void handleFetchEvents()}
                   loading={isFetchingEvents}
-                  variant="gradient"
-                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                   size="md"
                   fw={700}
                   style={{
@@ -484,7 +482,7 @@ export function EventManagement(): ReactElement {
                     boxShadow: '0 2px 12px rgba(0, 0, 0, 0.25)',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   }}
-                  className="hover:border-[rgba(26,140,255,0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.35)] hover:-translate-y-1"
+                  className="hover:border-[rgba(154, 166, 182, 0.3)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.35)] hover:-translate-y-1"
                 >
                   <Stack gap="md">
                     {/* Header with title and TBA link */}
@@ -504,7 +502,7 @@ export function EventManagement(): ReactElement {
                           style={{
                             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                           }}
-                          className="hover:bg-[rgba(26,140,255,0.15)] active:scale-95"
+                          className="hover:bg-[rgba(154, 166, 182, 0.15)] active:scale-95"
                         >
                           <IconExternalLink size={20} />
                         </ActionIcon>

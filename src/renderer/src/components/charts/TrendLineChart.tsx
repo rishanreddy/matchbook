@@ -30,7 +30,7 @@ export function TrendLineChart({ data, height = 260, showAverage = true }: Trend
     <Box
       h={height}
       style={{
-        background: 'radial-gradient(ellipse at top, rgba(29, 161, 242, 0.04) 0%, transparent 70%)',
+        background: 'radial-gradient(ellipse at top, rgba(154, 166, 182, 0.04) 0%, transparent 70%)',
         borderRadius: 12,
       }}
     >
@@ -77,13 +77,13 @@ export function TrendLineChart({ data, height = 260, showAverage = true }: Trend
           />
           <Tooltip
             cursor={{
-              stroke: 'rgba(29, 161, 242, 0.3)',
+              stroke: 'rgba(154, 166, 182, 0.3)',
               strokeWidth: 1,
               strokeDasharray: '4 4',
             }}
             contentStyle={{
               backgroundColor: 'rgba(22, 27, 34, 0.95)',
-              border: '1px solid rgba(29, 161, 242, 0.3)',
+              border: '1px solid rgba(154, 166, 182, 0.3)',
               borderRadius: 8,
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
               padding: '10px 14px',

@@ -29,7 +29,13 @@ jobs:
       - name: Verify tag matches package version
         shell: bash
         run: |
-          test "${GITHUB_REF_NAME#v}" = "$(node -p \"require('./package.json').version\")"
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p 'require("./package.json").version')"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $pkg_version." >&2
+            exit 1
+          fi
+          echo "Tag and package version agree on $pkg_version."
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
@@ -86,6 +92,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: node scripts/verify-release-artifacts.mjs linux
 
+      # Signing is optional: without an Apple Developer ID the build still produces a
+      # working .dmg, but macOS auto-update is disabled (Squirrel.Mac refuses to swap
+      # in an unsigned bundle) and users must right-click > Open on first launch.
       - name: build-mac
         if: matrix.os == 'macos-latest'
         run: pnpm build && pnpm exec electron-builder --mac --publish always --config.publish.releaseType=draft
@@ -98,7 +107,23 @@ jobs:
 
       - name: verify-mac-artifacts
         if: matrix.os == 'macos-latest'
-        run: node scripts/verify-release-artifacts.mjs mac
+        shell: bash
+        env:
+          HAS_SIGNING_CERT: ${{ secrets.MAC_CERTIFICATE != '' }}
+        run: |
+          node scripts/verify-release-artifacts.mjs mac
+          app_bundle="$(find release -maxdepth 2 -type d -name Matchbook.app -print -quit)"
+          test -n "$app_bundle"
+          codesign --verify --deep --strict --verbose=2 "$app_bundle"
+
+          if codesign -dv "$app_bundle" 2>&1 | grep -q 'Authority=Developer ID Application'; then
+            echo "Signed with a Developer ID. macOS auto-update is enabled."
+          elif [ "$HAS_SIGNING_CERT" = "true" ]; then
+            echo "MAC_CERTIFICATE is configured but the bundle is not Developer ID signed." >&2
+            exit 1
+          else
+            echo "::warning::No Developer ID certificate configured. The macOS build is ad-hoc signed: auto-update will not work on macOS and users must right-click > Open on first launch. Add the MAC_CERTIFICATE / MAC_CERTIFICATE_PASSWORD / APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID repository secrets to enable it."
+          fi
 
       - name: build-win
         if: matrix.os == 'windows-latest'

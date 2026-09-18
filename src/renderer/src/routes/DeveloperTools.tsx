@@ -470,7 +470,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
         {/* Header */}
         <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
           <Group gap="md">
-            <ThemeIcon size={48} radius="lg" variant="gradient" gradient={{ from: 'frc-orange.5', to: 'frc-orange.7' }}>
+            <ThemeIcon size={48} radius="lg" variant="light">
               <IconTools size={28} stroke={1.5} />
             </ThemeIcon>
             <Box>

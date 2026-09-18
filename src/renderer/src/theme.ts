@@ -1,21 +1,29 @@
 import { createTheme, rem, virtualColor } from '@mantine/core'
 
 export const appTheme = createTheme({
-  primaryColor: 'frc-blue',
-  defaultRadius: 'lg',
+  primaryColor: 'amber',
+  defaultRadius: 'sm',
   cursorType: 'pointer',
-  fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-  fontFamilyMonospace: 'JetBrains Mono, SF Mono, Monaco, Consolas, monospace',
+  // IBM Plex Sans is an engineering face: open apertures, unambiguous 1/l/7, and
+  // real tabular figures. Both families are bundled locally (see main.tsx) so
+  // typography survives a venue with no internet.
+  fontFamily: '"IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+  // Reserved for figures that get compared column-to-column (team numbers, match
+  // numbers, averages), never for labels.
+  fontFamilyMonospace: '"IBM Plex Mono", SF Mono, Monaco, Consolas, monospace',
   headings: {
-    fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-    fontWeight: '700',
+    fontFamily: '"IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+    fontWeight: '600',
+    // A tighter scale than the previous 48px display. This is a dense working tool
+    // read at arm's length, not a marketing page; oversized headings were pushing
+    // the actual data below the fold.
     sizes: {
-      h1: { fontSize: rem(48), lineHeight: '1.15', fontWeight: '800' },
-      h2: { fontSize: rem(36), lineHeight: '1.2', fontWeight: '700' },
-      h3: { fontSize: rem(26), lineHeight: '1.3', fontWeight: '600' },
-      h4: { fontSize: rem(20), lineHeight: '1.4', fontWeight: '600' },
-      h5: { fontSize: rem(16), lineHeight: '1.5', fontWeight: '600' },
-      h6: { fontSize: rem(14), lineHeight: '1.5', fontWeight: '600' },
+      h1: { fontSize: rem(32), lineHeight: '1.2', fontWeight: '600' },
+      h2: { fontSize: rem(24), lineHeight: '1.25', fontWeight: '600' },
+      h3: { fontSize: rem(19), lineHeight: '1.3', fontWeight: '600' },
+      h4: { fontSize: rem(16), lineHeight: '1.4', fontWeight: '600' },
+      h5: { fontSize: rem(14), lineHeight: '1.45', fontWeight: '600' },
+      h6: { fontSize: rem(13), lineHeight: '1.45', fontWeight: '600' },
     },
   },
   fontSizes: {
@@ -40,41 +48,86 @@ export const appTheme = createTheme({
     xl: rem(20),
   },
   colors: {
+    // The single interactive accent. Red and blue are reserved for alliance
+    // meaning, so app chrome must not use either.
+    amber: [
+      '#fff8e8',
+      '#ffecc2',
+      '#ffdd94',
+      '#ffcc61',
+      '#ffbe3a',
+      '#ffb020', // 5 - primary
+      '#eb9d0f',
+      '#c77f06',
+      '#9b6205',
+      '#6d4404',
+    ],
+    // Alliance colours. Data only, and always paired with a text label so the
+    // distinction survives colour-blind vision.
+    'alliance-red': [
+      '#ffeceb',
+      '#ffd3d0',
+      '#ffa8a2',
+      '#f97a72',
+      '#ec5850',
+      '#e4483f',
+      '#c8352d',
+      '#a12923',
+      '#7c201b',
+      '#561614',
+    ],
+    'alliance-blue': [
+      '#e9f2ff',
+      '#cbdfff',
+      '#9cc2ff',
+      '#6aa2fb',
+      '#4489f1',
+      '#2f7dea',
+      '#2165c4',
+      '#18509d',
+      '#123c77',
+      '#0c2951',
+    ],
+    // `frc-blue` and `frc-orange` are legacy names still used at ~190 call sites.
+    // They are mapped to a neutral graphite ramp rather than to the accent: when they
+    // aliased amber, every incidental icon, badge and border in the app turned amber
+    // and the interface read as decorated rather than calm. Amber now appears only on
+    // the primary action and the active nav row, so it actually means something.
     'frc-blue': [
-      '#e8f4ff', // 0 - lightest
-      '#c4e1ff', // 1
-      '#8ec5ff', // 2
-      '#52a7ff', // 3
-      '#2b93ff', // 4 - vibrant
-      '#1a8cff', // 5 - primary
-      '#0d7de6', // 6
-      '#0066cc', // 7
-      '#004d99', // 8
-      '#003366', // 9 - darkest
+      '#f2f4f7',
+      '#e2e6ec',
+      '#c6ccd6',
+      '#a7afbc',
+      '#8b95a3',
+      '#6f7986',
+      '#565f6b',
+      '#3f4753',
+      '#2a323d',
+      '#1a2028',
     ],
     'frc-orange': [
-      '#fff5eb', // 0 - lightest
-      '#ffe4cc', // 1
-      '#ffc999', // 2
-      '#ffad66', // 3
-      '#ff9633', // 4 - vibrant
-      '#ff8800', // 5 - primary
-      '#e67a00', // 6
-      '#cc6600', // 7
-      '#994d00', // 8
-      '#663300', // 9 - darkest
+      '#f2f4f7',
+      '#e2e6ec',
+      '#c6ccd6',
+      '#a7afbc',
+      '#8b95a3',
+      '#6f7986',
+      '#565f6b',
+      '#3f4753',
+      '#2a323d',
+      '#1a2028',
     ],
-    'slate': [
-      '#f8fafc', // 0 - text on dark
-      '#e2e8f0', // 1 - secondary text
-      '#cbd5e1', // 2 - dimmed text
-      '#94a3b8', // 3 - muted
-      '#64748b', // 4 - subtle
-      '#475569', // 5 - borders
-      '#334155', // 6 - elevated surfaces
-      '#1e293b', // 7 - cards
-      '#151c28', // 8 - sidebar
-      '#0c1218', // 9 - main background
+    slate: [
+      '#eef1f5', // 0 - primary text          15.3:1 on a card
+      '#d9dee6', // 1 - secondary text        12.8:1
+      '#bcc4d0', // 2 - dimmed text            9.8:1
+      '#a7b0bd', // 3 - muted                  7.9:1
+      '#8f99a8', // 4 - subtle                 6.0:1
+      '#828c9a', // 5 - faintest text          5.1:1 (AA floor)
+      '#2a323d', // 6 - elevated surfaces
+      '#1d242d', // 7 - cards
+      '#161b22', // 8 - sidebar
+      '#0e1116', // 9 - main background
     ],
     'success': [
       '#ecfdf5',
@@ -119,72 +172,72 @@ export const appTheme = createTheme({
       light: 'slate',
     }),
   },
-  black: '#080c10',
-  white: '#f8fafc',
+  black: '#0a0d11',
+  white: '#eef1f5',
   primaryShade: { light: 5, dark: 4 },
   autoContrast: true,
   luminanceThreshold: 0.3,
   shadows: {
-    xs: '0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.25)',
-    sm: '0 2px 4px rgba(0, 0, 0, 0.45), 0 4px 8px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(29, 161, 242, 0.08)',
-    md: '0 4px 8px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(29, 161, 242, 0.1)',
-    lg: '0 8px 16px rgba(0, 0, 0, 0.55), 0 16px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(29, 161, 242, 0.12)',
-    xl: '0 16px 32px rgba(0, 0, 0, 0.6), 0 32px 64px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(29, 161, 242, 0.15)',
+    xs: 'none',
+    sm: 'none',
+    md: '0 4px 12px rgba(0, 0, 0, 0.28)',
+    lg: '0 8px 28px rgba(0, 0, 0, 0.35)',
+    xl: '0 16px 48px rgba(0, 0, 0, 0.45)',
   },
   defaultGradient: {
-    from: 'frc-blue.5',
-    to: 'frc-orange.5',
+    from: 'amber.5',
+    to: 'amber.7',
     deg: 135,
   },
   components: {
     Button: {
       defaultProps: {
-        fw: 600,
+        fw: 500,
         size: 'md',
+        radius: 'sm',
       },
       styles: {
         root: {
-          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+          transition: 'background-color 0.15s ease, border-color 0.15s ease',
         },
       },
     },
     Card: {
       defaultProps: {
         padding: 'lg',
-        radius: 'lg',
+        radius: 'sm',
         withBorder: true,
       },
       styles: {
         root: {
-          backgroundColor: 'var(--mantine-color-slate-8)',
-          borderColor: 'rgba(148, 163, 184, 0.1)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          backgroundColor: 'var(--surface-raised)',
+          borderColor: 'var(--border-default)',
         },
       },
     },
     Paper: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'sm',
       },
       styles: {
         root: {
-          backgroundColor: 'var(--mantine-color-slate-8)',
+          backgroundColor: 'var(--surface-raised)',
         },
       },
     },
     Modal: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'md',
         centered: true,
         overlayProps: {
-          backgroundOpacity: 0.7,
-          blur: 8,
+          backgroundOpacity: 0.6,
+          blur: 2,
         },
       },
       styles: {
         content: {
-          backgroundColor: 'var(--mantine-color-slate-8)',
-          border: '1px solid rgba(148, 163, 184, 0.12)',
+          backgroundColor: 'var(--surface-raised)',
+          border: '1px solid var(--border-default)',
         },
         header: {
           backgroundColor: 'transparent',
@@ -207,7 +260,7 @@ export const appTheme = createTheme({
           transition: 'all 0.2s ease',
           '&:focus': {
             borderColor: 'var(--mantine-color-frc-blue-5)',
-            boxShadow: '0 0 0 2px rgba(29, 161, 242, 0.15)',
+            boxShadow: '0 0 0 2px rgba(255, 176, 32, 0.15)',
           },
         },
         label: {
@@ -336,7 +389,7 @@ export const appTheme = createTheme({
     },
     Alert: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'sm',
       },
       styles: {
         root: {
@@ -346,30 +399,29 @@ export const appTheme = createTheme({
     },
     Notification: {
       defaultProps: {
-        radius: 'lg',
+        radius: 'sm',
       },
       styles: {
         root: {
-          backgroundColor: 'var(--mantine-color-slate-7)',
-          borderColor: 'rgba(148, 163, 184, 0.15)',
+          backgroundColor: 'var(--surface-overlay)',
+          borderColor: 'var(--border-default)',
         },
       },
     },
   },
   other: {
     // Semantic colors for quick access
-    frcBlue: '#1a8cff',
-    frcOrange: '#ff8800',
+    accent: '#ffb020',
+    allianceRed: '#e4483f',
+    allianceBlue: '#2f7dea',
     successGreen: '#10b981',
     warningYellow: '#f59e0b',
     errorRed: '#ef4444',
     // Gradients
     gradients: {
-      primary: 'linear-gradient(135deg, #1a8cff 0%, #ff8800 100%)',
-      blue: 'linear-gradient(135deg, #1a8cff 0%, #0066cc 100%)',
-      orange: 'linear-gradient(135deg, #ff8800 0%, #cc6600 100%)',
-      surface: 'linear-gradient(180deg, rgba(30, 41, 59, 0.8) 0%, rgba(21, 28, 40, 0.9) 100%)',
-      glow: 'radial-gradient(circle at 50% 0%, rgba(29, 161, 242, 0.15), transparent 60%)',
+      primary: 'linear-gradient(135deg, #ffb020 0%, #eb9d0f 100%)',
+      surface: 'linear-gradient(180deg, rgba(29, 36, 45, 0.8) 0%, rgba(22, 27, 34, 0.9) 100%)',
+      glow: 'radial-gradient(circle at 50% 0%, rgba(255, 176, 32, 0.12), transparent 60%)',
     },
     // Backdrop effects
     backdrop: {

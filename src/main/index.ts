@@ -112,7 +112,19 @@ function emitUpdateStatus(channel: string, payload?: unknown): void {
   mainWindow?.webContents.send(channel, payload)
 }
 
+// Competition venues routinely have no usable internet. An automatic check that
+// fails to reach GitHub is expected there, so it must stay silent; only a check the
+// user explicitly asked for is allowed to surface an error.
+let suppressUpdaterErrors = false
+
+function isOfflineUpdateError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /net::|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ENETUNREACH|getaddrinfo/i.test(message)
+}
+
 function configureAutoUpdater(): void {
+  // Downloads stay manual: pulling a ~150 MB installer over a shared venue hotspot
+  // mid-event would be hostile. The renderer prompts and the user decides when.
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
@@ -123,7 +135,14 @@ function configureAutoUpdater(): void {
     emitUpdateStatus('updater:download-progress', progress),
   )
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => emitUpdateStatus('updater:downloaded', info))
-  autoUpdater.on('error', (error: Error) => emitUpdateStatus('updater:error', error.message))
+  autoUpdater.on('error', (error: Error) => {
+    if (suppressUpdaterErrors) {
+      console.warn('Background update check failed:', error.message)
+      return
+    }
+
+    emitUpdateStatus('updater:error', error.message)
+  })
 }
 
 function buildMenuTemplate(): MenuItemConstructorOptions[] {
@@ -183,7 +202,7 @@ function createMainWindow(): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.mjs'),
+      preload: path.join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -312,10 +331,20 @@ if (hasSingleInstanceLock) {
     mainWindow = createMainWindow()
 
     if (isUpdaterEnabled()) {
-      void autoUpdater.checkForUpdatesAndNotify().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Startup update check failed.'
-        emitUpdateStatus('updater:error', message)
-      })
+      // `checkForUpdatesAndNotify` only raises an OS notification once a download has
+      // finished, which never happens while autoDownload is off. Check directly so the
+      // `update-available` event reaches the renderer banner instead.
+      suppressUpdaterErrors = true
+      void autoUpdater
+        .checkForUpdates()
+        .catch((error: unknown) => {
+          if (!isOfflineUpdateError(error)) {
+            console.warn('Startup update check failed:', error)
+          }
+        })
+        .finally(() => {
+          suppressUpdaterErrors = false
+        })
     } else if (IS_DEV) {
       emitUpdateStatus('updater:not-available', {
         version: app.getVersion(),
