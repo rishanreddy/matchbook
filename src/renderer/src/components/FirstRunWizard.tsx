@@ -23,12 +23,11 @@ import {
   IconAlertTriangle,
   IconCheck,
   IconKey,
-  IconMap,
   IconServer,
   IconUsers,
 } from '@tabler/icons-react'
 import { getTbaStatus } from '../lib/api/tba'
-import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
+import { getDeviceTag, getOrCreateDeviceId } from '../lib/db/utils/deviceId'
 import { getFriendlyErrorMessage, handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
 import { RouteHelpModal } from './RouteHelpModal'
@@ -77,7 +76,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
           return
         }
 
-        const fallbackName = localStorage.getItem('device_name')?.trim() || `Scout Laptop ${resolvedDeviceId.slice(0, 4)}`
+        const fallbackName = localStorage.getItem('device_name')?.trim() || `Scout Laptop ${getDeviceTag(resolvedDeviceId)}`
         const fallbackRole = localStorage.getItem('device_primary') === 'true' ? 'hub' : 'scout'
         const persistedApiKey = localStorage.getItem('tba_api_key')?.trim() ?? ''
 
@@ -164,8 +163,8 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
   }
 
   const handleRoleChange = (nextRole: 'hub' | 'scout'): void => {
-    const defaultScoutName = deviceId ? `Scout Laptop ${deviceId.slice(0, 4)}` : ''
-    const defaultHubName = deviceId ? `Hub Laptop ${deviceId.slice(0, 4)}` : ''
+    const defaultScoutName = deviceId ? `Scout Laptop ${getDeviceTag(deviceId)}` : ''
+    const defaultHubName = deviceId ? `Hub Laptop ${getDeviceTag(deviceId)}` : ''
     const nameIsGenerated = deviceName === defaultScoutName || deviceName === defaultHubName
 
     setRole(nextRole)
@@ -365,7 +364,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                 <Divider label="Device identity" labelPosition="left" />
 
                 <TextInput
-                  label="Device Name"
+                  label="Device name"
                   placeholder="Scout Laptop 1"
                   value={deviceName}
                   onChange={(event) => setDeviceName(event.currentTarget.value)}
@@ -384,7 +383,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                       <ThemeIcon size={28} variant="light" color="frc-blue">
                         <IconKey size={14} />
                       </ThemeIcon>
-                      <Text fw={700}>Event data is optional at setup</Text>
+                      <Text fw={600}>Event data is optional</Text>
                     </Group>
                     <Text size="sm" c="dimmed">
                       {isHub
@@ -414,12 +413,6 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                   Check connection
                 </Button>
 
-                {!tbaApiKey.trim() && (
-                  <Alert color="frc-blue" variant="light" icon={<IconMap size={16} />}>
-                    You can continue without a key. Import an event from the hub when internet is available.
-                  </Alert>
-                )}
-
                 {apiTestState !== 'idle' && (
                   <Alert
                     color={apiTestState === 'success' ? 'green' : 'red'}
@@ -441,7 +434,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                       <Text size="sm">{isHub ? 'Hub' : 'Scout'}</Text>
                     </Group>
                     <Group justify="space-between">
-                      <Text size="sm" c="dimmed">Device Name</Text>
+                      <Text size="sm" c="dimmed">Device name</Text>
                       <Text size="sm">{deviceName.trim() || '-'}</Text>
                     </Group>
                     <Group justify="space-between">
@@ -475,8 +468,6 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                 (activeStep === 0 && !canContinueFromDeviceStep) ||
                 (activeStep === 1 && !canContinueFromApiStep)
               }
-              variant="gradient"
-              gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
             >
               Continue
             </Button>
@@ -485,10 +476,8 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
               onClick={() => void completeWizard()}
               loading={isSubmitting}
               disabled={isLoadingDefaults}
-              variant="gradient"
-              gradient={{ from: 'success.5', to: 'success.7' }}
             >
-              Finish Setup
+              Finish setup
             </Button>
           )}
         </Group>

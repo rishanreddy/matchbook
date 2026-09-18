@@ -8,13 +8,26 @@ import {
 } from './syncProtocol'
 
 describe('network sync protocol', () => {
-  it('keeps every advertised collection available to the hub', () => {
+  it('keeps every explicitly transferable collection available', () => {
     expect(NETWORK_SYNC_COLLECTIONS).toEqual([
       'scoutingData',
       'formSchemas',
       'analysisConfigs',
       'events',
+      'matches',
+      'assignments',
     ])
+  })
+
+  it('uses the match key as the primary field for schedule payloads', () => {
+    expect(
+      validateSyncPayload({
+        exportedAt: '2026-09-15T12:00:00.000Z',
+        collection: 'matches',
+        count: 1,
+        data: [{ key: '2026test_qm1' }],
+      }),
+    ).toMatchObject({ collection: 'matches', count: 1 })
   })
 
   it('accepts a complete payload with matching row count', () => {
@@ -32,6 +45,7 @@ describe('network sync protocol', () => {
     [{ collection: 'not-a-collection', count: 0, data: [] }],
     [{ collection: 'events', count: 2, data: [{ id: 'event-1' }] }],
     [{ collection: 'events', count: 1, data: [{ id: '' }] }],
+    [{ collection: 'matches', count: 1, data: [{ id: 'not-the-match-key' }] }],
     [{ collection: 'events', count: 1, data: ['not a document'] }],
   ])('rejects invalid payload %o', (payload) => {
     expect(() => validateSyncPayload({ exportedAt: '2026-09-15T12:00:00.000Z', ...payload })).toThrow()

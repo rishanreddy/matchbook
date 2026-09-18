@@ -64,7 +64,7 @@ export function SplashScreen({ visible, version, status = 'Preparing startup ser
         inset: 0,
         zIndex: 9999,
         background:
-          'radial-gradient(circle at 16% 18%, rgba(26, 140, 255, 0.1), transparent 40%), radial-gradient(circle at 85% 78%, rgba(255, 136, 0, 0.08), transparent 42%), linear-gradient(170deg, #0b1320 0%, #101b2f 100%)',
+          'radial-gradient(circle at 16% 18%, rgba(154, 166, 182, 0.1), transparent 40%), radial-gradient(circle at 85% 78%, rgba(255, 136, 0, 0.08), transparent 42%), linear-gradient(170deg, #0b1320 0%, #101b2f 100%)',
       }}
     >
       <Center h="100%" px="md">
@@ -88,7 +88,7 @@ export function SplashScreen({ visible, version, status = 'Preparing startup ser
                   alt={`${brand.name} logo`}
                   w={72}
                   h={72}
-                  style={{ objectFit: 'contain', filter: 'drop-shadow(0 6px 20px rgba(26, 140, 255, 0.35))' }}
+                  style={{ objectFit: 'contain', filter: 'drop-shadow(0 6px 20px rgba(154, 166, 182, 0.35))' }}
                 />
                 <Box>
                   <Title order={1} c="slate.0" fw={800} lh={1.15}>

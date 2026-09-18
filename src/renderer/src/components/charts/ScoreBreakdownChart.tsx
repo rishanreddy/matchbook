@@ -25,7 +25,7 @@ export function ScoreBreakdownChart({ auto, teleop, endgame, height = 260 }: Sco
     <Box
       h={height}
       style={{
-        background: 'radial-gradient(ellipse at bottom, rgba(29, 161, 242, 0.03) 0%, transparent 70%)',
+        background: 'radial-gradient(ellipse at bottom, rgba(154, 166, 182, 0.03) 0%, transparent 70%)',
         borderRadius: 12,
       }}
     >
@@ -83,7 +83,7 @@ export function ScoreBreakdownChart({ auto, teleop, endgame, height = 260 }: Sco
             cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }}
             contentStyle={{
               backgroundColor: 'rgba(22, 27, 34, 0.95)',
-              border: '1px solid rgba(29, 161, 242, 0.3)',
+              border: '1px solid rgba(154, 166, 182, 0.3)',
               borderRadius: 8,
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
               padding: '8px 12px',

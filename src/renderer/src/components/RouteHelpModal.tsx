@@ -68,7 +68,7 @@ export function RouteHelpModal({
           size="lg"
           radius="md"
           onClick={open}
-          className="transition-all duration-200 hover:bg-[rgba(26,140,255,0.12)]"
+          className="transition-all duration-200 hover:bg-[rgba(154, 166, 182, 0.12)]"
         >
           <IconHelp size={iconSize} />
         </ActionIcon>
@@ -117,7 +117,7 @@ export function RouteHelpModal({
 
           {steps && steps.length > 0 && (
             <Box>
-              <Text size="xs" fw={600} c="slate.4" mb="sm" className="uppercase tracking-wider">
+              <Text size="xs" fw={600} c="slate.3" mb="sm">
                 Steps
               </Text>
               <List
@@ -153,7 +153,7 @@ export function RouteHelpModal({
               <Box>
                 <Group gap="xs" mb="sm">
                   <IconBulb size={14} className="text-[var(--mantine-color-frc-orange-5)]" />
-                  <Text size="xs" fw={600} c="slate.4" className="uppercase tracking-wider">
+                  <Text size="xs" fw={600} c="slate.3">
                     Tips
                   </Text>
                 </Group>
