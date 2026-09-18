@@ -23,8 +23,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Verify tag matches package version
         shell: bash
@@ -78,8 +76,6 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
