@@ -163,14 +163,14 @@ export function DeviceSetup(): ReactElement {
           p="lg"
           radius="lg"
           style={{
-            background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.08), rgba(26, 140, 255, 0.03))',
-            border: '1px solid rgba(26, 140, 255, 0.2)',
+            background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
+            border: '1px solid rgba(154, 166, 182, 0.2)',
           }}
           className="animate-fadeInUp"
         >
           <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
             <Group gap="md" align="center" wrap="nowrap">
-              <ThemeIcon size={52} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+              <ThemeIcon size={52} radius="xl" variant="light">
                 <IconDeviceLaptop size={24} stroke={1.6} />
               </ThemeIcon>
               <Box>
@@ -221,7 +221,7 @@ export function DeviceSetup(): ReactElement {
           <form onSubmit={form.onSubmit(handleSubmit)}>
             <Stack gap="md">
               <TextInput
-                label="Device Name"
+                label="Device name"
                 placeholder="Scout Laptop 1"
                 {...form.getInputProps('deviceName')}
                 disabled={isInitializing}
@@ -285,8 +285,6 @@ export function DeviceSetup(): ReactElement {
                   type="submit"
                   loading={isSubmitting}
                   disabled={isInitializing}
-                  variant="gradient"
-                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                   fw={700}
                 >
                   {hasExistingRegistration ? 'Update Device' : 'Register Device'}

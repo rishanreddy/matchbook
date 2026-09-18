@@ -530,16 +530,14 @@ export function Scout(): ReactElement {
               radius="xl"
               className="animate-fadeInUp stagger-1 transition-all duration-300 hover:shadow-xl"
               style={{
-                background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.08), rgba(26, 140, 255, 0.03))',
-                border: '1px solid rgba(26, 140, 255, 0.25)',
+                background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
+                border: '1px solid rgba(154, 166, 182, 0.25)',
               }}
             >
               <Group gap="md" align="center" wrap="wrap">
                 <ThemeIcon
                   size={56}
-                  radius="xl"
-                  variant="gradient"
-                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
+                  radius="xl" variant="light"
                 >
                   <IconClipboardCheck size={28} stroke={1.5} />
                 </ThemeIcon>
@@ -600,13 +598,13 @@ export function Scout(): ReactElement {
             p="lg"
             radius="xl"
             style={{
-              background: 'linear-gradient(135deg, rgba(26, 140, 255, 0.08), rgba(26, 140, 255, 0.03))',
-              border: '1px solid rgba(26, 140, 255, 0.2)',
+              background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
+              border: '1px solid rgba(154, 166, 182, 0.2)',
             }}
           >
             <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
               <Group gap="md" align="center">
-                <ThemeIcon size={56} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+                <ThemeIcon size={56} radius="xl" variant="light">
                   <IconClipboardCheck size={28} stroke={1.5} />
                 </ThemeIcon>
                 <Box>
@@ -684,8 +682,6 @@ export function Scout(): ReactElement {
 
               <Group gap="sm">
                 <Button
-                  variant="gradient"
-                  gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                   onClick={() => navigate('/sync')}
                   leftSection={<IconRefresh size={16} />}
                   size="sm"
@@ -940,8 +936,6 @@ export function Scout(): ReactElement {
                 onClick={handleStartScouting}
                 disabled={!canStartScouting}
                 loading={isLoadingForm || (Boolean(currentEventId) && isLoadingEventMatches)}
-                variant="gradient"
-                gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                 leftSection={<IconClipboardCheck size={20} />}
                 className="transition-all duration-200 hover:shadow-xl hover:shadow-frc-blue-5/25 hover:translate-y-[-1px] disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 styles={{

@@ -3,6 +3,8 @@ export const NETWORK_SYNC_COLLECTIONS = [
   'formSchemas',
   'analysisConfigs',
   'events',
+  'matches',
+  'assignments',
 ] as const
 
 export type SyncCollection = (typeof NETWORK_SYNC_COLLECTIONS)[number]
@@ -35,13 +37,14 @@ export function isValidSyncPayload(value: unknown): value is SyncPayload {
     return false
   }
 
+  const primaryField = payload.collection === 'matches' ? 'key' : 'id'
   return payload.data.every((row) => {
     if (typeof row !== 'object' || row === null) {
       return false
     }
 
-    const id = (row as Record<string, unknown>).id
-    return typeof id === 'string' && id.length > 0
+    const primaryValue = (row as Record<string, unknown>)[primaryField]
+    return typeof primaryValue === 'string' && primaryValue.length > 0
   })
 }
 

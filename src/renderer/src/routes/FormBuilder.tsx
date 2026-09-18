@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Box, Group, Loader, Stack, Text } from '@mantine/core'
+import { Alert, Box, Group, Loader, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconCheck } from '@tabler/icons-react'
+import { IconCheck, IconInfoCircle } from '@tabler/icons-react'
 import { SurveyCreator, SurveyCreatorComponent } from 'survey-creator-react'
 import { ExpressionErrorType, Model } from 'survey-core'
 import { DefaultDark } from 'survey-creator-core/themes'
@@ -12,6 +12,8 @@ import { applyMatchbookSurveyTheme } from '../lib/utils/surveyTheme'
 import { useDatabaseStore } from '../stores/useDatabase'
 import 'survey-core/survey-core.min.css'
 import 'survey-creator-core/survey-creator-core.min.css'
+
+const NAMING_HINT_DISMISSED_KEY = 'form_builder_naming_hint_dismissed'
 
 const EMPTY_TEMPLATE: Record<string, unknown> = {
   title: '',
@@ -221,6 +223,15 @@ export function FormBuilder(): ReactElement {
     }
   }, [creator])
 
+  const [showNamingHint, setShowNamingHint] = useState<boolean>(
+    () => localStorage.getItem(NAMING_HINT_DISMISSED_KEY) !== 'true',
+  )
+
+  const dismissNamingHint = useCallback((): void => {
+    localStorage.setItem(NAMING_HINT_DISMISSED_KEY, 'true')
+    setShowNamingHint(false)
+  }, [])
+
   return (
     <Box
       style={{
@@ -237,8 +248,28 @@ export function FormBuilder(): ReactElement {
           </Stack>
         </Group>
       ) : (
-        <Box className="survey-creator-container" style={{ height: '100%', overflow: 'hidden' }}>
-          <SurveyCreatorComponent creator={creator} />
+        <Box style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          {showNamingHint && (
+            <Alert
+              color="blue"
+              variant="light"
+              radius={0}
+              icon={<IconInfoCircle size={18} />}
+              withCloseButton
+              closeButtonLabel="Hide naming hint"
+              onClose={dismissNamingHint}
+              styles={{ root: { flexShrink: 0 } }}
+            >
+              Analysis totals a question into a phase using the start of its name. Name
+              scoring questions <strong>auto…</strong>, <strong>teleop…</strong>, or{' '}
+              <strong>endgame…</strong> (or <strong>climb…</strong>) so teams can be
+              ranked for alliance selection. Other questions are still collected and
+              chartable, they just do not count toward a score.
+            </Alert>
+          )}
+          <Box className="survey-creator-container" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <SurveyCreatorComponent creator={creator} />
+          </Box>
         </Box>
       )}
     </Box>

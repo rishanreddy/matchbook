@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -23,7 +24,7 @@ import {
   useMantineTheme,
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconChartBar, IconChartDots, IconChevronDown, IconChevronUp, IconSearch, IconSettings, IconTable, IconTarget } from '@tabler/icons-react'
+import { IconAlertTriangle, IconChartBar, IconChartDots, IconChevronDown, IconChevronUp, IconCloudUpload, IconSearch, IconSettings, IconTable, IconTarget } from '@tabler/icons-react'
 import {
   Area,
   AreaChart,
@@ -629,6 +630,16 @@ export function Analysis(): ReactElement {
 
   const teamStats = useMemo(() => calculateTeamStats(observations), [observations])
 
+  // Every phase score is derived from question names prefixed auto/teleop/endgame.
+  // A form whose questions are named q1, q2, ... produces all-zero totals, which
+  // would otherwise render as a confident-looking ranking of identical teams.
+  const hasNoScorableData = useMemo(
+    () =>
+      observations.length > 0 &&
+      observations.every((obs) => obs.autoScore + obs.teleopScore + obs.endgameScore === 0),
+    [observations],
+  )
+
   const sortedTeams = useMemo(() => {
     const teams = Array.from(teamStats.values())
     const filtered = debouncedSearch
@@ -867,7 +878,7 @@ export function Analysis(): ReactElement {
         <Stack gap={32}>
           <Box className="animate-fadeInUp">
             <Group gap="md">
-              <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+              <ThemeIcon size={48} radius="xl" variant="light">
                 <IconChartBar size={26} stroke={1.5} />
               </ThemeIcon>
               <Box>
@@ -885,13 +896,23 @@ export function Analysis(): ReactElement {
                 <IconChartDots size={36} stroke={1.5} />
               </ThemeIcon>
               <Box maw={440}>
-                <Text fw={600} c="slate.0" size="xl" mb={8}>No Data Yet</Text>
-                <Text c="slate.3" mb="sm">
-                  Start scouting matches to unlock team score analytics and custom field charts.
+                <Text fw={600} c="slate.0" size="xl" mb={8}>Nothing to analyze yet</Text>
+                <Text c="slate.3" mb="lg">
+                  Team rankings appear once match data reaches this hub. Collect it from the
+                  scout laptops over the network, by QR code, or from a CSV file.
                 </Text>
-                <Button variant="light" color="frc-blue" leftSection={<IconSettings size={16} />} onClick={() => navigate('/settings')}>
-                  Open Analysis Settings
-                </Button>
+                <Group justify="center" gap="sm">
+                  <Button leftSection={<IconCloudUpload size={16} />} onClick={() => navigate('/sync')}>
+                    Receive scout data
+                  </Button>
+                  <Button
+                    variant="default"
+                    leftSection={<IconSettings size={16} />}
+                    onClick={() => navigate('/settings')}
+                  >
+                    Analysis settings
+                  </Button>
+                </Group>
               </Box>
             </Stack>
           </Card>
@@ -903,10 +924,26 @@ export function Analysis(): ReactElement {
   return (
     <Box className="container-wide" py="xl">
       <Stack gap={32}>
+        {hasNoScorableData && (
+          <Alert
+            color="yellow"
+            variant="light"
+            icon={<IconAlertTriangle size={18} />}
+            title="These teams cannot be ranked yet"
+          >
+            Every observation scores zero, so the rankings below are not meaningful.
+            Matchbook totals a question into a phase using its name: questions starting
+            with <strong>auto</strong>, <strong>teleop</strong>, or{' '}
+            <strong>endgame</strong> (or <strong>climb</strong>) are counted. Rename the
+            scoring questions in the Form Builder and re-collect, or compare teams using
+            the custom field charts instead.
+          </Alert>
+        )}
+
         <Box className="animate-fadeInUp">
           <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
             <Group gap="md">
-              <ThemeIcon size={48} radius="xl" variant="gradient" gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}>
+              <ThemeIcon size={48} radius="xl" variant="light">
                 <IconChartBar size={26} stroke={1.5} />
               </ThemeIcon>
               <Box>

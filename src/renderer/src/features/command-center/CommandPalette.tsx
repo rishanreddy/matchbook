@@ -84,8 +84,8 @@ export function CommandPalette({ opened, onClose, commands }: CommandPaletteProp
       styles={{
         content: {
           background: 'linear-gradient(165deg, rgba(22, 27, 34, 0.98) 0%, rgba(13, 17, 23, 0.99) 100%)',
-          border: '1px solid rgba(29, 161, 242, 0.2)',
-          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.6), 0 0 40px rgba(29, 161, 242, 0.1)',
+          border: '1px solid rgba(154, 166, 182, 0.2)',
+          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.6), 0 0 40px rgba(154, 166, 182, 0.1)',
           overflow: 'hidden',
         },
       }}
@@ -94,7 +94,7 @@ export function CommandPalette({ opened, onClose, commands }: CommandPaletteProp
         p="md"
         style={{
           borderBottom: '1px solid rgba(148, 163, 184, 0.15)',
-          background: 'rgba(29, 161, 242, 0.05)',
+          background: 'rgba(154, 166, 182, 0.05)',
         }}
       >
         <TextInput
@@ -131,7 +131,7 @@ export function CommandPalette({ opened, onClose, commands }: CommandPaletteProp
               <Box key={category}>
                 <Group gap="xs" mb="xs" px="xs">
                   <IconCommand size={12} style={{ color: 'var(--mantine-color-slate-5)' }} />
-                  <Text size="xs" fw={600} c="slate.5" tt="uppercase" style={{ letterSpacing: '0.05em' }}>
+                  <Text size="xs" fw={600} c="slate.4">
                     {category}
                   </Text>
                 </Group>
@@ -153,9 +153,9 @@ export function CommandPalette({ opened, onClose, commands }: CommandPaletteProp
                           borderRadius: 10,
                           padding: '12px 14px',
                           background: isSelected
-                            ? 'linear-gradient(135deg, rgba(29, 161, 242, 0.15) 0%, rgba(29, 161, 242, 0.08) 100%)'
+                            ? 'linear-gradient(135deg, rgba(154, 166, 182, 0.15) 0%, rgba(154, 166, 182, 0.08) 100%)'
                             : 'transparent',
-                          border: isSelected ? '1px solid rgba(29, 161, 242, 0.3)' : '1px solid transparent',
+                          border: isSelected ? '1px solid rgba(154, 166, 182, 0.3)' : '1px solid transparent',
                           transition: 'all 150ms ease',
                         }}
                       >
@@ -170,7 +170,7 @@ export function CommandPalette({ opened, onClose, commands }: CommandPaletteProp
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  background: isSelected ? 'rgba(29, 161, 242, 0.2)' : 'rgba(148, 163, 184, 0.1)',
+                                  background: isSelected ? 'rgba(154, 166, 182, 0.2)' : 'rgba(148, 163, 184, 0.1)',
                                   color: isSelected ? 'var(--mantine-color-frc-blue-4)' : 'var(--mantine-color-slate-3)',
                                 }}
                               >

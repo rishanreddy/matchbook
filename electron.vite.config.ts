@@ -4,7 +4,17 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => ({
   main: {},
-  preload: {},
+  // Sandboxed Electron preload scripts execute as CommonJS. Loading an ESM `.mjs`
+  // file here causes Electron to reject it before the context bridge is available.
+  preload: {
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs',
+        },
+      },
+    },
+  },
   renderer: {
     base: './',
     resolve: {

@@ -36,6 +36,7 @@ import { SplashScreen } from './components/SplashScreen'
 import { AboutDialog } from './components/AboutDialog'
 import { DatabaseInitScreen } from './components/DatabaseInitScreen'
 import { FirstRunWizard } from './components/FirstRunWizard'
+import { UpdateBanner } from './components/UpdateBanner'
 import { HubOnlyRoute } from './components/HubOnlyRoute'
 import { resetDatabase } from './lib/db/database'
 import { navGroups, navItems } from './config/navigation'
@@ -47,7 +48,7 @@ import {
   loadShortcutBindings,
   type ShortcutBindings,
 } from './config/shortcuts'
-import { getPublicAssetPath } from './lib/utils/assets'
+import { BrandIcon } from './components/BrandIcon'
 
 const MAX_SPLASH_MS = 3500
 
@@ -392,8 +393,6 @@ function App() {
 
   const shortcutHelpGroups = useMemo(() => createShortcutHelpGroups(shortcutBindings), [shortcutBindings])
 
-  const logoSrc = useMemo(() => getPublicAssetPath('matchbook-logo.png'), [])
-
   const renderNavGroup = (groupKey: string, groupLabel: string) => {
     // Filter items by group and by Hub status (non-Hub devices don't see hubOnly items)
     const items = navItems.filter((item) => {
@@ -447,17 +446,15 @@ function App() {
       padding={isFormBuilderRoute ? 0 : 'lg'}
       styles={{
         header: {
-          backgroundColor: 'var(--surface-raised)',
+          backgroundColor: 'var(--surface-base)',
           borderBottom: '1px solid var(--border-default)',
-          backdropFilter: 'blur(12px)',
         },
         navbar: {
-          backgroundColor: 'var(--surface-raised)',
+          backgroundColor: 'var(--surface-base)',
           borderRight: '1px solid var(--border-default)',
         },
         main: {
           backgroundColor: 'var(--surface-base)',
-          backgroundImage: 'radial-gradient(ellipse 100% 60% at 50% -10%, rgba(26, 140, 255, 0.06), transparent 60%)',
         },
       }}
     >
@@ -466,23 +463,14 @@ function App() {
           <Group gap="md">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation menu" />
             <Group gap="sm" className="app-logo-container">
-              <Box
-                component="img"
-                src={logoSrc}
-                alt={`${brand.name} logo`}
-                w={52}
-                h={52}
-                style={{ 
-                  objectFit: 'contain', 
-                  filter: 'drop-shadow(0 4px 16px rgba(26, 140, 255, 0.4))',
-                  transition: 'filter 0.3s ease'
-                }}
-              />
+              <Box c="slate.0" lh={0} aria-hidden="true">
+                <BrandIcon size={34} />
+              </Box>
               <Box>
-                <Title order={4} c="slate.0" fw={800} lh={1.15} style={{ letterSpacing: '-0.02em' }}>
+                <Title order={4} c="slate.0" fw={600} lh={1.2} style={{ letterSpacing: '-0.01em' }}>
                   {brand.name}
                 </Title>
-                <Text size="xs" c="slate.3" fw={600} style={{ letterSpacing: '0.03em' }}>
+                <Text size="xs" c="slate.3">
                   {brand.tagline}
                 </Text>
               </Box>
@@ -494,8 +482,6 @@ function App() {
               <Button
                 size="sm"
                 radius="xl"
-                variant="gradient"
-                gradient={{ from: 'frc-blue.5', to: 'frc-blue.7' }}
                 leftSection={<IconDeviceFloppy size={14} />}
                 fw={700}
                 onClick={() => {
@@ -549,30 +535,13 @@ function App() {
             )}
             
             {/* Show device role badge */}
-            <Badge 
-              variant="light" 
-              color={isHub ? 'frc-orange' : 'frc-blue'} 
-              size="lg" 
-              radius="xl"
+            <Badge
+              variant="light"
+              color={isHub ? 'amber' : 'slate'}
+              size="lg"
+              radius="sm"
               leftSection={isHub ? <IconServer size={14} /> : <IconUsers size={14} />}
               className="app-version-badge"
-              styles={{
-                root: {
-                  paddingLeft: 10,
-                  paddingRight: 14,
-                  paddingTop: 7,
-                  paddingBottom: 7,
-                  border: isHub ? '1px solid rgba(255, 136, 0, 0.25)' : '1px solid rgba(26, 140, 255, 0.25)',
-                  background: isHub 
-                    ? 'linear-gradient(135deg, rgba(255, 136, 0, 0.12), rgba(255, 136, 0, 0.06))' 
-                    : 'linear-gradient(135deg, rgba(26, 140, 255, 0.12), rgba(26, 140, 255, 0.06))',
-                  boxShadow: isHub 
-                    ? '0 2px 8px rgba(255, 136, 0, 0.15)' 
-                    : '0 2px 8px rgba(26, 140, 255, 0.15)',
-                  fontWeight: 700,
-                  letterSpacing: '0.02em',
-                },
-              }}
             >
               {isHub ? 'Hub' : 'Scout'}
             </Badge>
@@ -592,56 +561,15 @@ function App() {
             component={Link}
             to="/"
             onClick={() => close()}
-            style={{
-              display: 'block',
-              textDecoration: 'none',
-              backgroundColor: currentEventId ? 'rgba(255, 136, 0, 0.06)' : 'rgba(148, 163, 184, 0.04)',
-              border: `1px solid ${currentEventId ? 'rgba(255, 136, 0, 0.15)' : 'rgba(148, 163, 184, 0.12)'}`,
-              borderRadius: 8,
-              padding: '10px 12px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = currentEventId 
-                ? 'rgba(255, 136, 0, 0.1)' 
-                : 'rgba(148, 163, 184, 0.06)'
-              e.currentTarget.style.borderColor = currentEventId 
-                ? 'rgba(255, 136, 0, 0.25)' 
-                : 'rgba(148, 163, 184, 0.18)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = currentEventId 
-                ? 'rgba(255, 136, 0, 0.06)' 
-                : 'rgba(148, 163, 184, 0.04)'
-              e.currentTarget.style.borderColor = currentEventId 
-                ? 'rgba(255, 136, 0, 0.15)' 
-                : 'rgba(148, 163, 184, 0.12)'
-            }}
+            className="current-event-card"
           >
             <Group gap="xs" wrap="nowrap">
-              <ThemeIcon 
-                size={32} 
-                radius="md" 
-                variant="light" 
-                color={currentEventId ? 'frc-orange' : 'slate'}
-                style={{
-                  backgroundColor: currentEventId 
-                    ? 'rgba(255, 136, 0, 0.12)' 
-                    : 'rgba(148, 163, 184, 0.08)',
-                }}
-              >
+              <ThemeIcon size={28} radius="sm" variant="default">
                 <IconCalendarEvent size={16} stroke={1.6} />
               </ThemeIcon>
               <Box style={{ flex: 1, minWidth: 0 }}>
-                <Text 
-                  size="xs" 
-                  c="slate.4" 
-                  fw={600} 
-                  tt="uppercase" 
-                  style={{ letterSpacing: '0.05em' }}
-                >
-                  Current Event
+                <Text size="xs" c="slate.4">
+                  Current event
                 </Text>
                 {currentEventId ? (
                   <Text size="sm" fw={600} c="slate.1" truncate="end">
@@ -659,7 +587,7 @@ function App() {
         
         <AppShell.Section className="app-sidebar-footer">
           <Text className="app-sidebar-footer-text">
-            {brand.name} Platform
+            Version {appVersion}
           </Text>
         </AppShell.Section>
       </AppShell.Navbar>
@@ -677,6 +605,8 @@ function App() {
         <Text aria-live="polite" className="sr-only">
           Current page: {navItems.find((item) => item.to === location.pathname)?.label ?? 'App'}
         </Text>
+
+        <UpdateBanner />
 
         <ShortcutHelp opened={showShortcutHelp} onClose={() => setShowShortcutHelp(false)} groups={shortcutHelpGroups} />
         <CommandPalette opened={showCommandPalette} onClose={() => setShowCommandPalette(false)} commands={commandItems} />

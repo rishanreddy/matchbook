@@ -23,6 +23,8 @@ type SyncServerStatus = {
 
 const DEFAULT_PORT = 41735
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+const MAX_PENDING_PAYLOADS = 100
+const MAX_PENDING_BYTES = 50 * 1024 * 1024
 
 let server: Server | null = null
 let currentPort: number | null = null
@@ -31,6 +33,7 @@ const payloadQueue: SyncPayload[] = []
 const failedPayloadQueue: FailedSyncPayload[] = []
 let isQueueLoaded = false
 let persistenceChain: Promise<void> = Promise.resolve()
+let pendingPayloadBytes = 0
 
 function getQueueFilePath(): string {
   return path.join(app.getPath('userData'), 'sync-payload-queue.json')
@@ -114,6 +117,7 @@ async function ensureQueueLoaded(): Promise<void> {
     })
   }
 
+  pendingPayloadBytes = getPendingPayloads().reduce((total, payload) => total + getSerializedPayloadSize(payload), 0)
   isQueueLoaded = true
 }
 
@@ -255,6 +259,23 @@ function getStatus(): SyncServerStatus {
   }
 }
 
+function getPendingPayloads(): SyncPayload[] {
+  return [...payloadQueue, ...failedPayloadQueue.map((entry) => entry.payload)]
+}
+
+function getSerializedPayloadSize(payload: SyncPayload): number {
+  return Buffer.byteLength(JSON.stringify(payload), 'utf8')
+}
+
+function hasQueueCapacityFor(payload: SyncPayload): boolean {
+  const pendingPayloads = getPendingPayloads()
+  if (pendingPayloads.length >= MAX_PENDING_PAYLOADS) {
+    return false
+  }
+
+  return pendingPayloadBytes + getSerializedPayloadSize(payload) <= MAX_PENDING_BYTES
+}
+
 export async function startSyncServer(port?: number, authToken?: string): Promise<SyncServerStatus> {
   await ensureQueueLoaded()
 
@@ -284,7 +305,9 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
 
     // Parse URL path (strip query params)
     const urlPath = request.url.split('?')[0]
-    console.log(`[Sync Server] ${request.method} ${urlPath}`)
+    if (!app.isPackaged) {
+      console.log(`[Sync Server] ${request.method} ${urlPath}`)
+    }
 
     if (request.method === 'OPTIONS') {
       response.writeHead(204)
@@ -319,8 +342,24 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
             return
           }
 
+          if (body.collection !== 'scoutingData') {
+            sendJson(response, 422, {
+              ok: false,
+              error: 'Network hub uploads accept scouting data only. Transfer forms and configuration with QR or database snapshots.',
+            })
+            return
+          }
+
           await ensureQueueLoaded()
+          if (!hasQueueCapacityFor(body)) {
+            sendJson(response, 507, {
+              ok: false,
+              error: 'Hub sync queue is full. Ask the hub operator to process or clear queued payloads before retrying.',
+            })
+            return
+          }
           payloadQueue.push(body)
+          pendingPayloadBytes += getSerializedPayloadSize(body)
           await schedulePersistence({ queue: true })
           sendJson(response, 200, { ok: true, queueLength: payloadQueue.length })
         })
@@ -405,6 +444,10 @@ export async function consumeSyncPayloads(): Promise<SyncPayload[]> {
   await ensureQueueLoaded()
   const consumed = [...payloadQueue]
   payloadQueue.length = 0
+  pendingPayloadBytes = Math.max(
+    0,
+    pendingPayloadBytes - consumed.reduce((total, payload) => total + getSerializedPayloadSize(payload), 0),
+  )
   await schedulePersistence({ queue: true })
   return consumed
 }
@@ -418,7 +461,11 @@ export async function ackSyncPayloads(count: number): Promise<SyncServerStatus> 
   await ensureQueueLoaded()
   const safeCount = Number.isInteger(count) ? Math.max(0, count) : 0
   if (safeCount > 0) {
-    payloadQueue.splice(0, safeCount)
+    const acknowledged = payloadQueue.splice(0, safeCount)
+    pendingPayloadBytes = Math.max(
+      0,
+      pendingPayloadBytes - acknowledged.reduce((total, payload) => total + getSerializedPayloadSize(payload), 0),
+    )
     await schedulePersistence({ queue: true })
   }
   return getStatus()
@@ -462,6 +509,10 @@ export async function clearFailedSyncPayloads(): Promise<SyncServerStatus> {
     return getStatus()
   }
 
+  pendingPayloadBytes = Math.max(
+    0,
+    pendingPayloadBytes - failedPayloadQueue.reduce((total, entry) => total + getSerializedPayloadSize(entry.payload), 0),
+  )
   failedPayloadQueue.length = 0
   await schedulePersistence({ failed: true })
   return getStatus()

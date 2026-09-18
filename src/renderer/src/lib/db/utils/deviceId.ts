@@ -27,3 +27,15 @@ export async function getOrCreateDeviceId(): Promise<string> {
   localStorage.setItem(DEVICE_ID_KEY, deviceId)
   return deviceId
 }
+
+/**
+ * Short, human-readable tag for a device ID, for use in default device names.
+ *
+ * Device IDs are all prefixed `device_`, so the leading characters are identical on
+ * every installation. Taking them from the front produced the same default name
+ * ("Scout Laptop devi") on every laptop, which made devices indistinguishable in the
+ * hub's sync list. The suffix is the random part.
+ */
+export function getDeviceTag(deviceId: string): string {
+  return deviceId.slice(-4).toUpperCase()
+}

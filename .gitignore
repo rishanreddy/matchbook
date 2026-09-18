@@ -12,6 +12,11 @@ build/*
 !build/icon.icns
 !build/icon.png
 !build/installer-welcome.bmp
+# Vector source for the app mark. The .icns/.ico/.png above are generated from it,
+# so without this the logo could never be regenerated or adjusted.
+!build/logo/
+!build/logo/*.svg
+!build/logo/README.md
 
 # Logs
 logs

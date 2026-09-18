@@ -2,15 +2,24 @@ import type { ReactElement } from 'react'
 
 type BrandIconProps = {
   size?: number
+  /** Colour of the cover outline and the match sticks. */
   color?: string
+  /** Colour of the strike strip. */
   accentColor?: string
   strokeWidth?: number
 }
 
+/**
+ * The Matchbook mark: a matchbook cover holding three matches above an amber
+ * strike strip. Three matches because an FRC alliance is three robots.
+ *
+ * Drawn on a 32-unit grid so the 2px strokes land on whole pixels at 32px and
+ * 16px, which is where it is used most (title bar, splash, about dialog).
+ */
 export function BrandIcon({
   size = 24,
   color = 'currentColor',
-  accentColor = 'currentColor',
+  accentColor = 'var(--accent, #ffb020)',
   strokeWidth = 2,
 }: BrandIconProps): ReactElement {
   return (
@@ -18,49 +27,30 @@ export function BrandIcon({
       xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="0 0 32 32"
       fill="none"
       aria-hidden="true"
     >
-      <path
-        d="M4.5 7.5C6.52 6.82 8.49 6.82 10.4 7.5V17.15C8.47 16.49 6.5 16.49 4.5 17.15V7.5Z"
-        fill={color}
-        fillOpacity="0.18"
+      <rect
+        x="5"
+        y="2.5"
+        width="22"
+        height="27"
+        rx="3.5"
         stroke={color}
         strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
       />
-      <path
-        d="M19.5 7.5C17.48 6.82 15.51 6.82 13.6 7.5V17.15C15.53 16.49 17.5 16.49 19.5 17.15V7.5Z"
-        fill={color}
-        fillOpacity="0.1"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M12 7.35V17.4"
-        stroke={color}
-        strokeOpacity="0.62"
-        strokeWidth={strokeWidth * 0.9}
-        strokeLinecap="round"
-      />
-      <path
-        d="M8.2 12.3L10.2 14.22L15.4 9.12"
-        stroke={color}
-        strokeWidth={strokeWidth * 0.95}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10.05 5.35A2.45 2.45 0 0 1 13.95 5.35"
-        stroke={accentColor}
-        strokeWidth={strokeWidth * 0.85}
-        strokeLinecap="round"
-      />
-      <circle cx="12" cy="3.7" r="1.1" fill={accentColor} />
+      <path d="M6 23.5h20" stroke={accentColor} strokeWidth={strokeWidth * 2.1} />
+      <g stroke={color} strokeWidth={strokeWidth * 1.05} strokeLinecap="round">
+        <path d="M10.8 20.5v-9" />
+        <path d="M16 20.5v-9" />
+        <path d="M21.2 20.5v-9" />
+      </g>
+      <g fill={color}>
+        <circle cx="10.8" cy="9.6" r={strokeWidth * 0.925} />
+        <circle cx="16" cy="9.6" r={strokeWidth * 0.925} />
+        <circle cx="21.2" cy="9.6" r={strokeWidth * 0.925} />
+      </g>
     </svg>
   )
 }
