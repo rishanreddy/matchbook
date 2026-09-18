@@ -23,6 +23,8 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Verify tag matches package version
         shell: bash
@@ -49,8 +51,19 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Create the release draft before uploading artifacts
-        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "$GITHUB_REF_NAME" --generate-notes
+      - name: Create or reuse the release draft before uploading artifacts
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft >/dev/null 2>&1; then
+            is_draft="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
+            if [ "$is_draft" != "true" ]; then
+              echo "Release $GITHUB_REF_NAME is already published; refusing to overwrite it." >&2
+              exit 1
+            fi
+            echo "Reusing existing draft release $GITHUB_REF_NAME."
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "$GITHUB_REF_NAME" --generate-notes
+          fi
 
   release:
     needs: create-draft-release
@@ -76,6 +89,8 @@ jobs:
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
@@ -93,13 +108,30 @@ jobs:
       # in an unsigned bundle) and users must right-click > Open on first launch.
       - name: build-mac
         if: matrix.os == 'macos-latest'
-        run: pnpm build && pnpm exec electron-builder --mac --publish always --config.publish.releaseType=draft
         env:
-          CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MAC_CERTIFICATE: ${{ secrets.MAC_CERTIFICATE }}
+          MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD_SECRET: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$MAC_CERTIFICATE" ]; then
+            for secret_name in \
+              MAC_CERTIFICATE_PASSWORD APPLE_ID_SECRET APPLE_APP_SPECIFIC_PASSWORD_SECRET APPLE_TEAM_ID_SECRET; do
+              if [ -z "${!secret_name}" ]; then
+                echo "MAC_CERTIFICATE is configured but ${secret_name} is missing." >&2
+                exit 1
+              fi
+            done
+
+            export CSC_LINK="$MAC_CERTIFICATE"
+            export CSC_KEY_PASSWORD="$MAC_CERTIFICATE_PASSWORD"
+            export APPLE_ID="$APPLE_ID_SECRET"
+            export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD_SECRET"
+            export APPLE_TEAM_ID="$APPLE_TEAM_ID_SECRET"
+          fi
+
+          pnpm build && pnpm exec electron-builder --mac --publish always --config.publish.releaseType=draft
 
       - name: verify-mac-artifacts
         if: matrix.os == 'macos-latest'
