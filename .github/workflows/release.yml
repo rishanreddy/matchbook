@@ -101,7 +101,7 @@ jobs:
 
       # Signing is optional: without an Apple Developer ID the build still produces a
       # working .dmg, but macOS auto-update is disabled (Squirrel.Mac refuses to swap
-      # in an unsigned bundle) and users must right-click > Open on first launch.
+      # in an unsigned bundle) and users must clear the quarantine attribute by hand.
       - name: build-mac
         if: matrix.os == 'macos-latest'
         env:
@@ -146,7 +146,7 @@ jobs:
             echo "MAC_CERTIFICATE is configured but the bundle is not Developer ID signed." >&2
             exit 1
           else
-            echo "::warning::No Developer ID certificate configured. The macOS build is ad-hoc signed: auto-update will not work on macOS and users must right-click > Open on first launch. Add the MAC_CERTIFICATE / MAC_CERTIFICATE_PASSWORD / APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID repository secrets to enable it."
+            echo "::warning::No Developer ID certificate configured. The macOS build is ad-hoc signed: auto-update will not work on macOS, and users must run 'xattr -dr com.apple.quarantine /Applications/Matchbook.app' before the app will open (see the macOS section of README.md). Add the MAC_CERTIFICATE / MAC_CERTIFICATE_PASSWORD / APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID repository secrets to enable signing."
           fi
 
       - name: build-win
