@@ -41,9 +41,11 @@
     "electron:dist:linux": "pnpm build:linux",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
-    "verify:production": "pnpm test && pnpm typecheck && pnpm lint && pnpm build",
+    "verify:production": "pnpm test && pnpm typecheck && pnpm lint && pnpm docs:check && pnpm build",
     "preview": "electron-vite preview",
-    "clean:release": "rm -rf release"
+    "clean:release": "rm -rf release",
+    "docs:sync": "node scripts/sync-readme.mjs",
+    "docs:check": "node scripts/sync-readme.mjs --check"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
