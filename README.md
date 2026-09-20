@@ -1,35 +1,38 @@
-<div align="center">
+<p align="center">
+  <img src="docs/images/banner.svg" alt="Matchbook">
+</p>
 
-![Matchbook](docs/images/banner.svg)
+<p align="center">
+  <a href="https://github.com/rishanreddy/matchbook/releases/latest"><img src="https://img.shields.io/github/v/release/rishanreddy/matchbook?style=flat-square&color=ffb020&labelColor=161b22" alt="Latest release"></a>
+  <a href="https://github.com/rishanreddy/matchbook/releases"><img src="https://img.shields.io/github/downloads/rishanreddy/matchbook/total?style=flat-square&color=eef1f5&labelColor=161b22" alt="Downloads"></a>
+  <a href="https://github.com/rishanreddy/matchbook/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/rishanreddy/matchbook/release.yml?style=flat-square&labelColor=161b22" alt="Build"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/rishanreddy/matchbook?style=flat-square&color=eef1f5&labelColor=161b22" alt="License"></a>
+</p>
 
-[![Latest release](https://img.shields.io/github/v/release/rishanreddy/matchbook?style=flat-square&color=ffb020&labelColor=161b22)](https://github.com/rishanreddy/matchbook/releases/latest)
-[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-eef1f5?style=flat-square&labelColor=161b22)](#installation)
-[![Works offline](https://img.shields.io/badge/works-fully%20offline-ffb020?style=flat-square&labelColor=161b22)](#why-offline-matters)
-[![License](https://img.shields.io/github/license/rishanreddy/matchbook?style=flat-square&color=eef1f5&labelColor=161b22)](LICENSE)
+<p align="center">
+  <a href="#installation">Installation</a> &nbsp;&bull;&nbsp;
+  <a href="#getting-started">Getting started</a> &nbsp;&bull;&nbsp;
+  <a href="#moving-data-between-laptops">Sync</a> &nbsp;&bull;&nbsp;
+  <a href="#when-matchbook-is-the-wrong-tool">When not to use it</a> &nbsp;&bull;&nbsp;
+  <a href="#development">Development</a>
+</p>
 
-**Scout every match, then turn what you saw into a picklist — without needing the venue Wi-Fi.**
+Matchbook is a desktop scouting app for FIRST Robotics Competition teams. Your scouts
+record what each robot does during a match, the data comes back to one laptop, and that
+laptop ranks teams so you can build an alliance picklist.
 
-</div>
+It runs with no internet. Competition halls rarely have usable Wi-Fi, and the field
+network is off limits, so every laptop keeps its own complete database and data moves
+between them over your own LAN, a QR code, or a USB stick.
 
----
-
-## What it is
-
-Competition halls do not have usable internet. Matchbook assumes that from the start: every
-laptop keeps a complete local database, and data moves between them over your own LAN, a QR
-code, or a USB stick. Nothing needs a network to work.
-
-One laptop is the **hub** — it holds the event, the scouting form, and the combined data. The
-rest are **scout** laptops, each recording one robot at a time. At the end of a match block you
-pull everything back to the hub and rank teams for alliance selection.
-
-<div align="center">
-<img src="docs/images/home.png" alt="Matchbook hub home screen" width="85%">
-</div>
-
----
+<p align="center">
+  <img src="docs/images/home.png" alt="The hub home screen" width="88%">
+</p>
 
 ## How data moves
+
+One laptop is the hub. It holds the event, the scouting form, and the combined data.
+Every other laptop is a scout, recording one robot at a time.
 
 ```mermaid
 flowchart LR
@@ -54,239 +57,244 @@ flowchart LR
     style TBA fill:#0e1116,stroke:#4a5462,color:#828c9a
 ```
 
-The only step that ever touches the internet is importing an event from The Blue Alliance, and
-you can do that at home the night before. Everything after that is local.
-
----
-
-## At a glance
-
-| | |
-|---|---|
-| **Current release** | v2.1.2 |
-| **Platforms** | Windows (x64), macOS (Apple Silicon), Linux (x64) |
-| **Screens** | 11 — Home, Scout, Events, Analysis, Sync, Assignments, Form Builder, Device Setup, Settings, Help, Developer Tools |
-| **Sync transports** | 4 — LAN, QR code, CSV, full database snapshot |
-| **Collections synced** | 6 — scouting data, form schemas, analysis configs, events, matches, assignments |
-| **Local storage** | RxDB on IndexedDB — survives restarts, no server |
-| **Built with** | Electron 41 · React 19 · TypeScript · Mantine · RxDB |
-| **Tests** | 31 passing across 3 suites |
-| **Source** | ~19,000 lines across 83 TypeScript files |
-
----
+Importing an event from The Blue Alliance is the only step that ever touches the
+internet, and you can do that at home the night before. Everything after that is local.
 
 ## Installation
 
-Grab the installer for your platform from the
-**[latest release](https://github.com/rishanreddy/matchbook/releases/latest)**.
-
-| Platform | File | Size |
-|---|---|---|
-| Windows 10/11 (x64) | `Matchbook-2.1.2-Setup.exe` | 140 MB |
-| macOS (Apple Silicon) | `Matchbook-2.1.2-arm64.dmg` | 175 MB |
-| Linux (x64) | `Matchbook-2.1.2.AppImage` | 184 MB |
+Download from the [latest release](https://github.com/rishanreddy/matchbook/releases/latest).
+Windows gets a `.exe` installer, macOS a `.dmg`, Linux an `.AppImage`.
 
 ### Windows
 
-1. Download `Matchbook-2.1.2-Setup.exe`.
-2. Run it. SmartScreen may say *"Windows protected your PC"* — click **More info → Run anyway**.
-3. Pick an install location and finish. A desktop shortcut is created for you.
+Run the installer. SmartScreen will probably say "Windows protected your PC", because
+the installer is not signed. Click "More info", then "Run anyway".
 
-### macOS — extra step required
+### macOS
+
+macOS needs one extra command, and the app will not open without it.
 
 > [!IMPORTANT]
-> Matchbook is not notarized by Apple, so macOS will refuse to open it and claim the app is
-> **"damaged"**. The app is fine — this is Gatekeeper reacting to the missing Apple signature.
-> One command clears it.
+> macOS will tell you Matchbook is **damaged and should be moved to the Trash**. It is
+> not damaged. Matchbook has no Apple Developer ID signature, and that is the error
+> Gatekeeper shows for unsigned software you downloaded.
 
-1. Download `Matchbook-2.1.2-arm64.dmg` and open it.
-2. Drag **Matchbook** into your **Applications** folder.
-3. Open **Terminal** (⌘-Space, type `Terminal`, press Return) and run:
+1. Open the `.dmg` and drag Matchbook into your Applications folder.
+2. Open Terminal. Press Command and Space, type `Terminal`, press Return.
+3. Run this, then open the app normally:
 
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Matchbook.app
-   ```
+```bash
+xattr -dr com.apple.quarantine /Applications/Matchbook.app
+```
 
-4. Open Matchbook normally from Applications. You only do this once per install.
+You do this once per install, not once per launch.
 
 <details>
-<summary><strong>What that command actually does</strong></summary>
+<summary>What that command does, and why it is needed</summary>
 
 <br>
 
-macOS tags everything downloaded from the internet with a `com.apple.quarantine` attribute.
-When you open a quarantined app, Gatekeeper checks it for an Apple Developer ID signature and a
-notarization ticket. Matchbook has neither, so macOS blocks it and reports it as damaged — the
-wording is misleading, nothing is actually corrupt.
+macOS tags every file you download with an attribute called `com.apple.quarantine`.
+When you open a quarantined app, Gatekeeper looks for an Apple Developer ID signature
+and a notarization ticket from Apple. Matchbook has neither, so macOS refuses to run it
+and reports it as damaged. The wording is wrong. Nothing about the download is corrupt.
 
-`xattr -dr com.apple.quarantine` deletes (`-d`) that attribute recursively (`-r`) from the app
-bundle, so Gatekeeper stops treating it as freshly downloaded.
+`xattr -dr com.apple.quarantine` deletes that attribute from the app, recursively, so
+Gatekeeper stops treating the app as freshly downloaded.
 
-Only run this on software you trust and downloaded yourself. If you would rather verify the
-download first, compare it against the `sha512` in `latest-mac.yml` on the release page.
+Run this only on software you trust and downloaded yourself. If you want to check the
+download first, each release ships a `latest-mac.yml` containing the `sha512` of every
+file, so you can compare before you clear the flag.
 
-Right-clicking and choosing **Open** — the usual advice for unsigned apps — does **not** work
-here, because the build is ad-hoc signed rather than unsigned. The Terminal command is the way.
+Right-clicking the app and choosing Open is the usual advice for unsigned software. It
+does not work here, because these builds are ad-hoc signed rather than unsigned, and
+macOS gives that case no bypass in the interface. The Terminal command is the only way.
 
 </details>
 
 > [!NOTE]
-> Two consequences of the missing signature on macOS: **in-app updates do not work**, so Mac
-> users download each new release by hand and repeat the `xattr` step. And the release is
-> **Apple Silicon only** — there is no Intel build, so Intel Macs need the Windows or Linux
-> version. Windows and Linux both auto-update normally.
+> Two things follow from the missing signature. Matchbook cannot update itself on
+> macOS, so Mac users download each new release by hand and repeat the command above.
+> And the macOS build is Apple Silicon only. An Intel Mac cannot run it, so use a
+> Windows or Linux laptop instead. Windows and Linux both update themselves normally.
 
 ### Linux
 
-1. Download `Matchbook-2.1.2.AppImage`.
-2. Make it executable and run it:
-
-   ```bash
-   chmod +x Matchbook-2.1.2.AppImage
-   ./Matchbook-2.1.2.AppImage
-   ```
-
----
+```bash
+chmod +x Matchbook-*.AppImage
+./Matchbook-*.AppImage
+```
 
 ## Getting started
 
-Do this at home, the night before, while you still have internet:
+Do all of this at home the night before, while you still have internet.
 
-**1. Set up the hub laptop**
+**Set up the hub laptop.** Open Settings and paste in a
+[TBA API key](https://www.thebluealliance.com/account), which is free. Open Device Setup
+and register the laptop as a hub. Open Events and import your competition.
 
-- Open **Settings** and paste in your
-  [TBA API key](https://www.thebluealliance.com/account) (free).
-- In **Device Setup**, register the laptop as **Hub**.
-- Go to **Events** and import your competition.
-
-**2. Build your scouting form**
-
-Open **Form Builder** and add the questions your team cares about.
+**Build your scouting form.** Open Form Builder and add the questions your team cares
+about. Question names decide how a match gets scored, so read the box below before you
+name anything.
 
 > [!IMPORTANT]
-> Question **names** decide how a match is scored. Matchbook cannot know what a given game
-> awards points for, so it buckets each answer by the start of its name:
+> Matchbook cannot know what a game awards points for, so it sorts each answer into a
+> phase by the start of the question's name.
 >
-> | Name starts with | Counted toward |
+> | Name starts with | Counts toward |
 > |---|---|
-> | `auto…` | Autonomous |
-> | `teleop…` | Teleop |
-> | `endgame…` or `climb…` | Endgame |
+> | `auto` | Autonomous |
+> | `teleop` | Teleop |
+> | `endgame` or `climb` | Endgame |
 >
-> Numbers count as their value, checkboxes count as 1, and free text is collected but not
-> scored. A form full of questions named `q1`, `q2` will produce a ranking where every team
-> ties at zero — Analysis warns you when that happens.
+> Numbers count as their value and checkboxes count as 1. Free text is stored but never
+> scored. Name your questions `q1` and `q2` and every team will tie at zero, which
+> makes the picklist useless. Analysis warns you when that happens.
 
-<div align="center">
-<img src="docs/images/form-builder.png" alt="Form Builder" width="85%">
-</div>
+<p align="center">
+  <img src="docs/images/form-builder.png" alt="Form Builder" width="88%">
+</p>
 
-**3. Set up the scout laptops**
+**Set up the scout laptops.** Register each one as a scout in Device Setup. Each gets
+its own name so the hub can tell them apart. Send them the form from Sync. Scout
+laptops never need a TBA key.
 
-- Register each as **Scout** in Device Setup — each gets its own name, so the hub can tell
-  them apart.
-- Send them the form from **Sync**. Scout laptops never need a TBA key.
+**At the event.** Scouts record matches. Between match blocks you pull the data back to
+the hub through Sync, then open Analysis to compare teams.
 
-**4. At the event**
+<p align="center">
+  <img src="docs/images/analysis.png" alt="The analysis screen" width="88%">
+</p>
 
-Scouts record matches. Between match blocks, bring the data back to the hub via **Sync**, then
-open **Analysis** to compare teams and build your picklist.
+### What each screen is for
 
-<div align="center">
-<img src="docs/images/analysis.png" alt="Analysis screen" width="85%">
-</div>
-
----
+<!-- generated:screens -->
+| Screen | Shown on | What it does |
+|---|---|---|
+| Analysis | Hub | Compare teams and build a picklist |
+| Assignments | Hub | Decide which scout covers which match |
+| Developer Tools | Developer | Database inspection, hidden unless developer mode is on |
+| Device Setup | Both | Name this laptop and set it as hub or scout |
+| Event Management | Hub | Import events and schedules from The Blue Alliance |
+| Form Builder | Hub | Build the questions your scouts answer |
+| Help | Both | In-app guidance |
+| Home | Both | Event selection and what to do next |
+| Scout | Both | Record one robot for one match |
+| Settings | Both | TBA key, shortcuts, updates |
+| Sync | Both | Move data between laptops |
+<!-- /generated:screens -->
 
 ## Moving data between laptops
 
-<div align="center">
-<img src="docs/images/sync.png" alt="Sync screen" width="85%">
-</div>
+<p align="center">
+  <img src="docs/images/sync.png" alt="The sync screen" width="88%">
+</p>
 
 | Method | Use it when | Notes |
 |---|---|---|
-| **LAN** | You have a router or hotspot of your own | Fastest. Hub runs a local server; scouts upload to its IP. Token-protected, private addresses only. |
-| **QR code** | No network at all | Scout shows a code, hub scans it. Good for a handful of matches. |
-| **CSV** | You want the raw data | Export/import via USB. Also how you get data into a spreadsheet. |
-| **Database snapshot** | Setting up a new laptop, or making a backup | Copies everything at once. |
+| LAN | You brought your own router or hotspot | Fastest. The hub runs a local server and scouts upload to its address. Protected by a token, and it only talks to private addresses. |
+| QR code | There is no network at all | The scout shows a code, the hub scans it. Fine for a handful of matches, slow for a full day. |
+| CSV | You want the raw rows | Export to a USB stick. Also how you get the data into a spreadsheet. |
+| Database snapshot | Setting up a new laptop, or taking a backup | Copies everything at once. |
 
-### Why offline matters
+Sync covers <!-- generated:collections -->
+`scouting data`, `form schemas`, `analysis configs`, `events`, `matches`, `assignments`
+<!-- /generated:collections --> so a scout laptop that has never seen the internet still
+ends up with the right form and schedule.
 
-Venue Wi-Fi is congested, locked down, or absent, and the field network is off-limits. Matchbook
-never assumes a connection: fonts are bundled rather than fetched, update checks fail silently
-instead of throwing errors at you mid-match, and the LAN sync only ever talks to private
-addresses on your own network.
+## When Matchbook is the wrong tool
 
----
+Worth knowing before your team commits to it.
+
+**You need pit scouting or photos.** Matchbook records match performance. There is no
+pit interview form and no image capture.
+
+**Your scouts use phones or tablets.** This is a desktop app for Windows, macOS, and
+Linux. There is no mobile build, and no browser version.
+
+**You compete in FTC.** Matchbook reads The Blue Alliance, which only covers FRC. FTC
+events use a different API entirely.
+
+**You want official game scores.** Matchbook counts what your scouts recorded. It does
+not implement any year's scoring rules, so its numbers rank teams against each other
+rather than reproducing the scoreboard.
+
+**Everyone on your team has an Intel Mac.** The macOS build is Apple Silicon only.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm dev              # run the app with hot reload
-pnpm test             # unit tests
-pnpm verify:production # tests + typecheck + lint + build — the release gate
-pnpm build:mac        # or build:win / build:linux
+pnpm dev                # run with hot reload
+pnpm test               # unit tests
+pnpm verify:production  # tests, typecheck, lint, build. The release gate.
+pnpm build:mac          # or build:win, build:linux
+pnpm docs:sync          # regenerate the tables in this README from the source
 ```
 
-<details>
-<summary><strong>Shipping an update</strong></summary>
-
-<br>
-
-Installed copies check GitHub on launch and show a banner when a new release exists. Downloads
-are never automatic — a laptop on a shared venue hotspot is not dragged into a 150 MB transfer
-mid-event.
-
-1. Bump `version` in `package.json` and commit.
-2. Tag and push: `git tag v2.1.3 && git push origin v2.1.3`. The tag must match the
-   `package.json` version or the workflow stops before building anything.
-3. GitHub Actions runs the release gate, builds all three platforms, verifies the artifacts, and
-   publishes.
-
-Before publishing, CI checks that each `latest-*.yml` update manifest matches the bytes of the
-artifacts beside it. A manifest left over from an earlier build would otherwise ship a checksum
-that no longer matches, and every client would download the update and then reject it. Local
-packaging wipes `release/` first for the same reason.
-
-**To enable macOS signing** (which also enables macOS auto-update and removes the `xattr` step
-for your users), add these repository secrets: `MAC_CERTIFICATE`, `MAC_CERTIFICATE_PASSWORD`,
-`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. They require a paid Apple Developer
-account. Without them the workflow still ships a working `.dmg` and logs a warning.
-
-</details>
+Built with <!-- generated:stack -->
+Electron 41, React 19, TypeScript 5, RxDB 16, Mantine, Vite
+<!-- /generated:stack -->.
 
 <details>
-<summary><strong>Project layout</strong></summary>
+<summary>Project layout</summary>
 
 <br>
 
 ```
 src/
-  main/        Electron main process — window, updater, LAN sync server
-  preload/     Context bridge (sandboxed, CommonJS)
-  renderer/    React app
-    routes/    One file per screen
-    lib/db/    RxDB schemas and collections
-    lib/utils/ Scoring, analysis config, sync helpers
-  shared/      Types and the sync protocol, used by both processes
-build/logo/    Vector source for the app mark — see its README to regenerate icons
+  main/        Electron main process. Window, updater, LAN sync server.
+  preload/     Context bridge. Sandboxed, CommonJS.
+  renderer/    The React app.
+    routes/    One file per screen.
+    lib/db/    RxDB schemas and collections.
+    lib/utils/ Scoring, analysis config, sync helpers.
+  shared/      Types and the sync protocol, used by both processes.
+build/logo/    Vector source for the app mark. Its README explains how to regenerate icons.
+scripts/       Release artifact checks and the README generator.
 ```
+
+The tables above are written by `scripts/sync-readme.mjs` from the code itself, so
+adding a route or bumping a dependency updates them. CI fails if they drift.
 
 </details>
 
----
+<details>
+<summary>Publishing a release</summary>
+
+<br>
+
+Installed copies check GitHub on launch and show a banner when a new version exists.
+Downloads never start on their own, because dragging a laptop on a shared venue hotspot
+into a 150 MB transfer mid-event would be a bad way to lose a match.
+
+1. Bump `version` in `package.json` and commit.
+2. Tag and push. The tag has to match that version or the workflow stops before it
+   builds anything.
+3. GitHub Actions runs the release gate, builds all three platforms, checks the
+   artifacts, and publishes.
+
+Before publishing, CI confirms that each `latest-*.yml` matches the bytes of the files
+beside it. A manifest left over from an earlier build would otherwise ship a checksum
+that no longer matches, every client would download the update, and every client would
+then reject it. Local packaging wipes `release/` first for the same reason.
+
+To sign the macOS build, which also turns on macOS auto-update and removes the `xattr`
+step for your users, add these repository secrets: `MAC_CERTIFICATE`,
+`MAC_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
+They need a paid Apple Developer account. Without them the workflow still ships a
+working `.dmg` and logs a warning.
+
+</details>
 
 ## Acknowledgments
 
-Inspired in part by resources from [Lovat](https://learn.lovat.app/guides/welcome), which helped
-shape early ideas for Matchbook.
+Early ideas came from [Lovat](https://learn.lovat.app/guides/welcome).
 
 ## Contributing
 
-Pull requests welcome. For anything substantial, open an issue first.
+Pull requests are welcome. Open an issue first for anything large.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
