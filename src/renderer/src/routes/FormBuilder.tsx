@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Group, Loader, Stack, Text } from '@mantine/core'
+import { Alert, Box, Button, Group, Loader, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconCheck, IconInfoCircle } from '@tabler/icons-react'
+import { IconCheck, IconInfoCircle, IconSparkles } from '@tabler/icons-react'
 import { SurveyCreator, SurveyCreatorComponent } from 'survey-creator-react'
 import { ExpressionErrorType, Model } from 'survey-core'
 import { DefaultDark } from 'survey-creator-core/themes'
@@ -10,6 +10,7 @@ import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import { logger } from '../lib/utils/logger'
 import { applyMatchbookSurveyTheme } from '../lib/utils/surveyTheme'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { DEFAULT_SCOUTING_FORM } from '../lib/forms/defaultScoutingForm'
 import 'survey-core/survey-core.min.css'
 import 'survey-creator-core/survey-creator-core.min.css'
 
@@ -41,6 +42,7 @@ export function FormBuilder(): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const [loadedSchema, setLoadedSchema] = useState<FormSchemaDocType | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [isFormEmpty, setIsFormEmpty] = useState<boolean>(true)
 
   const creator = useMemo(() => {
     const model = new SurveyCreator({
@@ -85,9 +87,11 @@ export function FormBuilder(): ReactElement {
 
         if (existing) {
           creator.JSON = existing.surveyJson
+          setIsFormEmpty(false)
           logger.info('Loaded active form schema', { name: existing.name })
         } else {
           creator.JSON = EMPTY_TEMPLATE
+          setIsFormEmpty(true)
           logger.info('No active form schema found, starting with empty form')
         }
       } catch (error: unknown) {
@@ -202,6 +206,17 @@ export function FormBuilder(): ReactElement {
     }
   }, [creator, db, loadedSchema])
 
+  const handleUseDefaultForm = useCallback((): void => {
+    creator.JSON = DEFAULT_SCOUTING_FORM
+    setIsFormEmpty(false)
+    notifications.show({
+      color: 'green',
+      title: 'Starter form loaded',
+      message: 'Edit anything you like, then press Save Form to send it to your scouts.',
+    })
+    logger.info('Loaded the default scouting form into the builder')
+  }, [creator])
+
   useEffect(() => {
     creator.showSaveButton = false
     creator.saveSurveyFunc = (saveNo: number, callback: (no: number, isSuccess: boolean) => void): void => {
@@ -249,6 +264,31 @@ export function FormBuilder(): ReactElement {
         </Group>
       ) : (
         <Box style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          {isFormEmpty && (
+            <Alert
+              color="amber"
+              variant="light"
+              radius={0}
+              icon={<IconSparkles size={18} />}
+              styles={{ root: { flexShrink: 0 } }}
+            >
+              <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+                <Box style={{ flex: 1, minWidth: 240 }}>
+                  <Text size="sm" fw={600}>
+                    Start from the ready-made form
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Auto, teleop, endgame and a notes page that works for any season. Edit it
+                    once you know what your team wants to track.
+                  </Text>
+                </Box>
+                <Button size="xs" onClick={handleUseDefaultForm}>
+                  Use the starter form
+                </Button>
+              </Group>
+            </Alert>
+          )}
+
           {showNamingHint && (
             <Alert
               color="blue"

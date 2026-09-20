@@ -71,3 +71,24 @@ describe('phase scoring', () => {
     expect(calculateTeleopScore({ teleopRating: 3.6 })).toBe(4)
   })
 })
+
+describe('numeric answers arriving as strings', () => {
+  // SurveyJS returns a string from a text question with inputType "number".
+  it('counts a numeric string', () => {
+    expect(calculateTeleopScore({ teleopScored: '6' })).toBe(6)
+  })
+
+  it('counts numeric strings with surrounding whitespace', () => {
+    expect(calculateAutoScore({ autoScored: ' 3 ' })).toBe(3)
+  })
+
+  it('still ignores free text and blank answers', () => {
+    expect(calculateAutoScore({ autoComment: 'three pieces' })).toBe(0)
+    expect(calculateAutoScore({ autoScored: '' })).toBe(0)
+    expect(calculateAutoScore({ autoScored: '   ' })).toBe(0)
+  })
+
+  it('ignores a negative numeric string', () => {
+    expect(calculateTeleopScore({ teleopScored: '-4' })).toBe(0)
+  })
+})

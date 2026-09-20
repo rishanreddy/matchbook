@@ -26,6 +26,7 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { useEventStore } from '../stores/useEventStore'
 import type { ScoutingDataDocument } from '../lib/db/collections'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
+import { formatDateRange } from '../lib/utils/dates'
 import { RouteHelpModal } from '../components/RouteHelpModal'
 import { handleError } from '../lib/utils/errorHandler'
 import { brand } from '../config/brand'
@@ -129,40 +130,78 @@ export function Home(): ReactElement {
               />
             </Group>
 
-            {/* Integrated event selector bar */}
-            <Box
-              p="lg"
-              style={{
-                border: '1px solid var(--border-default)',
-                borderRadius: '8px',
-              }}
-            >
-              <Group gap="md" wrap="nowrap" align="center">
-                <ThemeIcon size={36} radius="md" variant="light" color="frc-orange">
-                  <IconCalendarEvent size={18} />
-                </ThemeIcon>
-                <Box style={{ flex: 1, minWidth: 0 }}>
-                  <Text size="xs" c="slate.4">
-                    Current event
-                  </Text>
-                  {currentEvent ? (
-                    <Text fw={600} size="sm" c="slate.1" mt={2} truncate>
-                      {currentEvent.name} ({currentEvent.season})
+            {/* One panel, three states. Showing an empty dropdown next to an
+                "Import events" button made the first run look broken. */}
+            <Box p="lg" style={{ border: '1px solid var(--border-default)', borderRadius: '8px' }}>
+              {events.length === 0 ? (
+                <Group gap="md" wrap="nowrap" align="flex-start">
+                  <ThemeIcon size={36} radius="sm" variant="default">
+                    <IconCalendarEvent size={18} />
+                  </ThemeIcon>
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Text fw={600} size="sm" c="slate.1">
+                      Import your event to get started
                     </Text>
-                  ) : (
-                    <Text size="xs" c="slate.5" mt={2}>No event selected</Text>
-                  )}
-                </Box>
-                <Group gap="xs">
-                  <Select
-                    placeholder="Select event"
-                    value={currentEventId}
-                    onChange={(value) => {
-                      if (value) {
+                    <Text size="xs" c="slate.4" mt={2}>
+                      Matchbook needs the match schedule from The Blue Alliance. Do this while
+                      you still have internet.
+                    </Text>
+                  </Box>
+                  <Button component={Link} to="/events" size="sm">
+                    Import events
+                  </Button>
+                </Group>
+              ) : !currentEvent ? (
+                <Group gap="md" wrap="nowrap" align="flex-start">
+                  <ThemeIcon size={36} radius="sm" variant="default">
+                    <IconCalendarEvent size={18} />
+                  </ThemeIcon>
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Text fw={600} size="sm" c="slate.1">
+                      Which event are you scouting?
+                    </Text>
+                    <Text size="xs" c="slate.4" mt={2} mb="sm">
+                      Scouting, assignments and analysis all follow this choice.
+                    </Text>
+                    <Select
+                      placeholder="Choose an event"
+                      value={currentEventId}
+                      onChange={(value) => {
                         const selectedEvent = events.find((e) => e.id === value)
                         if (selectedEvent) {
-                          setCurrentEvent(value, selectedEvent.season)
+                          setCurrentEvent(selectedEvent.id, selectedEvent.season)
                         }
+                      }}
+                      data={events.map((event) => ({
+                        value: event.id,
+                        label: `${event.name} (${event.season})`,
+                      }))}
+                      size="sm"
+                      maw={360}
+                    />
+                  </Box>
+                </Group>
+              ) : (
+                <Group gap="md" wrap="nowrap" align="center">
+                  <ThemeIcon size={36} radius="sm" variant="light" color="amber">
+                    <IconCalendarEvent size={18} />
+                  </ThemeIcon>
+                  <Box style={{ flex: 1, minWidth: 0 }}>
+                    <Text fw={600} size="sm" c="slate.0" truncate>
+                      {currentEvent.name}
+                    </Text>
+                    <Text size="xs" c="slate.4" mt={2}>
+                      {currentEvent.season} season
+                      {currentEvent.startDate ? ` · ${formatDateRange(currentEvent.startDate, currentEvent.endDate)}` : ''}
+                    </Text>
+                  </Box>
+                  <Select
+                    aria-label="Change event"
+                    value={currentEventId}
+                    onChange={(value) => {
+                      const selectedEvent = events.find((e) => e.id === value)
+                      if (selectedEvent) {
+                        setCurrentEvent(selectedEvent.id, selectedEvent.season)
                       }
                     }}
                     data={events.map((event) => ({
@@ -170,23 +209,10 @@ export function Home(): ReactElement {
                       label: `${event.name} (${event.season})`,
                     }))}
                     size="sm"
-                    w={280}
-                    clearable
-                    onClear={() => clearCurrentEvent()}
+                    w={240}
                   />
-                  {events.length === 0 && (
-                    <Button
-                      component={Link}
-                      to="/events"
-                      variant="light"
-                      color="frc-orange"
-                      size="sm"
-                    >
-                      Import events
-                    </Button>
-                  )}
                 </Group>
-              </Group>
+              )}
             </Box>
           </Stack>
 
