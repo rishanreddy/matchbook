@@ -49,6 +49,7 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { getTbaStatus } from '../lib/api/tba'
 import { handleError } from '../lib/utils/errorHandler'
 import type { UpdaterActionResult } from '../types/electron'
+import { summarizeRelease } from '../lib/utils/updateInfo'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import {
@@ -265,6 +266,8 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       window.dispatchEvent(new CustomEvent('shortcuts:recording-changed', { detail: false }))
     }
   }, [])
+
+  const releaseSummary = useMemo(() => summarizeRelease(updateInfo), [updateInfo])
 
   const updateStatusText = useMemo(() => {
     switch (updateState) {
@@ -1266,10 +1269,18 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               )}
             </SimpleGrid>
 
-            {updateInfo !== null && (
-              <Text size="xs" c="slate.5">
-                Changelog: {JSON.stringify(updateInfo)}
-              </Text>
+            {releaseSummary && (
+              <Stack gap={4}>
+                <Text size="xs" c="slate.4" fw={600}>
+                  {releaseSummary.version ? `Release ${releaseSummary.version}` : 'Latest release'}
+                  {releaseSummary.releasedAt ? ` · ${releaseSummary.releasedAt}` : ''}
+                </Text>
+                {releaseSummary.notes && (
+                  <Text size="xs" c="slate.5" lineClamp={4}>
+                    {releaseSummary.notes}
+                  </Text>
+                )}
+              </Stack>
             )}
 
             <Button 

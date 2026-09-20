@@ -67,15 +67,20 @@ function pointsForAnswer(value: unknown): number | null {
     return value ? 1 : 0
   }
 
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value) || value < 0) {
-      return null
-    }
+  // SurveyJS hands back a string for a text question with inputType "number", so a
+  // numeric string has to count. Without this a perfectly good form silently scores
+  // zero, which is the exact failure this module was written to fix.
+  const numeric = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : Number.NaN
 
-    return Math.round(value)
+  if (typeof value === 'string' && value.trim().length === 0) {
+    return null
   }
 
-  return null
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return null
+  }
+
+  return Math.round(numeric)
 }
 
 export function calculatePhaseScores(formData: Record<string, unknown>): PhaseScores {

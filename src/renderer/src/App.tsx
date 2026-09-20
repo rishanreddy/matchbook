@@ -639,14 +639,7 @@ function App() {
           </Box>
         )}
         
-        <AboutDialog
-          opened={showAbout}
-          onClose={() => setShowAbout(false)}
-          version={appVersion}
-          onCheckForUpdates={() => {
-            void window.electronAPI?.checkForUpdates()
-          }}
-        />
+        <AboutDialog opened={showAbout} onClose={() => setShowAbout(false)} version={appVersion} />
         <FirstRunWizard
           opened={showOnboardingWizard}
           onComplete={() => {
