@@ -5,6 +5,7 @@ import type {
   SyncPayload,
   SyncServerStatus,
   TbaRequestResult,
+  UpdateCapability,
   UpdaterActionResult,
 } from '../shared/electron'
 
@@ -17,6 +18,7 @@ const electronApi: ElectronAPI = {
   openExternal: (url: string): Promise<{ ok: boolean }> => ipcRenderer.invoke('app:open-external', url),
   tbaRequest: (endpoint: string, apiKey: string): Promise<TbaRequestResult> =>
     ipcRenderer.invoke('tba:request', endpoint, apiKey),
+  getUpdateCapability: (): Promise<UpdateCapability> => ipcRenderer.invoke('app:update-capability'),
   checkForUpdates: (): Promise<UpdaterActionResult> => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: (): Promise<UpdaterActionResult> => ipcRenderer.invoke('download-update'),
   installUpdate: (): Promise<UpdaterActionResult> => ipcRenderer.invoke('install-update'),

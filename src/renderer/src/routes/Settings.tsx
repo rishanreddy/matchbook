@@ -136,6 +136,8 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   const [updateState, setUpdateState] = useState<UpdateState>('idle')
   const [downloadProgress, setDownloadProgress] = useState<number>(0)
   const [updateInfo, setUpdateInfo] = useState<unknown>(null)
+  const [canInstallUpdates, setCanInstallUpdates] = useState<boolean>(true)
+  const [updateBlockedReason, setUpdateBlockedReason] = useState<string>('')
   const [logsModalOpened, logsModalHandlers] = useDisclosure(false)
   const [clearLogsModalOpened, clearLogsModalHandlers] = useDisclosure(false)
   const [deleteScoutingDataModalOpened, deleteScoutingDataModalHandlers] = useDisclosure(false)
@@ -224,6 +226,14 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
   useEffect(() => {
     if (!window.electronAPI) return
+
+    void window.electronAPI
+      .getUpdateCapability()
+      .then((capability) => {
+        setCanInstallUpdates(capability.canInstall)
+        setUpdateBlockedReason(capability.reason ?? '')
+      })
+      .catch(() => setCanInstallUpdates(true))
 
     const offChecking = window.electronAPI.onUpdaterChecking(() => setUpdateState('checking'))
     const offNotAvailable = window.electronAPI.onUpdaterNotAvailable((info) => {
@@ -1248,26 +1258,46 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               >
                 Check for Updates
               </Button>
-              {updateState === 'available' && (
+              {canInstallUpdates && updateState === 'available' && (
                 <Button
                   onClick={() => void handleDownloadUpdate()}
                   leftSection={<IconDownload size={16} />}
                   radius="md"
                 >
-                  Download Update
+                  Download update
                 </Button>
               )}
-              {updateState === 'downloaded' && (
-                <Button 
+              {canInstallUpdates && updateState === 'downloaded' && (
+                <Button
                   color="success"
                   onClick={() => void handleInstallUpdate()}
                   leftSection={<IconRocket size={16} />}
                   radius="md"
                 >
-                  Install Now
+                  Install now
+                </Button>
+              )}
+              {!canInstallUpdates && (
+                <Button
+                  variant="default"
+                  leftSection={<IconExternalLink size={16} />}
+                  radius="md"
+                  onClick={() => {
+                    void window.electronAPI?.openExternal(
+                      'https://github.com/rishanreddy/matchbook/releases/latest',
+                    )
+                  }}
+                >
+                  Get it from GitHub
                 </Button>
               )}
             </SimpleGrid>
+
+            {!canInstallUpdates && updateBlockedReason && (
+              <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />}>
+                {updateBlockedReason}
+              </Alert>
+            )}
 
             {releaseSummary && (
               <Stack gap={4}>

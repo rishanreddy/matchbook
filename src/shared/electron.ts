@@ -16,6 +16,14 @@ export type FailedSyncPayload = {
   quarantinedAt: string
 }
 
+export type UpdateCapability = {
+  /** Whether this build can look for updates at all. */
+  canCheck: boolean
+  /** Whether it can install one. False for unsigned macOS builds. */
+  canInstall: boolean
+  reason?: string
+}
+
 export type UpdaterActionResult = {
   supported: boolean
   reason?: string
@@ -48,6 +56,7 @@ export interface ElectronAPI {
   ping: () => Promise<string>
   openExternal: (url: string) => Promise<{ ok: boolean }>
   tbaRequest: (endpoint: string, apiKey: string) => Promise<TbaRequestResult>
+  getUpdateCapability: () => Promise<UpdateCapability>
   checkForUpdates: () => Promise<UpdaterActionResult>
   downloadUpdate: () => Promise<UpdaterActionResult>
   installUpdate: () => Promise<UpdaterActionResult>

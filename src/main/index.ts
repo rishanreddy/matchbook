@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import process from 'node:process'
 import updater from 'electron-updater'
 import type { ProgressInfo, UpdateInfo } from 'electron-updater'
@@ -108,6 +109,61 @@ function isUpdaterEnabled(): boolean {
   return app.isPackaged || FORCE_DEV_UPDATES
 }
 
+/**
+ * Whether this build can actually install an update it downloads.
+ *
+ * Squirrel.Mac refuses to swap in a new bundle unless the downloaded copy satisfies
+ * the running app's designated code requirement. An ad-hoc signature has no stable
+ * identity to match, so the swap fails after the whole download with
+ * "code failed to satisfy specified code requirement(s)". Offering the button anyway
+ * meant every Mac user hit that error. Detect it up front instead.
+ *
+ * Windows and Linux have no equivalent restriction.
+ */
+let cachedCanInstall: boolean | null = null
+
+function canInstallUpdates(): boolean {
+  if (cachedCanInstall !== null) {
+    return cachedCanInstall
+  }
+
+  if (process.platform !== 'darwin') {
+    cachedCanInstall = true
+    return cachedCanInstall
+  }
+
+  try {
+    // .../Matchbook.app/Contents/MacOS/Matchbook -> .../Matchbook.app
+    const bundlePath = path.resolve(process.execPath, '..', '..', '..')
+    const result = spawnSync('codesign', ['-dv', bundlePath], { encoding: 'utf8', timeout: 5_000 })
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+    cachedCanInstall = /Authority=Developer ID Application/.test(output)
+  } catch {
+    cachedCanInstall = false
+  }
+
+  return cachedCanInstall
+}
+
+const UNSIGNED_MAC_REASON =
+  'This macOS build is not signed by Apple, so it cannot replace itself. Download the new version from GitHub and drag it into Applications.'
+
+function getUpdateCapability(): { canCheck: boolean; canInstall: boolean; reason?: string } {
+  if (!isUpdaterEnabled()) {
+    return {
+      canCheck: false,
+      canInstall: false,
+      reason: 'Updates are available only in packaged builds.',
+    }
+  }
+
+  if (!canInstallUpdates()) {
+    return { canCheck: true, canInstall: false, reason: UNSIGNED_MAC_REASON }
+  }
+
+  return { canCheck: true, canInstall: true }
+}
+
 function emitUpdateStatus(channel: string, payload?: unknown): void {
   mainWindow?.webContents.send(channel, payload)
 }
@@ -126,7 +182,7 @@ function configureAutoUpdater(): void {
   // Downloads stay manual: pulling a ~150 MB installer over a shared venue hotspot
   // mid-event would be hostile. The renderer prompts and the user decides when.
   autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.autoInstallOnAppQuit = canInstallUpdates()
 
   autoUpdater.on('checking-for-update', () => emitUpdateStatus('updater:checking'))
   autoUpdater.on('update-not-available', (info: UpdateInfo) => emitUpdateStatus('updater:not-available', info))
@@ -254,6 +310,7 @@ function createMainWindow(): BrowserWindow {
 
 function registerIpcHandlers(): void {
   ipcMain.handle('app:get-version', () => app.getVersion())
+  ipcMain.handle('app:update-capability', () => getUpdateCapability())
   ipcMain.handle('app:get-platform', () => process.platform)
   ipcMain.handle('app:ping', () => 'pong')
   ipcMain.handle('app:open-external', async (_event, url: string) => {
@@ -284,11 +341,9 @@ function registerIpcHandlers(): void {
     }
   })
   ipcMain.handle('download-update', async () => {
-    if (!isUpdaterEnabled()) {
-      return {
-        supported: false,
-        reason: 'Updates are available only in packaged builds.',
-      }
+    const capability = getUpdateCapability()
+    if (!capability.canInstall) {
+      return { supported: false, reason: capability.reason }
     }
 
     try {
@@ -301,8 +356,9 @@ function registerIpcHandlers(): void {
     }
   })
   ipcMain.handle('install-update', () => {
-    if (!isUpdaterEnabled()) {
-      return { supported: false, reason: 'Updates are available only in packaged builds.' }
+    const capability = getUpdateCapability()
+    if (!capability.canInstall) {
+      return { supported: false, reason: capability.reason }
     }
 
     autoUpdater.quitAndInstall()
@@ -334,6 +390,14 @@ if (hasSingleInstanceLock) {
       // `checkForUpdatesAndNotify` only raises an OS notification once a download has
       // finished, which never happens while autoDownload is off. Check directly so the
       // `update-available` event reaches the renderer banner instead.
+      // Recorded at startup so a support question about updates not arriving can be
+      // answered from the log rather than guessed at.
+      const capability = getUpdateCapability()
+      console.log(
+        `Updater: canCheck=${capability.canCheck} canInstall=${capability.canInstall}` +
+          (capability.reason ? ` reason=${capability.reason}` : ''),
+      )
+
       suppressUpdaterErrors = true
       void autoUpdater
         .checkForUpdates()
