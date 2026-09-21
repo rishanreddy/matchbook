@@ -115,6 +115,8 @@ macOS gives that case no bypass in the interface. The Terminal command is the on
 > [!NOTE]
 > Two things follow from the missing signature. Matchbook cannot update itself on
 > macOS, so Mac users download each new release by hand and repeat the command above.
+> The app knows this and will tell you a new version exists with a button straight to
+> the download, rather than offering an install that cannot work.
 > And the macOS build is Apple Silicon only. An Intel Mac cannot run it, so use a
 > Windows or Linux laptop instead. Windows and Linux both update themselves normally.
 

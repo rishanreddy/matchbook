@@ -15,6 +15,7 @@ type CheckState = 'idle' | 'checking' | 'available' | 'up-to-date' | 'unsupporte
 export function AboutDialog({ opened, onClose, version }: AboutDialogProps): ReactElement {
   const [state, setState] = useState<CheckState>('idle')
   const [detail, setDetail] = useState<string>('')
+  const [canInstall, setCanInstall] = useState<boolean>(true)
 
   // The button used to fire the IPC call and show nothing at all, so from the user's
   // side it looked broken. The dialog sits above everything else, so it has to report
@@ -23,6 +24,11 @@ export function AboutDialog({ opened, onClose, version }: AboutDialogProps): Rea
     if (!window.electronAPI) {
       return
     }
+
+    void window.electronAPI
+      .getUpdateCapability()
+      .then((capability) => setCanInstall(capability.canInstall))
+      .catch(() => setCanInstall(true))
 
     const offChecking = window.electronAPI.onUpdaterChecking(() => setState('checking'))
     const offAvailable = window.electronAPI.onUpdaterAvailable((info) => {
@@ -92,7 +98,10 @@ export function AboutDialog({ opened, onClose, version }: AboutDialogProps): Rea
 
         {state === 'available' && (
           <Alert color="amber" variant="light" icon={<IconArrowUpCircle size={16} />} title="Update available">
-            {detail || 'A newer version is ready to download.'} Close this dialog to download it from Settings.
+            {detail || 'A newer version is available.'}{' '}
+            {canInstall
+              ? 'Close this dialog to download it from Settings.'
+              : 'Download it from the GitHub releases page and drag it into Applications.'}
           </Alert>
         )}
         {state === 'up-to-date' && (

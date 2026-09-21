@@ -36,11 +36,25 @@ export function UpdateBanner(): ReactElement | null {
   const [percent, setPercent] = useState<number>(0)
   const [dismissedKey, setDismissedKey] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState<boolean>(false)
+  // An unsigned macOS build cannot replace itself, so it must never offer to.
+  const [canInstall, setCanInstall] = useState<boolean>(true)
+  const [blockedReason, setBlockedReason] = useState<string>('')
 
   useEffect(() => {
     if (!window.electronAPI) {
       return
     }
+
+    void window.electronAPI
+      .getUpdateCapability()
+      .then((capability) => {
+        setCanInstall(capability.canInstall)
+        setBlockedReason(capability.reason ?? '')
+      })
+      .catch(() => {
+        // Assume the normal flow if the check itself fails.
+        setCanInstall(true)
+      })
 
     const offAvailable = window.electronAPI.onUpdaterAvailable((info) => {
       setVersion(readVersion(info))
@@ -96,6 +110,10 @@ export function UpdateBanner(): ReactElement | null {
     }
   }, [])
 
+  const handleOpenDownloadPage = useCallback((): void => {
+    void window.electronAPI?.openExternal('https://github.com/rishanreddy/matchbook/releases/latest')
+  }, [])
+
   const handleInstall = useCallback(async (): Promise<void> => {
     if (!window.electronAPI) {
       return
@@ -121,8 +139,9 @@ export function UpdateBanner(): ReactElement | null {
     return null
   }
 
-  const label =
-    state === 'downloaded'
+  const label = !canInstall
+    ? `Matchbook ${version ?? 'update'} is available.`
+    : state === 'downloaded'
       ? `Matchbook ${version ?? 'update'} is ready to install.`
       : state === 'downloading'
         ? `Downloading Matchbook ${version ?? 'update'}...`
@@ -136,7 +155,11 @@ export function UpdateBanner(): ReactElement | null {
           <Text size="sm" fw={600}>
             {label}
           </Text>
-          {state === 'downloading' ? (
+          {!canInstall ? (
+            <Text size="xs" c="dimmed">
+              {blockedReason}
+            </Text>
+          ) : state === 'downloading' ? (
             <Progress value={percent} size="xs" radius="xl" mt={6} aria-label="Download progress" />
           ) : (
             <Text size="xs" c="dimmed">
@@ -147,18 +170,26 @@ export function UpdateBanner(): ReactElement | null {
           )}
         </Box>
 
-        {state === 'available' && (
-          <Button size="xs" loading={isBusy} onClick={() => void handleDownload()}>
-            Download update
+        {!canInstall ? (
+          <Button size="xs" onClick={handleOpenDownloadPage}>
+            Get it from GitHub
           </Button>
-        )}
-        {state === 'downloaded' && (
-          <Button size="xs" loading={isBusy} onClick={() => void handleInstall()}>
-            Restart and install
-          </Button>
+        ) : (
+          <>
+            {state === 'available' && (
+              <Button size="xs" loading={isBusy} onClick={() => void handleDownload()}>
+                Download update
+              </Button>
+            )}
+            {state === 'downloaded' && (
+              <Button size="xs" loading={isBusy} onClick={() => void handleInstall()}>
+                Restart and install
+              </Button>
+            )}
+          </>
         )}
 
-        {state !== 'downloading' && (
+        {(state !== 'downloading' || !canInstall) && (
           <ActionIcon
             variant="subtle"
             color="gray"
