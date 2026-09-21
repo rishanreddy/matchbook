@@ -16,6 +16,11 @@ export type FailedSyncPayload = {
   quarantinedAt: string
 }
 
+export type CameraAccess = {
+  granted: boolean
+  status: string
+}
+
 export type UpdateCapability = {
   /** Whether this build can look for updates at all. */
   canCheck: boolean
@@ -56,6 +61,7 @@ export interface ElectronAPI {
   ping: () => Promise<string>
   openExternal: (url: string) => Promise<{ ok: boolean }>
   tbaRequest: (endpoint: string, apiKey: string) => Promise<TbaRequestResult>
+  ensureCameraAccess: () => Promise<CameraAccess>
   getUpdateCapability: () => Promise<UpdateCapability>
   checkForUpdates: () => Promise<UpdaterActionResult>
   downloadUpdate: () => Promise<UpdaterActionResult>

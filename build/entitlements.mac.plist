@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    electron-builder enables the hardened runtime on macOS, which denies camera
+    access unless the app carries com.apple.security.device.camera, no matter what
+    NSCameraUsageDescription says. Without it the QR scanner fails to open the
+    camera with no prompt and no obvious error.
+
+    The three cs.* keys are electron-builder's defaults and are required for
+    Electron itself to run under the hardened runtime. Overriding this file
+    replaces those defaults, so they have to be repeated here.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+
+  <!-- Reading QR codes from a scout laptop's webcam. -->
+  <key>com.apple.security.device.camera</key>
+  <true/>
+</dict>
+</plist>

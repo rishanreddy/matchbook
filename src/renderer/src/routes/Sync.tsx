@@ -492,6 +492,20 @@ export function Sync(): ReactElement {
 
   const loadQrCameras = useCallback(async (): Promise<QrCameraOption[]> => {
     try {
+      // macOS will not hand over a camera until the user has been asked, and if they
+      // said no once it stays refused until changed in System Settings. Find out
+      // before enumerating, so a refusal can be explained instead of showing an
+      // empty camera list.
+      const access = await window.electronAPI?.ensureCameraAccess()
+      if (access && !access.granted) {
+        setQrCameraOptions([])
+        setSelectedQrCamera(null)
+        setQrScanHint(
+          'macOS is blocking camera access for Matchbook. Open System Settings > Privacy & Security > Camera, switch Matchbook on, then reopen the app.',
+        )
+        return []
+      }
+
       const cameras = await Html5Qrcode.getCameras()
       const options: QrCameraOption[] = cameras.map((camera, index) => ({
         value: camera.id,
@@ -511,9 +525,15 @@ export function Sync(): ReactElement {
       const preferred = options.find((option) => /back|rear|environment/i.test(option.label)) ?? options[0]
       setSelectedQrCamera(preferred.value)
       return options
-    } catch {
+    } catch (error: unknown) {
+      // This used to swallow the error and leave an empty dropdown, which read as
+      // "the camera is broken" with nothing to act on.
       setQrCameraOptions([])
       setSelectedQrCamera(null)
+      logger.warn('Could not list cameras', { error: error instanceof Error ? error.message : String(error) })
+      setQrScanHint(
+        'No camera was found. Check that one is connected and not in use by another app, then press Refresh cameras.',
+      )
       return []
     }
   }, [selectedQrCamera])

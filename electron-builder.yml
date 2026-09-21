@@ -42,6 +42,10 @@ mac:
     - zip
   icon: build/icon.icns
   category: public.app-category.productivity
+  # The hardened runtime blocks camera access unless the app is entitled for it.
+  # The QR scanner needs the camera, so both files are supplied explicitly.
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
 
 linux:
   target:
