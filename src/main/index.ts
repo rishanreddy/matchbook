@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, systemPreferences } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -265,6 +265,17 @@ function createMainWindow(): BrowserWindow {
     },
   })
 
+  // Electron asks the app before handing the page a camera. Grant only what the QR
+  // scanner needs, and only to our own content, rather than leaving it to the
+  // default. Everything else is refused.
+  window.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'media')
+  })
+
+  window.webContents.session.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'media'
+  })
+
   window.on('ready-to-show', () => {
     window.show()
   })
@@ -311,6 +322,21 @@ function createMainWindow(): BrowserWindow {
 function registerIpcHandlers(): void {
   ipcMain.handle('app:get-version', () => app.getVersion())
   ipcMain.handle('app:update-capability', () => getUpdateCapability())
+  ipcMain.handle('app:ensure-camera-access', async () => {
+    if (process.platform !== 'darwin') {
+      return { granted: true, status: 'granted' }
+    }
+
+    const status = systemPreferences.getMediaAccessStatus('camera')
+    if (status === 'not-determined') {
+      // Triggers the one-time macOS prompt. Without this the scanner can sit on an
+      // empty camera list while the system waits to be asked.
+      const granted = await systemPreferences.askForMediaAccess('camera')
+      return { granted, status: granted ? 'granted' : 'denied' }
+    }
+
+    return { granted: status === 'granted', status }
+  })
   ipcMain.handle('app:get-platform', () => process.platform)
   ipcMain.handle('app:ping', () => 'pong')
   ipcMain.handle('app:open-external', async (_event, url: string) => {
@@ -392,6 +418,12 @@ if (hasSingleInstanceLock) {
       // `update-available` event reaches the renderer banner instead.
       // Recorded at startup so a support question about updates not arriving can be
       // answered from the log rather than guessed at.
+      if (process.platform === 'darwin') {
+        // Recorded for the same reason as the updater line: when a scout says the QR
+        // scanner will not open, this says whether macOS refused the camera.
+        console.log(`Camera access: ${systemPreferences.getMediaAccessStatus('camera')}`)
+      }
+
       const capability = getUpdateCapability()
       console.log(
         `Updater: canCheck=${capability.canCheck} canInstall=${capability.canInstall}` +

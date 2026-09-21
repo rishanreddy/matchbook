@@ -12,6 +12,10 @@ build/*
 !build/icon.icns
 !build/icon.png
 !build/installer-welcome.bmp
+# macOS entitlements. Without these committed, the packaged app loses camera access
+# and the QR scanner silently fails.
+!build/entitlements.mac.plist
+!build/entitlements.mac.inherit.plist
 # Vector source for the app mark. The .icns/.ico/.png above are generated from it,
 # so without this the logo could never be regenerated or adjusted.
 !build/logo/
