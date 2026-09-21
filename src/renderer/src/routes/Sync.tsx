@@ -39,6 +39,7 @@ import {
   type SyncCollection,
   type SyncPayload,
 } from '../../../shared/syncProtocol'
+import { getScoutingDeletionId } from '../../../shared/scoutingDeletion'
 import {
   IconAlertTriangle,
   IconArrowsMaximize,
@@ -59,6 +60,12 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { useIsHub } from '../stores/useDeviceStore'
 import { handleError } from '../lib/utils/errorHandler'
 import { compressData, decompressData, reconstructFromChunks, splitIntoChunks } from '../lib/utils/sync'
+import {
+  acknowledgeScoutingDeletionRows,
+  getPendingScoutingDeletionRows,
+  isScoutingDeletionRemembered,
+  rememberScoutingDeletion,
+} from '../lib/utils/scoutingDeletion'
 
 type ChunkPayload = {
   index: number
@@ -791,6 +798,23 @@ export function Sync(): ReactElement {
       for (const sourceRow of payload.data) {
         let row = sourceRow
 
+        // Deletions travel beside observations as idempotent instructions. A hub
+        // keeps their tombstones so an old scout copy cannot recreate a correction
+        // the next time that laptop uploads.
+        const deletedObservationId = collection === 'scoutingData' ? getScoutingDeletionId(sourceRow) : null
+        if (deletedObservationId) {
+          const deletedAt = typeof sourceRow.deletedAt === 'string' ? sourceRow.deletedAt : new Date().toISOString()
+          rememberScoutingDeletion(deletedObservationId, deletedAt)
+          const existing = await findExisting(deletedObservationId)
+          if (existing) {
+            await existing.remove()
+            result.updated += 1
+          } else {
+            result.duplicates += 1
+          }
+          continue
+        }
+
         if (collection === 'scoutingData') {
           const normalizedScoutingDataRow = normalizeScoutingDataRow(sourceRow)
           if (!normalizedScoutingDataRow) {
@@ -816,6 +840,11 @@ export function Sync(): ReactElement {
         if (!primaryId) {
           result.errors += 1
           result.errorMessages.push(`Row missing required ${primaryField} field.`)
+          continue
+        }
+
+        if (collection === 'scoutingData' && isScoutingDeletionRemembered(primaryId)) {
+          result.duplicates += 1
           continue
         }
 
@@ -859,11 +888,13 @@ export function Sync(): ReactElement {
   const buildPayload = useCallback(
     async (collection: SyncCollection): Promise<SyncPayload> => {
       const data = await getCollectionDocs(collection)
+      const deletionRows = collection === 'scoutingData' ? getPendingScoutingDeletionRows() : []
+      const rows = [...data, ...deletionRows]
       return {
         exportedAt: new Date().toISOString(),
         collection,
-        count: data.length,
-        data,
+        count: rows.length,
+        data: rows,
       }
     },
     [getCollectionDocs],
@@ -1646,6 +1677,7 @@ export function Sync(): ReactElement {
       // LAN upload intentionally only accepts scout observations. Configuration changes
       // must use an explicit QR or database snapshot transfer for operator review.
       const payload = await buildPayload('scoutingData')
+      const deletionRowIds = payload.data.map(getScoutingDeletionId).filter((id): id is string => id !== null)
       const baseUrl = normalizeHubUrl(serverUrlInput)
       const authToken = clientAuthToken.trim()
       if (!isValidSyncToken(authToken)) {
@@ -1731,6 +1763,7 @@ export function Sync(): ReactElement {
         title: 'Network upload complete',
         message: `Uploaded ${payload.count} records in ${batches.length} batch(es). Hub queue length: ${latestQueueLength ?? 'unknown'}.`,
       })
+      acknowledgeScoutingDeletionRows(deletionRowIds)
     } catch (error: unknown) {
       handleError(error, 'Network upload')
     } finally {

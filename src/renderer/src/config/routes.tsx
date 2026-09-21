@@ -3,6 +3,7 @@ import {
   AnalysisRoute,
   DeveloperToolsRoute,
   DeviceSetupRoute,
+  EntriesRoute,
   EventManagementRoute,
   FormBuilderRoute,
   HelpRoute,
@@ -28,6 +29,7 @@ export function createAppRoutes({ appVersion, onOpenAbout }: CreateRoutesOptions
   return [
     { path: '/', element: <HomeRoute /> },
     { path: '/scout', element: <ScoutRoute /> },
+    { path: '/entries', element: <EntriesRoute /> },
     { path: '/events', element: <EventManagementRoute />, hubOnly: true },
     { path: '/analysis', element: <AnalysisRoute /> },
     { path: '/device-setup', element: <DeviceSetupRoute /> },

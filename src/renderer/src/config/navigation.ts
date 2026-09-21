@@ -7,6 +7,7 @@ import {
   IconForms,
   IconHelp,
   IconHome,
+  IconListDetails,
   IconRefresh,
   IconSettings,
   IconTargetArrow,
@@ -24,6 +25,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { to: '/', label: 'Home', icon: IconHome, group: 'main' },
   { to: '/scout', label: 'Scout Match', icon: IconTargetArrow, group: 'main' },
+  { to: '/entries', label: 'Review Entries', icon: IconListDetails, group: 'main' },
   { to: '/events', label: 'Events', icon: IconCalendarEvent, group: 'main', hubOnly: true },
   { to: '/analysis', label: 'Analysis', icon: IconChartBar, group: 'main' },
   { to: '/sync', label: 'Sync Data', icon: IconRefresh, group: 'main' },

@@ -182,7 +182,7 @@ export function Home(): ReactElement {
                   </Box>
                 </Group>
               ) : (
-                <Group gap="md" wrap="nowrap" align="center">
+                <Group gap="md" wrap="wrap" align="center">
                   <ThemeIcon size={36} radius="sm" variant="light" color="amber">
                     <IconCalendarEvent size={18} />
                   </ThemeIcon>
@@ -199,6 +199,10 @@ export function Home(): ReactElement {
                     aria-label="Change event"
                     value={currentEventId}
                     onChange={(value) => {
+                      if (!value) {
+                        clearCurrentEvent()
+                        return
+                      }
                       const selectedEvent = events.find((e) => e.id === value)
                       if (selectedEvent) {
                         setCurrentEvent(selectedEvent.id, selectedEvent.season)
@@ -210,7 +214,12 @@ export function Home(): ReactElement {
                     }))}
                     size="sm"
                     w={240}
+                    clearable
+                    onClear={clearCurrentEvent}
                   />
+                  <Button variant="subtle" color="slate" size="sm" onClick={clearCurrentEvent}>
+                    Clear active event
+                  </Button>
                 </Group>
               )}
             </Box>
@@ -293,6 +302,16 @@ export function Home(): ReactElement {
                 leftSection={<IconSettings size={18} />}
               >
                 Edit scouting form
+              </Button>
+
+              <Button
+                component={Link}
+                to="/entries"
+                size="md"
+                variant="default"
+                leftSection={<IconClipboardCheck size={18} />}
+              >
+                Review observations
               </Button>
             </SimpleGrid>
           </Stack>
@@ -390,6 +409,11 @@ export function Home(): ReactElement {
               clearable
               onClear={() => clearCurrentEvent()}
             />
+            {currentEvent && (
+              <Button variant="subtle" color="slate" size="xs" mt="xs" onClick={clearCurrentEvent}>
+                Clear active event
+              </Button>
+            )}
           </Box>
         </Stack>
 
@@ -412,18 +436,29 @@ export function Home(): ReactElement {
           )}
 
           {observationCount > 0 && (
-            <Button
-              component={Link}
-              to="/sync"
-              size="lg"
-              radius="lg"
-              fullWidth
-              variant="light"
-              color="frc-blue"
-              leftSection={<IconCloudUpload size={20} />}
-            >
-              Send Data ({observationCount} matches)
-            </Button>
+            <Group grow>
+              <Button
+                component={Link}
+                to="/sync"
+                size="lg"
+                radius="lg"
+                variant="light"
+                color="frc-blue"
+                leftSection={<IconCloudUpload size={20} />}
+              >
+                Send data ({observationCount})
+              </Button>
+              <Button
+                component={Link}
+                to="/entries"
+                size="lg"
+                radius="lg"
+                variant="default"
+                leftSection={<IconClipboardCheck size={20} />}
+              >
+                Review entries
+              </Button>
+            </Group>
           )}
         </Stack>
       </Stack>

@@ -127,7 +127,8 @@ jobs:
             export APPLE_TEAM_ID="$APPLE_TEAM_ID_SECRET"
           fi
 
-          pnpm build && pnpm exec electron-builder --mac --publish always --config.publish.releaseType=draft
+          # Ship one universal bundle so both Intel and Apple Silicon Macs can install it.
+          pnpm build && pnpm exec electron-builder --mac --universal --publish always --config.publish.releaseType=draft
 
       - name: verify-mac-artifacts
         if: matrix.os == 'macos-latest'
