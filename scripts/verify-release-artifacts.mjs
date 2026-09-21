@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { readFile, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { load } from 'js-yaml'
@@ -97,6 +98,25 @@ for (const { url, sha512 } of claims) {
       `${manifestName} has a stale checksum for ${url}.\n` +
         `  manifest: ${sha512}\n  actual:   ${actual}\n` +
         'Auto-update would download this file and then reject it. Clean release/ and rebuild.',
+    )
+  }
+}
+
+// `--universal` is easy to accidentally remove while changing a release command.
+// File names alone cannot tell an Intel-compatible macOS release from an ARM-only
+// one, so inspect the app Electron Builder leaves beside the distributables.
+if (platform === 'mac') {
+  const executable = resolve(releaseDirectory, 'mac-universal', 'Matchbook.app', 'Contents', 'MacOS', 'Matchbook')
+  const result = spawnSync('lipo', ['-archs', executable], { encoding: 'utf8' })
+  const stdout = result.stdout ?? ''
+  const stderr = result.stderr ?? ''
+  const architectures = stdout.trim().split(/\s+/).filter(Boolean)
+
+  if (result.status !== 0 || !architectures.includes('x86_64') || !architectures.includes('arm64')) {
+    throw new Error(
+      `The macOS app must be universal (x86_64 and arm64). lipo reported: ${
+        stderr.trim() || stdout.trim() || 'no architectures'
+      }`,
     )
   }
 }

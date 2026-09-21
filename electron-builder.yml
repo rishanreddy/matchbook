@@ -38,14 +38,23 @@ nsis:
 
 mac:
   target:
-    - dmg
-    - zip
+    # A universal app includes both Intel (x64) and Apple Silicon (arm64) code.
+    # Keeping this in the packaging config—not just CI—also makes local `build:mac`
+    # output installable on every supported Mac.
+    - target: dmg
+      arch:
+        - universal
+    - target: zip
+      arch:
+        - universal
   icon: build/icon.icns
   category: public.app-category.productivity
   # The hardened runtime blocks camera access unless the app is entitled for it.
   # The QR scanner needs the camera, so both files are supplied explicitly.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
+  extendInfo:
+    NSCameraUsageDescription: Matchbook uses the camera only when you choose to scan a QR code.
 
 linux:
   target:

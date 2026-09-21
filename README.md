@@ -116,9 +116,9 @@ macOS gives that case no bypass in the interface. The Terminal command is the on
 > Two things follow from the missing signature. Matchbook cannot update itself on
 > macOS, so Mac users download each new release by hand and repeat the command above.
 > The app knows this and will tell you a new version exists with a button straight to
-> the download, rather than offering an install that cannot work.
-> And the macOS build is Apple Silicon only. An Intel Mac cannot run it, so use a
-> Windows or Linux laptop instead. Windows and Linux both update themselves normally.
+> the download, rather than offering an install that cannot work. The macOS download is
+> universal, so it runs on both Apple Silicon and Intel Macs. Windows and Linux both
+> update themselves normally.
 
 ### Linux
 
@@ -177,6 +177,7 @@ the hub through Sync, then open Analysis to compare teams.
 | Assignments | Hub | Decide which scout covers which match |
 | Developer Tools | Developer | Database inspection, hidden unless developer mode is on |
 | Device Setup | Both | Name this laptop and set it as hub or scout |
+| Entries | Both |  |
 | Event Management | Hub | Import events and schedules from The Blue Alliance |
 | Form Builder | Hub | Build the questions your scouts answer |
 | Help | Both | In-app guidance |
@@ -220,8 +221,6 @@ events use a different API entirely.
 **You want official game scores.** Matchbook counts what your scouts recorded. It does
 not implement any year's scoring rules, so its numbers rank teams against each other
 rather than reproducing the scoreboard.
-
-**Everyone on your team has an Intel Mac.** The macOS build is Apple Silicon only.
 
 ## Development
 

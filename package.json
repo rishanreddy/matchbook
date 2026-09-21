@@ -1,7 +1,7 @@
 {
   "name": "matchbook",
   "private": false,
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "Matchbook: offline-first FRC scouting and sync platform",
   "author": "Rishan Reddy",
   "license": "MIT",
@@ -32,7 +32,7 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "pnpm clean:release && pnpm build && electron-builder --dir",
     "build:win": "pnpm clean:release && pnpm build && electron-builder --win --publish never",
-    "build:mac": "pnpm clean:release && pnpm build && electron-builder --mac --publish never",
+    "build:mac": "pnpm clean:release && pnpm build && electron-builder --mac --universal --publish never",
     "build:linux": "pnpm clean:release && pnpm build && electron-builder --linux --publish never",
     "test": "vitest run",
     "electron:dist": "pnpm build:unpack",

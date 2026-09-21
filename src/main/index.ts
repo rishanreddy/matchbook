@@ -265,15 +265,27 @@ function createMainWindow(): BrowserWindow {
     },
   })
 
-  // Electron asks the app before handing the page a camera. Grant only what the QR
-  // scanner needs, and only to our own content, rather than leaving it to the
-  // default. Everything else is refused.
-  window.webContents.session.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === 'media')
+  // Electron groups camera and microphone under `media`. Matchbook only uses a
+  // top-level camera request for QR scanning, so do not accidentally grant audio,
+  // display capture, or a request made from embedded content.
+  window.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const isCameraRequest =
+      permission === 'media' &&
+      webContents === window.webContents &&
+      'mediaTypes' in details &&
+      details.mediaTypes?.includes('video') === true &&
+      details.mediaTypes.includes('audio') === false
+
+    callback(isCameraRequest)
   })
 
-  window.webContents.session.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === 'media'
+  window.webContents.session.setPermissionCheckHandler((webContents, permission, _requestingOrigin, details) => {
+    return (
+      permission === 'media' &&
+      webContents === window.webContents &&
+      details.isMainFrame &&
+      details.mediaType === 'video'
+    )
   })
 
   window.on('ready-to-show', () => {

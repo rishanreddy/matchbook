@@ -37,6 +37,13 @@ export function createCommandItems({ navigate, openShortcutHelp }: CreateCommand
       action: () => navigate('/scout'),
     },
     {
+      id: 'go-entries',
+      label: 'Review Entries',
+      category: 'Navigation',
+      keywords: 'entries observations correct remove delete',
+      action: () => navigate('/entries'),
+    },
+    {
       id: 'go-analysis',
       label: 'Go to Analysis',
       category: 'Navigation',

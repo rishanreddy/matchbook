@@ -15,6 +15,11 @@ export const DeviceSetupRoute = lazy(async () => {
   return { default: module.DeviceSetup }
 })
 
+export const EntriesRoute = lazy(async () => {
+  const module = await import('../routes/Entries')
+  return { default: module.Entries }
+})
+
 export const DeveloperToolsRoute = lazy(async () => {
   const module = await import('../routes/DeveloperTools')
   return { default: module.DeveloperTools }
