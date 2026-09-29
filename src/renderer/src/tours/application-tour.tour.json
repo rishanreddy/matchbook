@@ -1,0 +1,117 @@
+{
+  "$schema": "https://react-tourlight.vercel.app/tour.schema.json",
+  "schemaVersion": 1,
+  "id": "matchbook-application-tour",
+  "name": "Matchbook application tour",
+  "description": "A guided walkthrough of Matchbook’s main screens and workflows.",
+  "steps": [
+    {
+      "id": "navigation",
+      "target": "[data-tour=\"primary-navigation\"]",
+      "title": "Your competition workspace",
+      "content": "This tour introduces the main areas of Matchbook, from event setup and scouting to analysis and data sync. Use Next to move between screens. The tour does not create or change scouting data.",
+      "placement": "right",
+      "route": "/"
+    },
+    {
+      "id": "events",
+      "target": "[data-tour=\"event-management\"]",
+      "title": "Bring in the event schedule",
+      "content": "Import an event and its match schedule here. Once stored on this laptop, the schedule is available to scouting and assignment workflows, including when you are offline.",
+      "placement": "bottom",
+      "route": "/events",
+      "condition": "hub"
+    },
+    {
+      "id": "home-event",
+      "target": "[data-tour=\"home-event\"]",
+      "title": "Keep everyone on the same event",
+      "content": "Home shows the current event, scouting progress, and shortcuts to common tasks. Select an event to keep the rest of your workflow focused on the right competition.",
+      "placement": "bottom",
+      "route": "/"
+    },
+    {
+      "id": "scout-match",
+      "target": "[data-tour=\"scout-match\"]",
+      "title": "Record what happens in a match",
+      "content": "Choose a match and team, complete the scouting form, and save the observation locally. Scouting works without an internet connection.",
+      "placement": "bottom",
+      "route": "/scout"
+    },
+    {
+      "id": "review-entries",
+      "target": "[data-tour=\"entries-filter\"]",
+      "title": "Review and correct observations",
+      "content": "Review scouting entries, apply filters, and correct or remove records when needed. This is the place to check collected observations before using them in analysis.",
+      "placement": "bottom",
+      "route": "/entries"
+    },
+    {
+      "id": "analysis",
+      "target": "[data-tour=\"analysis-overview\"]",
+      "title": "Compare teams with collected evidence",
+      "content": "Use collected scouting data to compare teams and explore performance trends. Analysis reflects the observations available for the selected event.",
+      "placement": "bottom",
+      "route": "/analysis"
+    },
+    {
+      "id": "sync-data",
+      "target": "[data-tour=\"sync-methods\"]",
+      "title": "Move scouting between laptops",
+      "content": "Transfer scouting data between laptops over Wi-Fi, QR codes, or a file. These options help teams keep devices in sync, including at venues without internet access.",
+      "placement": "bottom",
+      "route": "/sync"
+    },
+    {
+      "id": "assignments",
+      "target": "[data-tour=\"assignments-overview\"]",
+      "title": "Plan scout coverage",
+      "content": "Plan which scouts cover each match and team. Add coverage manually or use Auto-assign to help distribute the workload.",
+      "placement": "bottom",
+      "route": "/assignments",
+      "condition": "hub"
+    },
+    {
+      "id": "form-builder",
+      "target": "[data-tour=\"form-builder\"]",
+      "title": "Shape the scouting form",
+      "content": "Create and maintain the scouting form used by your team. Choose the fields scouts need, then share the updated setup with scout devices.",
+      "placement": "bottom",
+      "route": "/form-builder",
+      "condition": "hub"
+    },
+    {
+      "id": "device-setup",
+      "target": "[data-tour=\"device-setup\"]",
+      "title": "Give each laptop a clear role",
+      "content": "Set a name for this device and choose its Hub or Scout role. Clear device names make it easier to identify where scouting data came from.",
+      "placement": "bottom",
+      "route": "/device-setup"
+    },
+    {
+      "id": "settings",
+      "target": "[data-tour=\"settings-overview\"]",
+      "title": "Tune Matchbook for your team",
+      "content": "Configure team preferences, event-service access, keyboard shortcuts, updates, and diagnostics from Settings.",
+      "placement": "bottom",
+      "route": "/settings"
+    },
+    {
+      "id": "help",
+      "target": "[data-tour=\"help-center\"]",
+      "title": "Find guides when you need them",
+      "content": "Find setup instructions and guidance for common Matchbook workflows on the Help screen.",
+      "placement": "bottom",
+      "route": "/help"
+    },
+    {
+      "id": "developer-tools",
+      "target": "[data-tour=\"developer-tools\"]",
+      "title": "Diagnostics for advanced operators",
+      "content": "When Developer Mode is enabled, use diagnostics to inspect local database health and export logs for support. Database tools are also available here.",
+      "placement": "bottom",
+      "route": "/developer-tools",
+      "condition": "developer"
+    }
+  ]
+}

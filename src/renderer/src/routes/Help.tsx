@@ -150,7 +150,7 @@ export function Help(): ReactElement {
               <IconHelp size={26} stroke={1.5} />
             </ThemeIcon>
             <Box>
-              <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+              <Title order={1} c="slate.0" data-tour="help-center" style={{ fontSize: 28, fontWeight: 700 }}>
                 How to use Matchbook
               </Title>
               <Text size="sm" c="slate.3">

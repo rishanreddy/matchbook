@@ -6,6 +6,7 @@ import {
   type CameraDevice,
   type ScannerFailure,
 } from '../../lib/qr/cameraScanner'
+import { logger } from '../../lib/utils/logger'
 
 const CAMERA_STORAGE_KEY = 'sync_qr_camera_id'
 
@@ -47,9 +48,12 @@ export function useQrScanner(onCode: (text: string) => void) {
 
   const refreshCameras = useCallback(async (): Promise<void> => {
     try {
-      setCameras(await listCameras())
-    } catch {
+      const availableCameras = await listCameras()
+      setCameras(availableCameras)
+      logger.debug('QR scanner camera inventory refreshed', { cameraCount: availableCameras.length }, 'sync.qr.receive')
+    } catch (error: unknown) {
       setCameras([])
+      logger.warn('QR scanner could not list available cameras', { error }, 'sync.qr.receive')
     }
   }, [])
 
@@ -78,6 +82,8 @@ export function useQrScanner(onCode: (text: string) => void) {
       scannerRef.current = scanner
       setStatus('starting')
       setFailure(null)
+      const startedAt = Date.now()
+      logger.info('QR scanner start requested', { preferredCameraSelected: Boolean(deviceId ?? cameraId) }, 'sync.qr.receive')
 
       try {
         const openedId = await scanner.start(deviceId !== undefined ? deviceId : cameraId)
@@ -86,6 +92,10 @@ export function useQrScanner(onCode: (text: string) => void) {
         }
 
         setStatus('scanning')
+        logger.info('QR scanner camera is ready', {
+          selectedCameraAvailable: Boolean(openedId),
+          elapsedMs: Date.now() - startedAt,
+        }, 'sync.qr.receive')
         if (openedId) {
           setCameraId(openedId)
           saveCamera(openedId)
@@ -97,6 +107,11 @@ export function useQrScanner(onCode: (text: string) => void) {
         }
 
         setStatus('failed')
+        logger.error('QR scanner could not start', {
+          elapsedMs: Date.now() - startedAt,
+          failureKind: error instanceof ScannerFailureError ? error.failure.kind : 'unknown',
+          error,
+        }, 'sync.qr.receive')
         setFailure(
           error instanceof ScannerFailureError
             ? error.failure

@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createStoreHook } from './createStoreHook'
 
 interface ScoutingState {
   activeMatchKey: string | null
@@ -8,7 +8,7 @@ interface ScoutingState {
   clearActiveSession: () => void
 }
 
-export const useScoutingStore = create<ScoutingState>((set) => ({
+export const useScoutingStore = createStoreHook<ScoutingState>((set) => ({
   activeMatchKey: null,
   activeTeamNumber: null,
   scoutingInProgress: false,

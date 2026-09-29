@@ -5,6 +5,7 @@ import { IconAlertTriangle, IconCamera, IconCheck } from '@tabler/icons-react'
 import { QrTransferAssembler, decompressJson, type QrTransferProgress } from '../../../../shared/qrTransfer'
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { handleError } from '../../lib/utils/errorHandler'
+import { logger } from '../../lib/utils/logger'
 import { notify } from '../../lib/utils/notify'
 import { useWakeLock } from '../../lib/hooks/useWakeLock'
 import { SyncCard } from './SyncCard'
@@ -36,6 +37,7 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
   const startedAtRef = useRef(0)
   const lastProgressAtRef = useRef(0)
   const foreignSeenRef = useRef<number[]>([])
+  const lastLoggedProgressRef = useRef(0)
   const [progress, setProgress] = useState<QrTransferProgress | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [hint, setHint] = useState<string | null>(null)
@@ -48,8 +50,18 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
     try {
       const document = parseTransferText(await decompressJson(bytes))
       setReady({ document, description: describeTransfer(document) })
+      logger.info('QR transfer decoded and ready for review', {
+        collectionCount: document.tasks.length,
+        receivedBytes: bytes.byteLength,
+        collections: document.tasks.map(({ collection, rows }) => ({ collection, rowCount: rows.length })),
+      }, 'sync.qr.receive')
     } catch (error: unknown) {
       setReadError(error instanceof Error ? error.message : 'The codes were received but could not be read.')
+      logger.error('QR transfer frames arrived but the document could not be decoded', {
+        receivedBytes: bytes.byteLength,
+        elapsedMs: Date.now() - startedAtRef.current,
+        error,
+      }, 'sync.qr.receive')
     }
   }, [])
 
@@ -85,15 +97,43 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
           setProgress(result.progress)
           setHint(null)
           setNote(result.startedNewTransfer ? 'A different transfer started, so Matchbook began again with it.' : null)
+          if (result.startedNewTransfer) {
+            lastLoggedProgressRef.current = 0
+            logger.info('QR receiver detected a transfer', {
+              frameCount: result.progress.total,
+              receivedFrames: result.progress.received,
+            }, 'sync.qr.receive')
+          }
+          if (result.progress.total > 0) {
+            const progressBucket = Math.floor((result.progress.received / result.progress.total) * 4) * 25
+            if (progressBucket >= lastLoggedProgressRef.current + 25 && progressBucket > 0) {
+              lastLoggedProgressRef.current = progressBucket
+              logger.info('QR transfer receive progress', {
+                frameCount: result.progress.total,
+                receivedFrames: result.progress.received,
+                percent: progressBucket,
+                elapsedMs: now - startedAtRef.current,
+              }, 'sync.qr.receive')
+            }
+          }
           return
         case 'corrupt':
           setProgress(result.progress)
           setNote('Part of that transfer was garbled on the way. Keep the camera on the screen and it will collect it again.')
+          logger.warn('QR receiver discarded a damaged frame and will keep scanning', {
+            frameCount: result.progress.total,
+            receivedFrames: result.progress.received,
+          }, 'sync.qr.receive')
           return
         case 'complete':
           stopRef.current()
           setProgress(result.progress)
           setNote(null)
+          logger.info('QR transfer frame collection completed', {
+            frameCount: result.progress.total,
+            elapsedMs: now - startedAtRef.current,
+            receivedBytes: result.bytes.byteLength,
+          }, 'sync.qr.receive')
           void finishTransfer(result.bytes)
           return
       }
@@ -145,6 +185,8 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
     foreignSeenRef.current = []
     startedAtRef.current = Date.now()
     lastProgressAtRef.current = Date.now()
+    lastLoggedProgressRef.current = 0
+    logger.info('QR receiver scan session started', {}, 'sync.qr.receive')
     setProgress(null)
     setNote(null)
     setHint(null)
@@ -160,6 +202,10 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
     }
 
     setIsImporting(true)
+    const startedAt = Date.now()
+    logger.info('QR transfer import started', {
+      collections: ready.document.tasks.map(({ collection, rows }) => ({ collection, rowCount: rows.length })),
+    }, 'sync.qr.receive')
     try {
       const result = await importTransfer(db, ready.document)
       const summary = summarizeImport(result)
@@ -170,7 +216,15 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
       })
       setImportedSummary(summary)
       setReady(null)
+      logger.info('QR transfer import completed', {
+        elapsedMs: Date.now() - startedAt,
+        inserted: result.inserted,
+        duplicates: result.duplicates,
+        updated: result.updated,
+        errors: result.errors,
+      }, 'sync.qr.receive')
     } catch (error: unknown) {
+      logger.error('QR transfer import failed', { elapsedMs: Date.now() - startedAt, error }, 'sync.qr.receive')
       handleError(error, 'Add QR transfer')
     } finally {
       setIsImporting(false)

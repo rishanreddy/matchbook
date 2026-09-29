@@ -1,3 +1,9 @@
+import {
+  normalizeApplicationLogEntry,
+  type ApplicationLogEntry,
+  type ApplicationLogLevel,
+} from '../../../../shared/logging'
+
 export const LogLevel = {
   DEBUG: 'debug',
   INFO: 'info',
@@ -5,66 +11,68 @@ export const LogLevel = {
   ERROR: 'error',
 } as const
 
-export type LogLevel = (typeof LogLevel)[keyof typeof LogLevel]
-
-export interface LogEntry {
-  timestamp: string
-  level: LogLevel
-  message: string
-  context?: string
-  data?: unknown
-}
+export type LogLevel = ApplicationLogLevel
+export type LogEntry = ApplicationLogEntry
 
 class Logger {
   private logs: LogEntry[] = []
 
   private add(level: LogLevel, message: string, data?: unknown, context?: string): void {
-    const entry: LogEntry = {
+    const entry = normalizeApplicationLogEntry({
       timestamp: new Date().toISOString(),
       level,
       message,
-      context,
+      context: context ?? 'renderer',
       data,
-    }
+    })
+    if (!entry) return
 
     this.logs.push(entry)
-
-    if (this.logs.length > 1000) {
-      this.logs.shift()
+    if (this.logs.length > 1_000) {
+      this.logs.splice(0, this.logs.length - 1_000)
     }
 
-    const prefix = context ? `[${context}] ${message}` : message
-    if (level === LogLevel.ERROR) {
-      console.error(prefix, data)
-      return
+    if (typeof window === 'undefined' || !window.electronAPI) {
+      const prefix = `[${entry.context}] ${entry.message}`
+      switch (entry.level) {
+        case LogLevel.ERROR:
+          console.error(prefix, entry.data)
+          break
+        case LogLevel.WARN:
+          console.warn(prefix, entry.data)
+          break
+        case LogLevel.INFO:
+          console.info(prefix, entry.data)
+          break
+        case LogLevel.DEBUG:
+          if (import.meta.env.DEV) console.debug(prefix, entry.data)
+          break
+      }
     }
-    if (level === LogLevel.WARN) {
-      console.warn(prefix, data)
-      return
-    }
-    if (level === LogLevel.INFO) {
-      console.info(prefix, data)
-      return
-    }
-    if (import.meta.env.DEV) {
-      console.debug(prefix, data)
+
+    try {
+      if (typeof window !== 'undefined') window.electronAPI?.writeLog(entry)
+    } catch (error: unknown) {
+      // Keep the in-memory diagnostics usable while the app is shutting down or
+      // the main process is unavailable. Main-process logs cover startup failures.
+      if (import.meta.env.DEV) console.warn('[logger] Could not forward entry to electron-log', error)
     }
   }
 
-  debug(message: string, data?: unknown): void {
-    this.add(LogLevel.DEBUG, message, data)
+  debug(message: string, data?: unknown, context?: string): void {
+    this.add(LogLevel.DEBUG, message, data, context)
   }
 
-  info(message: string, data?: unknown): void {
-    this.add(LogLevel.INFO, message, data)
+  info(message: string, data?: unknown, context?: string): void {
+    this.add(LogLevel.INFO, message, data, context)
   }
 
-  warn(message: string, data?: unknown): void {
-    this.add(LogLevel.WARN, message, data)
+  warn(message: string, data?: unknown, context?: string): void {
+    this.add(LogLevel.WARN, message, data, context)
   }
 
-  error(message: string, error?: unknown): void {
-    this.add(LogLevel.ERROR, message, error)
+  error(message: string, error?: unknown, context?: string): void {
+    this.add(LogLevel.ERROR, message, error, context)
   }
 
   getLogs(): LogEntry[] {

@@ -260,7 +260,7 @@ pnpm docs:sync          # regenerate the tables in this README from the source
 ```
 
 Built with <!-- generated:stack -->
-Electron 41, React 19, TypeScript 5, RxDB 16, Mantine, Vite
+Electron 41, React 19, TypeScript 5, RxDB 16, Mantine, TanStack Charts, Table, Virtual, Hotkeys, Store, Vite
 <!-- /generated:stack -->.
 
 <details>

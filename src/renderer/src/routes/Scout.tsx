@@ -561,6 +561,7 @@ export function Scout(): ReactElement {
           <Card
             p="lg"
             radius="xl"
+            data-tour="scout-match"
             style={{
               background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
               border: '1px solid rgba(154, 166, 182, 0.2)',

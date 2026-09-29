@@ -421,7 +421,7 @@ export function Assignments(): ReactElement {
                 <IconClipboardCheck size={24} stroke={1.6} />
               </ThemeIcon>
               <Box>
-                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                <Title order={1} c="slate.0" data-tour="assignments-overview" style={{ fontSize: 28, fontWeight: 700 }}>
                   Scout Assignments
                 </Title>
                 <Text size="sm" c="slate.4">

@@ -16,4 +16,4 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify:production
-      - run: xvfb-run --auto-servernum pnpm smoke:electron
+      - run: xvfb-run --auto-servernum pnpm test:e2e

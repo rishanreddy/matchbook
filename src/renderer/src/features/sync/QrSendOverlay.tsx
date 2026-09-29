@@ -5,12 +5,14 @@ import { IconPlayerPause, IconPlayerPlay, IconX } from '@tabler/icons-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { QrDensity, QrTransfer } from '../../../../shared/qrTransfer'
 import { useWakeLock } from '../../lib/hooks/useWakeLock'
+import { logger } from '../../lib/utils/logger'
 
 type Speed = 'slow' | 'normal' | 'fast'
 
 // How long each code stays up. The receiving camera reads the screen many times a
 // second, so even the fast setting gives it several looks at every code.
 const SPEED_MS: Record<Speed, number> = { slow: 700, normal: 400, fast: 250 }
+const INITIAL_FRAME_HOLD_MS = 5_000
 
 type QrSendOverlayProps = {
   transfer: QrTransfer
@@ -34,22 +36,67 @@ type QrSendOverlayProps = {
 export function QrSendOverlay({ transfer, summary, density, onDensityChange, onClose }: QrSendOverlayProps): ReactElement {
   const frames = transfer.frames
   const [index, setIndex] = useState(0)
+  const [initialDelayElapsed, setInitialDelayElapsed] = useState(false)
+  const [secondsUntilStart, setSecondsUntilStart] = useState(Math.ceil(INITIAL_FRAME_HOLD_MS / 1000))
   const [paused, setPaused] = useState(false)
   const [speed, setSpeed] = useState<Speed>('normal')
   const [size, setSize] = useState(320)
   const areaRef = useRef<HTMLDivElement | null>(null)
   const doneRef = useRef<HTMLButtonElement | null>(null)
+  const currentIndexRef = useRef(index)
+  const frameCount = frames.length
+
+  useEffect(() => {
+    currentIndexRef.current = index
+  }, [index])
+
+  useEffect(() => {
+    const openedAt = Date.now()
+    logger.info('QR sender display mounted', {
+      frameCount,
+      setupDelayMs: INITIAL_FRAME_HOLD_MS,
+    }, 'sync.qr.send')
+    return () => {
+      logger.info('QR sender display closed', {
+        frameCount,
+        lastFrameIndex: currentIndexRef.current + 1,
+        elapsedMs: Date.now() - openedAt,
+      }, 'sync.qr.send')
+    }
+  }, [frameCount])
 
   useWakeLock(true)
 
   useEffect(() => {
-    if (paused || frames.length <= 1) {
+    const deadline = Date.now() + INITIAL_FRAME_HOLD_MS
+    const timer = window.setInterval(() => {
+      const remainingMs = deadline - Date.now()
+      if (remainingMs <= 0) {
+        setSecondsUntilStart(0)
+        setInitialDelayElapsed(true)
+        logger.info('QR sender rotation started after camera setup hold', {
+          frameCount,
+          setupDelayMs: INITIAL_FRAME_HOLD_MS,
+        }, 'sync.qr.send')
+        window.clearInterval(timer)
+        return
+      }
+
+      const nextSeconds = Math.ceil(remainingMs / 1000)
+      setSecondsUntilStart((current) => (current === nextSeconds ? current : nextSeconds))
+    }, 100)
+
+    return () => window.clearInterval(timer)
+  }, [frameCount])
+
+  useEffect(() => {
+    if (!initialDelayElapsed || paused || frames.length <= 1) {
       return
     }
 
     const timer = window.setInterval(() => setIndex((current) => (current + 1) % frames.length), SPEED_MS[speed])
     return () => window.clearInterval(timer)
-  }, [paused, frames.length, speed])
+  }, [initialDelayElapsed, paused, frames.length, speed])
 
   useLayoutEffect(() => {
     const area = areaRef.current
@@ -102,7 +149,7 @@ export function QrSendOverlay({ transfer, summary, density, onDensityChange, onC
             Sending {summary}
           </Text>
           <Text size="xs" c="slate.3" truncate>
-            On the other laptop: Sync Data, then QR codes, then Receive. Point its camera at this screen.
+            On the other laptop: Sync Data, then QR codes, then Receive. Point its camera at this screen. The first code holds for 5 seconds.
           </Text>
         </div>
       </div>
@@ -124,7 +171,11 @@ export function QrSendOverlay({ transfer, summary, density, onDensityChange, onC
       <div className="qr-send__controls">
         <Text size="sm" c="slate.2" className="mono-number" aria-live="off">
           Code {index + 1} of {frames.length}
-          {frames.length > 1 ? ` · repeats about every ${passSeconds} s` : ''}
+          {frames.length > 1
+            ? initialDelayElapsed
+              ? ` · repeats about every ${passSeconds} s`
+              : ` · starts in ${secondsUntilStart}s`
+            : ''}
         </Text>
 
         <Group gap="md" justify="center" wrap="wrap">

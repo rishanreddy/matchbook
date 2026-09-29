@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createStoreHook } from './createStoreHook'
 
 interface EventState {
   currentEventId: string | null
@@ -9,7 +9,7 @@ interface EventState {
   loadFromStorage: () => void
 }
 
-export const useEventStore = create<EventState>((set) => ({
+export const useEventStore = createStoreHook<EventState>((set) => ({
   currentEventId: null,
   currentSeason: null,
   isLoaded: false,

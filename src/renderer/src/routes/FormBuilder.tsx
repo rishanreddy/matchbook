@@ -307,7 +307,7 @@ export function FormBuilder(): ReactElement {
               chartable, they just do not count toward a score.
             </Alert>
           )}
-          <Box className="survey-creator-container" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Box className="survey-creator-container" data-tour="form-builder" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
             <SurveyCreatorComponent creator={creator} />
           </Box>
         </Box>

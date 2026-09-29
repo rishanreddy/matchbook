@@ -20,6 +20,7 @@ import {
   IconCommand,
   IconDeviceFloppy,
   IconHelp,
+  IconPlayerPlay,
   IconServer,
   IconUsers,
 } from '@tabler/icons-react'
@@ -30,6 +31,7 @@ import { useDatabaseStore } from './stores/useDatabase'
 import { useDeviceStore, useIsHub } from './stores/useDeviceStore'
 import { useEventStore } from './stores/useEventStore'
 import { handleError } from './lib/utils/errorHandler'
+import { logger } from './lib/utils/logger'
 import { ShortcutHelp } from './components/ShortcutHelp'
 import { CommandPalette, createCommandItems } from './features/command-center'
 import { SplashScreen } from './components/SplashScreen'
@@ -50,6 +52,8 @@ import {
   type ShortcutBindings,
 } from './config/shortcuts'
 import { BrandIcon } from './components/BrandIcon'
+import { SpotlightTour, useSpotlight } from 'react-tourlight'
+import { APPLICATION_TOUR_ID, createApplicationTourSteps } from './tours/applicationTour'
 
 const MAX_SPLASH_MS = 3500
 
@@ -61,6 +65,7 @@ function App() {
   const pathname = location.pathname
   const isFormBuilderRoute = pathname === '/form-builder'
   const navigate = useNavigate()
+  const { start: startTour } = useSpotlight()
   const [appVersion, setAppVersion] = useState<string>('unknown')
   const initializeDb = useDatabaseStore((state) => state.initialize)
   const clearDatabaseState = useDatabaseStore((state) => state.clearState)
@@ -87,6 +92,7 @@ function App() {
   const loadEventFromStorage = useEventStore((state) => state.loadFromStorage)
   const currentEventId = useEventStore((state) => state.currentEventId)
   const currentSeason = useEventStore((state) => state.currentSeason)
+  const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
   
   useHubSyncService()
 
@@ -213,6 +219,7 @@ function App() {
       setIsResettingDatabase(true)
       try {
         clearDatabaseState()
+        clearCurrentEvent()
         await resetDatabase()
         await initializeDb()
       } catch (error: unknown) {
@@ -383,6 +390,10 @@ function App() {
     }
   }, [pathname])
 
+  useEffect(() => {
+    logger.info('Application route changed', { route: pathname, query: location.search }, 'navigation')
+  }, [location.search, pathname])
+
   const commandItems = useMemo(
     () =>
       createCommandItems({
@@ -398,6 +409,10 @@ function App() {
   )
 
   const shortcutHelpGroups = useMemo(() => createShortcutHelpGroups(shortcutBindings), [shortcutBindings])
+  const applicationTourSteps = useMemo(
+    () => createApplicationTourSteps(isHub, developerModeEnabled),
+    [isHub, developerModeEnabled],
+  )
 
   const renderNavGroup = (groupKey: string, groupLabel: string) => {
     // Filter items by group and by Hub status (non-Hub devices don't see hubOnly items)
@@ -486,6 +501,17 @@ function App() {
           </Group>
           
           <Group gap="xs" className="app-header-actions">
+            {!showDatabaseInitScreen && !showSplash && !showOnboardingWizard && db && (
+              <Button
+                size="sm"
+                variant="default"
+                leftSection={<IconPlayerPlay size={15} />}
+                onClick={() => startTour(APPLICATION_TOUR_ID)}
+                aria-label="Take a tour of Matchbook"
+              >
+                Take a tour
+              </Button>
+            )}
             {isFormBuilderRoute && (
               <Button
                 size="sm"
@@ -557,7 +583,7 @@ function App() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar>
+      <AppShell.Navbar data-tour="primary-navigation">
         <AppShell.Section grow p="lg" className="app-nav-scroll">
           <Stack gap={4}>
             {navGroups.map(({ key, label }) => renderNavGroup(key, label))}
@@ -570,6 +596,7 @@ function App() {
             to="/"
             onClick={() => close()}
             className="current-event-card"
+            data-tour="current-event-card"
           >
             <Group gap="xs" wrap="nowrap">
               <ThemeIcon size={28} radius="sm" variant="default">
@@ -612,6 +639,7 @@ function App() {
         ref={mainRef}
         className={isFormBuilderRoute ? 'app-main-content app-main-content--no-scroll' : 'app-main-content'}
       >
+        <SpotlightTour id={APPLICATION_TOUR_ID} steps={applicationTourSteps} />
         <Text aria-live="polite" className="sr-only">
           Current page: {navItems.find((item) => item.to === location.pathname)?.label ?? 'App'}
         </Text>
@@ -650,12 +678,14 @@ function App() {
         )}
         
         <AboutDialog opened={showAbout} onClose={() => setShowAbout(false)} version={appVersion} />
-        <FirstRunWizard
-          opened={showOnboardingWizard}
-          onComplete={() => {
-            setIsOnboardingComplete(true)
-          }}
-        />
+        {showOnboardingWizard && (
+          <FirstRunWizard
+            opened
+            onComplete={() => {
+              setIsOnboardingComplete(true)
+            }}
+          />
+        )}
         <SplashScreen visible={showSplash} version={appVersion} status={splashStatus} />
       </AppShell.Main>
     </AppShell>

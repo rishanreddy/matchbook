@@ -91,7 +91,7 @@ export function AboutDialog({ opened, onClose, version }: AboutDialogProps): Rea
         <Title order={4}>{brand.name}</Title>
         <Text size="sm">Version {version}</Text>
         <Text size="sm">License: MIT</Text>
-        <Text size="sm">Built with Electron, React, TypeScript, Mantine, Vite, and RxDB.</Text>
+        <Text size="sm">Built with Electron, React, TypeScript, Mantine, TanStack, Vite, and RxDB.</Text>
         <Anchor href={brand.repoUrl} target="_blank" rel="noreferrer">
           GitHub repository
         </Anchor>

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActionIcon,
   Alert,
@@ -13,6 +13,7 @@ import {
   Modal,
   Select,
   Skeleton,
+  SimpleGrid,
   Stack,
   TextInput,
   Text,
@@ -41,6 +42,7 @@ import { notifyErrorWithRetry } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
 import { handleError } from '../lib/utils/errorHandler'
 import { useEventStore } from '../stores/useEventStore'
+import type { EventDocType } from '../lib/db/schemas/events.schema'
 
 function getYearOptions(currentYear: number): Array<{ value: string; label: string }> {
   return Array.from({ length: 7 }, (_, index) => {
@@ -82,12 +84,14 @@ export function EventManagement(): ReactElement {
   const yearOptions = getYearOptions(currentYear)
   const [selectedYear, setSelectedYear] = useState<string>(String(fallbackYear))
   const [events, setEvents] = useState<TBAEvent[]>([])
+  const [storedEvents, setStoredEvents] = useState<EventDocType[]>([])
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedEventType, setSelectedEventType] = useState<string>('all')
   const [importedEventKeys, setImportedEventKeys] = useState<Set<string>>(new Set())
   const [isFetchingEvents, setIsFetchingEvents] = useState<boolean>(false)
   const [importingEventKeys, setImportingEventKeys] = useState<Set<string>>(new Set())
   const currentEventId = useEventStore((state) => state.currentEventId)
+  const setCurrentEvent = useEventStore((state) => state.setCurrentEvent)
   const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
   const [eventPendingRemoval, setEventPendingRemoval] = useState<TBAEvent | null>(null)
   const [removalCounts, setRemovalCounts] = useState<{ matches: number; assignments: number; observations: number } | null>(null)
@@ -118,6 +122,27 @@ export function EventManagement(): ReactElement {
   const getTbaApiKey = (): string => localStorage.getItem('tba_api_key')?.trim() ?? ''
 
   const isApiKeyMissing = getTbaApiKey().length === 0
+
+  const storedEventIds = useMemo(() => new Set(storedEvents.map((event) => event.id)), [storedEvents])
+
+  useEffect(() => {
+    if (!db) {
+      setStoredEvents([])
+      return
+    }
+
+    const subscription = db.collections.events.find().$.subscribe({
+      next: (documents) => {
+        const nextEvents = documents
+          .map((document) => document.toJSON())
+          .sort((left, right) => right.season - left.season || right.startDate.localeCompare(left.startDate))
+        setStoredEvents(nextEvents)
+      },
+      error: (error: unknown) => handleError(error, 'Observe locally saved events'),
+    })
+
+    return () => subscription.unsubscribe()
+  }, [db])
 
   const updateImportedStatus = async (fetchedEvents: TBAEvent[]): Promise<void> => {
     if (!db || fetchedEvents.length === 0) {
@@ -226,18 +251,25 @@ export function EventManagement(): ReactElement {
     }
 
     setIsFetchingEvents(true)
+    const startedAt = Date.now()
     logger.info('Event fetch started', { year: selectedYear })
     try {
       const parsedYear = Number(selectedYear)
       const fetchedEvents = await getEventsByYear(parsedYear, tbaApiKey)
       setEvents(fetchedEvents)
       await updateImportedStatus(fetchedEvents)
+      logger.info('Event fetch completed', {
+        year: parsedYear,
+        eventCount: fetchedEvents.length,
+        elapsedMs: Date.now() - startedAt,
+      })
       notify({
         color: 'green',
         title: 'Events fetched',
         message: `Loaded ${fetchedEvents.length} events for ${parsedYear}.`,
       })
     } catch (error: unknown) {
+      logger.error('Event fetch failed', { year: selectedYear, elapsedMs: Date.now() - startedAt, error }, 'events')
       notifyErrorWithRetry(error, 'Retry Fetch', () => {
         void handleFetchEvents()
       }, 'Event fetch')
@@ -269,6 +301,7 @@ export function EventManagement(): ReactElement {
     const alreadyImported = await db.collections.events.findOne(event.key).exec()
 
     setImportingEventKeys((prev) => new Set(prev).add(event.key))
+    const startedAt = Date.now()
     logger.info('Event import started', { eventKey: event.key })
     try {
       const [eventDetails, matches, teams] = await Promise.all([
@@ -324,12 +357,21 @@ export function EventManagement(): ReactElement {
       })
 
       setImportedEventKeys((prev) => new Set(prev).add(event.key))
+      logger.info('Event import completed', {
+        eventKey: eventDetails.key,
+        matchCount: sortedMatches.length,
+        staleMatchesRemoved: staleMatchDocs.length,
+        teamCount: teams?.length ?? 0,
+        teamsAvailable: teams !== null,
+        elapsedMs: Date.now() - startedAt,
+      })
       notify({
         color: 'green',
         title: alreadyImported ? 'Event re-synced' : 'Event imported',
         message: `${alreadyImported ? 'Updated' : 'Imported'} ${sortedMatches.length} matches, removed ${staleMatchDocs.length} stale matches, and ${teams ? `fetched ${teams.length} teams` : 'skipped team list fetch'} for ${eventDetails.short_name ?? eventDetails.name}.`,
       })
     } catch (error: unknown) {
+      logger.error('Event import failed', { eventKey: event.key, elapsedMs: Date.now() - startedAt, error }, 'events')
       notifyErrorWithRetry(error, 'Retry Import', () => {
         void handleImportEvent(event)
       }, 'Event import')
@@ -345,7 +387,7 @@ export function EventManagement(): ReactElement {
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-        <Title order={2} c="slate.0" style={{ letterSpacing: '-0.02em' }}>
+        <Title order={2} c="slate.0" data-tour="event-management" style={{ letterSpacing: '-0.02em' }}>
           Event Management
         </Title>
         <RouteHelpModal
@@ -364,6 +406,62 @@ export function EventManagement(): ReactElement {
           color="frc-blue"
         />
       </Group>
+
+      {storedEvents.length > 0 && (
+        <Card p="lg" radius="lg" className="surface-card">
+          <Stack gap="md">
+            <Group justify="space-between" align="flex-start" wrap="wrap" gap="xs">
+              <Box>
+                <Title order={3} size="h4" c="slate.0">
+                  Events on this laptop
+                </Title>
+                <Text size="sm" c="slate.4" mt={4}>
+                  Includes events received from another laptop or imported from The Blue Alliance.
+                </Text>
+              </Box>
+              <Badge variant="light" color="blue">
+                {storedEvents.length} {storedEvents.length === 1 ? 'event' : 'events'} saved
+              </Badge>
+            </Group>
+
+            <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+              {storedEvents.map((event) => {
+                const isCurrent = currentEventId === event.id
+                const dates = event.startDate && event.endDate
+                  ? formatDateRange(event.startDate, event.endDate)
+                  : 'Dates not available'
+
+                return (
+                  <Card key={event.id} p="md" radius="md" withBorder>
+                    <Stack gap="sm">
+                      <Group justify="space-between" align="flex-start" wrap="nowrap">
+                        <Text fw={600} c="slate.0" style={{ minWidth: 0 }}>
+                          {event.name}
+                        </Text>
+                        {isCurrent && <Badge color="green" variant="light">Current event</Badge>}
+                      </Group>
+                      <Text size="xs" c="slate.4" className="mono-number">
+                        {event.id}
+                      </Text>
+                      <Text size="sm" c="slate.2">
+                        {event.season} season · {dates}
+                      </Text>
+                      <Button
+                        variant={isCurrent ? 'default' : 'filled'}
+                        disabled={isCurrent}
+                        onClick={() => setCurrentEvent(event.id, event.season)}
+                        style={{ alignSelf: 'flex-start' }}
+                      >
+                        {isCurrent ? 'Current event' : 'Use this event'}
+                      </Button>
+                    </Stack>
+                  </Card>
+                )
+              })}
+            </SimpleGrid>
+          </Stack>
+        </Card>
+      )}
 
       {isApiKeyMissing && (
         <Box
@@ -556,7 +654,7 @@ export function EventManagement(): ReactElement {
       ) : (
         <Grid>
           {filteredEvents.map((event) => {
-            const isImported = importedEventKeys.has(event.key)
+            const isImported = importedEventKeys.has(event.key) || storedEventIds.has(event.key)
             const isImporting = importingEventKeys.has(event.key)
             const location = [event.city, event.state_prov, event.country].filter(Boolean).join(', ')
 

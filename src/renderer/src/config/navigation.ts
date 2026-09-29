@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import {
   IconCalendarEvent,
   IconChartBar,
+  IconClipboardCheck,
   IconCode,
   IconDeviceLaptop,
   IconForms,
@@ -29,6 +30,7 @@ export const navItems: NavItem[] = [
   { to: '/events', label: 'Events', icon: IconCalendarEvent, group: 'main', hubOnly: true },
   { to: '/analysis', label: 'Analysis', icon: IconChartBar, group: 'main' },
   { to: '/sync', label: 'Sync Data', icon: IconRefresh, group: 'main' },
+  { to: '/assignments', label: 'Scout Assignments', icon: IconClipboardCheck, group: 'tools', hubOnly: true },
   { to: '/form-builder', label: 'Form Builder', icon: IconForms, group: 'tools', hubOnly: true },
   { to: '/developer-tools', label: 'Developer Tools', icon: IconCode, group: 'system', requiresDeveloperMode: true },
   { to: '/device-setup', label: 'Device Setup', icon: IconDeviceLaptop, group: 'system' },

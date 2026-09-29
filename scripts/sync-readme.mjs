@@ -71,6 +71,7 @@ async function stack() {
     `TypeScript ${major(version('typescript'))}`,
     `RxDB ${major(version('rxdb'))}`,
     'Mantine',
+    'TanStack Charts, Table, Virtual, Hotkeys, Store',
     'Vite',
   ]
   return parts.join(', ')

@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import {
   AnalysisRoute,
+  AssignmentsRoute,
   DeveloperToolsRoute,
   DeviceSetupRoute,
   EntriesRoute,
@@ -32,6 +33,7 @@ export function createAppRoutes({ appVersion, onOpenAbout }: CreateRoutesOptions
     { path: '/entries', element: <EntriesRoute /> },
     { path: '/events', element: <EventManagementRoute />, hubOnly: true },
     { path: '/analysis', element: <AnalysisRoute /> },
+    { path: '/assignments', element: <AssignmentsRoute />, hubOnly: true },
     { path: '/device-setup', element: <DeviceSetupRoute /> },
     { path: '/sync', element: <SyncRoute /> },
     { path: '/settings', element: <SettingsRoute appVersion={appVersion} onOpenAbout={onOpenAbout} /> },

@@ -171,6 +171,31 @@ describe('buildPayload and buildSnapshot', () => {
     const document = parseTransferDocument(JSON.parse(JSON.stringify(snapshot)))
     expect(describeTransfer(document)).toBe('2 scouting entries')
   })
+
+  it('sends stored event records in a setup snapshot and imports them on the receiving laptop', async () => {
+    const event = {
+      id: '2026casd',
+      name: 'San Diego Regional',
+      season: 2026,
+      startDate: '2026-03-12',
+      endDate: '2026-03-14',
+      syncedAt: '2026-03-10T12:00:00.000Z',
+      createdAt: '2026-03-10T12:00:00.000Z',
+    }
+    await db.collections.events.insert(event)
+
+    const snapshot = await buildSnapshot(db, ['formSchemas', 'events', 'matches', 'assignments'])
+    const receivedDocument = parseTransferDocument(JSON.parse(JSON.stringify(snapshot)))
+    const sourceEvent = await db.collections.events.findOne(event.id).exec()
+    await sourceEvent?.remove()
+
+    const result = await importTransfer(db, receivedDocument)
+    const receivedEvent = await db.collections.events.findOne(event.id).exec()
+
+    expect(snapshot.collections.events).toEqual([event])
+    expect(result).toMatchObject({ inserted: 1, errors: 0 })
+    expect(receivedEvent?.toJSON()).toMatchObject(event)
+  })
 })
 
 describe('corrections in snapshots', () => {

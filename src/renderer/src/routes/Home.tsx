@@ -141,7 +141,7 @@ export function Home(): ReactElement {
 
             {/* One panel, three states. Showing an empty dropdown next to an
                 "Import events" button made the first run look broken. */}
-            <Box p="lg" style={{ border: '1px solid var(--border-default)', borderRadius: '8px' }}>
+            <Box p="lg" data-tour="home-event" style={{ border: '1px solid var(--border-default)', borderRadius: '8px' }}>
               {events.length === 0 ? (
                 <Group gap="md" wrap="nowrap" align="flex-start">
                   <ThemeIcon size={36} radius="sm" variant="default">
@@ -362,7 +362,7 @@ export function Home(): ReactElement {
           />
         </Group>
 
-        <Box className="home-next-step animate-fadeInUp stagger-1">
+        <Box className="home-next-step animate-fadeInUp stagger-1" data-tour="home-event">
           <Group gap="md" wrap="nowrap" align="flex-start">
             <ThemeIcon size={44} radius="md" variant="default">
               {hasActiveForm ? <IconClipboardCheck size={22} /> : <IconFileDownload size={22} />}

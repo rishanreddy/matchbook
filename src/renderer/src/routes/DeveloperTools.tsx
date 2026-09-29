@@ -35,6 +35,7 @@ import {
 } from '@tabler/icons-react'
 import { RouteHelpModal } from '../components/RouteHelpModal'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { useEventStore } from '../stores/useEventStore'
 import { resetDatabase } from '../lib/db/database'
 import { handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
@@ -47,6 +48,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
   const db = useDatabaseStore((state) => state.db)
   const clearDatabaseState = useDatabaseStore((state) => state.clearState)
   const initializeDb = useDatabaseStore((state) => state.initialize)
+  const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
   const [resetModalOpen, setResetModalOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [isResetting, setIsResetting] = useState(false)
@@ -195,8 +197,9 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     logger.warn('Database reset initiated by user')
 
     try {
-      await resetDatabase()
       clearDatabaseState()
+      clearCurrentEvent()
+      await resetDatabase()
       setResetModalOpen(false)
       setConfirmText('')
 
@@ -239,7 +242,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
   }
 
   const downloadTextFile = (contents: string, fileName: string): void => {
-    const blob = new Blob([contents], { type: 'application/json;charset=utf-8' })
+    const blob = new Blob([contents], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
@@ -248,13 +251,18 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     URL.revokeObjectURL(url)
   }
 
-  const exportLogs = (): void => {
-    downloadTextFile(logger.exportLogs(), `matchbook-logs-${new Date().toISOString().slice(0, 10)}.json`)
-    notify({
-      color: 'green',
-      title: 'Logs exported',
-      message: 'Downloaded logs as JSON.',
-    })
+  const exportLogs = async (): Promise<void> => {
+    try {
+      const contents = await window.electronAPI?.exportDiagnosticLogs() ?? logger.exportLogs()
+      downloadTextFile(contents, `matchbook-diagnostics-${new Date().toISOString().slice(0, 10)}.log`)
+      notify({
+        color: 'green',
+        title: 'Logs exported',
+        message: 'Downloaded the rotating Electron diagnostic logs.',
+      })
+    } catch (error: unknown) {
+      handleError(error, 'Export diagnostic logs')
+    }
   }
 
   const setOnboardingState = async (completed: boolean): Promise<void> => {
@@ -295,14 +303,19 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     }
   }
 
-  const clearLogs = (): void => {
-    logger.clearLogs()
-    setClearLogsModalOpen(false)
-    notify({
-      color: 'green',
-      title: 'Logs cleared',
-      message: 'Stored logs were removed.',
-    })
+  const clearLogs = async (): Promise<void> => {
+    try {
+      await window.electronAPI?.clearDiagnosticLogs()
+      logger.clearLogs()
+      setClearLogsModalOpen(false)
+      notify({
+        color: 'green',
+        title: 'Logs cleared',
+        message: 'Local diagnostic logs were removed.',
+      })
+    } catch (error: unknown) {
+      handleError(error, 'Clear diagnostic logs')
+    }
   }
 
   const openClearScoutingDataModal = async (): Promise<void> => {
@@ -448,7 +461,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
               <IconTools size={28} stroke={1.5} />
             </ThemeIcon>
             <Box>
-              <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+              <Title order={1} c="slate.0" data-tour="developer-tools" style={{ fontSize: 28, fontWeight: 700 }}>
                 Developer Tools
               </Title>
               <Text size="sm" c="slate.4">

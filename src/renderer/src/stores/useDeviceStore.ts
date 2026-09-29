@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createStoreHook } from './createStoreHook'
 
 interface DeviceState {
   deviceId: string | null
@@ -9,7 +9,7 @@ interface DeviceState {
   loadFromStorage: () => void
 }
 
-export const useDeviceStore = create<DeviceState>((set) => ({
+export const useDeviceStore = createStoreHook<DeviceState>((set) => ({
   deviceId: null,
   deviceName: null,
   isPrimary: false,

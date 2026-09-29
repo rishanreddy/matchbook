@@ -8,6 +8,7 @@ import { StepList } from '../../components/StepList'
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { downloadTextFile, timestampedFileStem } from '../../lib/utils/download'
 import { handleError } from '../../lib/utils/errorHandler'
+import { logger } from '../../lib/utils/logger'
 import { notify } from '../../lib/utils/notify'
 import { useDeviceStore } from '../../stores/useDeviceStore'
 import { recordLastSent } from './lastSent'
@@ -71,14 +72,27 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
       return
     }
 
+    const startedAt = Date.now()
+    logger.info('Matchbook file export started', { collections: collectionsToSave }, 'sync.file')
     try {
       const snapshot = await buildSnapshot(db, collectionsToSave)
+      const json = JSON.stringify(snapshot, null, 2)
       const stem = timestampedFileStem(deviceName)
-      downloadTextFile(JSON.stringify(snapshot, null, 2), `matchbook-${stem}.json`)
+      downloadTextFile(json, `matchbook-${stem}.json`)
+      logger.info('Matchbook file export completed', {
+        collections: Object.entries(snapshot.collections).map(([collection, rows]) => ({
+          collection,
+          rowCount: rows?.length ?? 0,
+        })),
+        recordCount: snapshotRowCount(snapshot),
+        fileBytes: new TextEncoder().encode(json).byteLength,
+        elapsedMs: Date.now() - startedAt,
+      }, 'sync.file')
       setSaved(`Saved ${snapshotRowCount(snapshot).toLocaleString()} records. Now send that file to the other laptop.`)
       setSavedEntries((snapshot.collections.scoutingData ?? []).filter((row) => getScoutingDeletionId(row) === null).length)
       notify({ color: 'green', title: 'File saved', message: 'Choose where to keep it in the window that opened.' })
     } catch (error: unknown) {
+      logger.error('Matchbook file export failed', { elapsedMs: Date.now() - startedAt, error }, 'sync.file')
       handleError(error, 'Save file')
     }
   }
@@ -97,11 +111,22 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
       return
     }
 
+    const startedAt = Date.now()
+    logger.info('Matchbook transfer file parsing started', { fileBytes: next.size }, 'sync.file')
     try {
       const document = parseTransferText(await next.text())
       setOpened({ document, description: describeTransfer(document) })
+      logger.info('Matchbook transfer file parsed', {
+        collections: document.tasks.map(({ collection, rows }) => ({ collection, rowCount: rows.length })),
+        elapsedMs: Date.now() - startedAt,
+      }, 'sync.file')
     } catch (error: unknown) {
       setProblem(error instanceof Error ? error.message : 'That file could not be read.')
+      logger.warn('Matchbook transfer file could not be parsed', {
+        fileBytes: next.size,
+        elapsedMs: Date.now() - startedAt,
+        error,
+      }, 'sync.file')
     }
   }
 
@@ -112,6 +137,10 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
 
     setIsAdding(true)
     setProgress(0)
+    const startedAt = Date.now()
+    logger.info('Matchbook transfer file import started', {
+      collections: opened.document.tasks.map(({ collection, rows }) => ({ collection, rowCount: rows.length })),
+    }, 'sync.file')
     try {
       const result = await importTransfer(db, opened.document, (fraction) => setProgress(Math.round(fraction * 100)))
       const summary = summarizeImport(result)
@@ -123,7 +152,15 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
       setAddedSummary(summary)
       setOpened(null)
       setFile(null)
+      logger.info('Matchbook transfer file import completed', {
+        inserted: result.inserted,
+        updated: result.updated,
+        duplicates: result.duplicates,
+        errors: result.errors,
+        elapsedMs: Date.now() - startedAt,
+      }, 'sync.file')
     } catch (error: unknown) {
+      logger.error('Matchbook transfer file import failed', { elapsedMs: Date.now() - startedAt, error }, 'sync.file')
       handleError(error, 'Add file')
     } finally {
       setIsAdding(false)

@@ -1,5 +1,4 @@
 import { Button, Group, Stack, Text } from '@mantine/core'
-import axios from 'axios'
 import { logger } from './logger'
 import { notify } from './notify'
 
@@ -39,8 +38,9 @@ export function getFriendlyErrorMessage(error: unknown): string {
     return FRIENDLY_MESSAGES[error.code] ?? error.message
   }
 
-  if (axios.isAxiosError(error)) {
-    const status = error.response?.status
+  if (error && typeof error === 'object' && 'isAxiosError' in error && error.isAxiosError === true) {
+    const response = 'response' in error && error.response && typeof error.response === 'object' ? error.response : undefined
+    const status = response && 'status' in response && typeof response.status === 'number' ? response.status : undefined
     if (!status) {
       return FRIENDLY_MESSAGES.NO_INTERNET
     }

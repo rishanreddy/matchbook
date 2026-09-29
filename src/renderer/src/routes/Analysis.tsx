@@ -2,7 +2,6 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Accordion,
-  ActionIcon,
   Alert,
   Badge,
   Box,
@@ -11,41 +10,29 @@ import {
   Collapse,
   Group,
   Paper,
-  ScrollArea,
   SegmentedControl,
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   TextInput,
   ThemeIcon,
   Title,
-  useMantineTheme,
 } from '@mantine/core'
+import { areaY, barY, defineChart, lineY } from '@tanstack/charts'
+import { Chart } from '@tanstack/charts/react'
+import { scaleBand } from '@tanstack/charts/scales/band'
+import { scaleLinear } from '@tanstack/charts/scales/linear'
+import { scalePoint } from '@tanstack/charts/scales/point'
+import { tooltip } from '@tanstack/charts/tooltip'
+import { useStore } from '@tanstack/react-store'
 import { useDebouncedValue } from '@mantine/hooks'
-import { IconAlertTriangle, IconChartBar, IconChartDots, IconChevronDown, IconChevronUp, IconCloudUpload, IconSearch, IconSettings, IconTable, IconTarget } from '@tabler/icons-react'
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { IconAlertTriangle, IconChartBar, IconChartDots, IconChevronDown, IconChevronUp, IconCloudUpload, IconSearch, IconSettings, IconTarget } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
 import { RouteHelpModal } from '../components/RouteHelpModal'
 import { TeamSparkline } from '../components/charts/TeamSparkline'
+import { RawObservationsTable } from '../components/RawObservationsTable'
+import { analysisViewStore, updateAnalysisView, type AnalysisSortKey } from '../stores/analysisViewStore'
 import type { ScoutingDataDocument } from '../lib/db/collections'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
@@ -81,8 +68,6 @@ type TeamStats = {
   scores: number[]
   consistency: number
 }
-
-type SortKey = 'total' | 'auto' | 'teleop' | 'endgame' | 'matches'
 
 type TeamFieldPoint = {
   teamNumber: number
@@ -279,7 +264,7 @@ function getAggregationLabel(aggregation: AnalysisAggregation): string {
   }
 }
 
-type TeamRadarChartProps = {
+type TeamProfileChartProps = {
   stats: TeamStats
   maxValues: {
     avgAuto: number
@@ -290,198 +275,55 @@ type TeamRadarChartProps = {
   }
 }
 
-function TeamRadarChart({ stats, maxValues }: TeamRadarChartProps): ReactElement {
-  const theme = useMantineTheme()
-  const accent = theme.colors['frc-blue']?.[5] ?? theme.colors.blue[5]
+function TeamProfileChart({ stats, maxValues }: TeamProfileChartProps): ReactElement {
+  const points = useMemo(() => {
+    const percent = (value: number, maximum: number): number =>
+      maximum > 0 ? Math.min(100, Math.round((value / maximum) * 100)) : 0
+    return [
+      { metric: 'Auto', value: percent(stats.avgAuto, maxValues.avgAuto) },
+      { metric: 'Teleop', value: percent(stats.avgTeleop, maxValues.avgTeleop) },
+      { metric: 'Endgame', value: percent(stats.avgEndgame, maxValues.avgEndgame) },
+      { metric: 'Total', value: percent(stats.avgTotal, maxValues.avgTotal) },
+      { metric: 'Consistency', value: stats.consistency },
+      { metric: 'Matches', value: percent(stats.matchCount, maxValues.matchCount) },
+    ]
+  }, [stats, maxValues])
+  const definition = useMemo(() => defineChart({
+    marks: [barY(points, { x: 'metric', y: 'value', fill: '#ffb020', inset: 7, radius: { end: 3 } })],
+    scales: {
+      x: { scale: () => scaleBand().padding(0.16) },
+      y: { scale: () => scaleLinear().domain([0, 100]), grid: true },
+    },
+    tooltip,
+    margin: { top: 12, right: 8, bottom: 18, left: 8 },
+  }), [points])
 
-  const normalizeToScale = (value: number, max: number): number => {
-    if (max === 0) {
-      return 0
-    }
-    return Math.min(100, (value / max) * 100)
-  }
-
-  const radarData = [
-    {
-      metric: 'Auto',
-      value: normalizeToScale(stats.avgAuto, maxValues.avgAuto),
-      actualValue: stats.avgAuto,
-    },
-    {
-      metric: 'Teleop',
-      value: normalizeToScale(stats.avgTeleop, maxValues.avgTeleop),
-      actualValue: stats.avgTeleop,
-    },
-    {
-      metric: 'Endgame',
-      value: normalizeToScale(stats.avgEndgame, maxValues.avgEndgame),
-      actualValue: stats.avgEndgame,
-    },
-    {
-      metric: 'Total',
-      value: normalizeToScale(stats.avgTotal, maxValues.avgTotal),
-      actualValue: stats.avgTotal,
-    },
-    {
-      metric: 'Consistency',
-      value: stats.consistency,
-      actualValue: stats.consistency,
-    },
-    {
-      metric: 'Matches',
-      value: normalizeToScale(stats.matchCount, maxValues.matchCount),
-      actualValue: stats.matchCount,
-    },
-  ]
-
-  const tooltipProps = {
-    wrapperStyle: {
-      pointerEvents: 'none' as const,
-      zIndex: 1000,
-      outline: 'none',
-      backgroundColor: 'transparent',
-    },
-    contentStyle: {
-      backgroundColor: 'rgba(22, 27, 34, 0.96)',
-      border: '1px solid rgba(101, 132, 171, 0.35)',
-      borderRadius: 8,
-      boxShadow: '0 8px 26px rgba(0, 0, 0, 0.36)',
-      padding: '8px 12px',
-    },
-    itemStyle: {
-      color: '#f1f5f9',
-      fontSize: 12,
-    },
-    labelStyle: {
-      color: '#94a3b8',
-      fontWeight: 600,
-      marginBottom: 4,
-    },
-  }
-
-  return (
-    <Box h={240} w="100%">
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={radarData}>
-          <PolarGrid stroke="rgba(148, 163, 184, 0.2)" />
-          <PolarAngleAxis
-            dataKey="metric"
-            tick={{ fill: 'rgba(241, 245, 249, 0.85)', fontSize: 11, fontWeight: 600 }}
-          />
-          <PolarRadiusAxis
-            angle={90}
-            domain={[0, 100]}
-            tick={{ fill: 'rgba(148, 163, 184, 0.6)', fontSize: 10 }}
-          />
-          <Radar
-            name="Performance"
-            dataKey="value"
-            stroke={accent}
-            fill={accent}
-            fillOpacity={0.2}
-            strokeWidth={2}
-          />
-          <Tooltip
-            {...tooltipProps}
-            cursor={false}
-            formatter={(_value, _name, props) => {
-              const actualValue = (props.payload as { actualValue: number; metric: string }).actualValue
-              const metric = (props.payload as { actualValue: number; metric: string }).metric
-              return [actualValue.toFixed(1), metric]
-            }}
-          />
-        </RadarChart>
-      </ResponsiveContainer>
-    </Box>
-  )
+  return <Chart definition={definition} height={240} ariaLabel={`Team ${stats.teamNumber} performance profile`} />
 }
 
 function FieldMetricChart({ metric }: { metric: CustomFieldMetric }): ReactElement {
-  const theme = useMantineTheme()
-  const chartData = metric.points.map((point) => ({
-    team: String(point.teamNumber),
-    value: Number(point.value.toFixed(2)),
-  }))
+  const definition = useMemo(() => {
+    const points = metric.points.map((point) => ({
+      team: String(point.teamNumber),
+      value: Number(point.value.toFixed(2)),
+    }))
+    const mark = metric.chartType === 'line'
+      ? lineY(points, { x: 'team', y: 'value', stroke: '#ffb020', strokeWidth: 2.2 })
+      : metric.chartType === 'area'
+        ? areaY(points, { x: 'team', y: 'value', fill: '#ffb020', fillOpacity: 0.22, stroke: '#ffb020', strokeWidth: 2.2 })
+        : barY(points, { x: 'team', y: 'value', fill: '#ffb020', inset: 5, radius: { end: 3 } })
+    return defineChart({
+      marks: [mark],
+      scales: {
+        x: { scale: () => metric.chartType === 'bar' ? scaleBand().padding(0.18) : scalePoint() },
+        y: { scale: scaleLinear, nice: true, grid: true },
+      },
+      tooltip,
+      margin: { top: 12, right: 10, bottom: 18, left: 8 },
+    })
+  }, [metric])
 
-  const accent = theme.colors['frc-blue']?.[5] ?? theme.colors.blue[5]
-  const accentLight = theme.colors['frc-blue']?.[4] ?? theme.colors.blue[4]
-
-  const tooltipProps = {
-    wrapperStyle: {
-      pointerEvents: 'none' as const,
-      zIndex: 1000,
-      outline: 'none',
-      backgroundColor: 'transparent',
-    },
-    contentStyle: {
-      backgroundColor: 'rgba(22, 27, 34, 0.96)',
-      border: '1px solid rgba(101, 132, 171, 0.35)',
-      borderRadius: 8,
-      boxShadow: '0 8px 26px rgba(0, 0, 0, 0.36)',
-      padding: '8px 12px',
-    },
-    itemStyle: {
-      color: '#f1f5f9',
-      fontSize: 12,
-    },
-    labelStyle: {
-      color: '#94a3b8',
-      fontWeight: 600,
-      marginBottom: 4,
-    },
-  }
-
-  if (metric.chartType === 'line') {
-    return (
-      <Box h={220}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
-            <XAxis dataKey="team" tick={{ fill: 'rgba(148, 163, 184, 0.8)', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: 'rgba(148, 163, 184, 0.8)', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Tooltip {...tooltipProps} cursor={false} />
-            <Line type="monotone" dataKey="value" stroke={accent} strokeWidth={2.2} dot={{ r: 3 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </Box>
-    )
-  }
-
-  if (metric.chartType === 'area') {
-    return (
-      <Box h={220}>
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 4 }}>
-            <defs>
-              <linearGradient id={`metric-${metric.fieldName}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={accentLight} stopOpacity={0.55} />
-                <stop offset="100%" stopColor={accentLight} stopOpacity={0.06} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
-            <XAxis dataKey="team" tick={{ fill: 'rgba(148, 163, 184, 0.8)', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: 'rgba(148, 163, 184, 0.8)', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Tooltip {...tooltipProps} cursor={false} />
-            <Area type="monotone" dataKey="value" stroke={accent} strokeWidth={2.2} fill={`url(#metric-${metric.fieldName})`} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </Box>
-    )
-  }
-
-  return (
-    <Box h={220}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.12)" vertical={false} />
-          <XAxis dataKey="team" tick={{ fill: 'rgba(148, 163, 184, 0.8)', fontSize: 11 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: 'rgba(148, 163, 184, 0.8)', fontSize: 11 }} axisLine={false} tickLine={false} />
-          <Tooltip {...tooltipProps} cursor={false} />
-          <Bar dataKey="value" radius={[6, 6, 0, 0]} fill={accent} />
-        </BarChart>
-      </ResponsiveContainer>
-    </Box>
-  )
+  return <Chart definition={definition} height={220} ariaLabel={`${metric.fieldName} by team`} />
 }
 
 export function Analysis(): ReactElement {
@@ -489,17 +331,15 @@ export function Analysis(): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const [observations, setObservations] = useState<Observation[]>([])
   const [events, setEvents] = useState<EventDocType[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const selectedEventId = useStore(analysisViewStore, (state) => state.selectedEventId)
   const [activeFormSchema, setActiveFormSchema] = useState<FormSchemaDocType | null>(null)
   const [deviceNameById, setDeviceNameById] = useState<Map<string, string>>(new Map())
   const [scoutNameByDeviceId, setScoutNameByDeviceId] = useState<Map<string, string>>(new Map())
-  const [sortBy, setSortBy] = useState<SortKey>('total')
-  const [search, setSearch] = useState('')
+  const sortBy = useStore(analysisViewStore, (state) => state.sortBy)
+  const search = useStore(analysisViewStore, (state) => state.search)
   const [analysisFieldConfigs, setAnalysisFieldConfigs] = useState<AnalysisFieldConfig[]>([])
   const [debouncedSearch] = useDebouncedValue(search, 200)
   const [expandedTeams, setExpandedTeams] = useState<Set<number>>(new Set())
-  const [tableSortBy, setTableSortBy] = useState<'team' | 'match' | 'auto' | 'teleop' | 'endgame' | 'total' | 'timestamp'>('timestamp')
-  const [tableSortDirection, setTableSortDirection] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     if (!db) {
@@ -758,51 +598,6 @@ export function Analysis(): ReactElement {
     }))
   }, [observations])
 
-  const sortedTableObservations = useMemo(() => {
-    const sorted = [...allObservationsFlat]
-    
-    sorted.sort((a, b) => {
-      let comparison = 0
-      
-      switch (tableSortBy) {
-        case 'team':
-          comparison = a.teamNumber - b.teamNumber
-          break
-        case 'match':
-          comparison = a.matchNumber - b.matchNumber
-          break
-        case 'auto':
-          comparison = a.autoScore - b.autoScore
-          break
-        case 'teleop':
-          comparison = a.teleopScore - b.teleopScore
-          break
-        case 'endgame':
-          comparison = a.endgameScore - b.endgameScore
-          break
-        case 'total':
-          comparison = a.totalScore - b.totalScore
-          break
-        case 'timestamp':
-          comparison = a.timestamp.localeCompare(b.timestamp)
-          break
-      }
-      
-      return tableSortDirection === 'asc' ? comparison : -comparison
-    })
-    
-    return sorted
-  }, [allObservationsFlat, tableSortBy, tableSortDirection])
-
-  const handleTableHeaderClick = useCallback((column: typeof tableSortBy): void => {
-    if (tableSortBy === column) {
-      setTableSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setTableSortBy(column)
-      setTableSortDirection('desc')
-    }
-  }, [tableSortBy])
-
   const analysisFields = useMemo(() => {
     if (!db || !activeFormSchema) {
       return []
@@ -882,7 +677,7 @@ export function Analysis(): ReactElement {
                 <IconChartBar size={26} stroke={1.5} />
               </ThemeIcon>
               <Box>
-                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                <Title order={1} c="slate.0" data-tour="analysis-overview" style={{ fontSize: 28, fontWeight: 700 }}>
                   Analysis
                 </Title>
                 <Text size="sm" c="slate.4">Analyze collected scouting performance</Text>
@@ -947,7 +742,7 @@ export function Analysis(): ReactElement {
                 <IconChartBar size={26} stroke={1.5} />
               </ThemeIcon>
               <Box>
-                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                <Title order={1} c="slate.0" data-tour="analysis-overview" style={{ fontSize: 28, fontWeight: 700 }}>
                   Analysis
                 </Title>
                 <Text size="sm" c="slate.4">{observations.length} observations across {teamStats.size} teams</Text>
@@ -981,7 +776,7 @@ export function Analysis(): ReactElement {
           <Select
             placeholder="All Events"
             value={selectedEventId}
-            onChange={(value) => setSelectedEventId(value)}
+            onChange={(value) => updateAnalysisView({ selectedEventId: value })}
             data={[
               { value: 'all', label: 'All Events' },
               ...events.map((event) => ({
@@ -996,7 +791,7 @@ export function Analysis(): ReactElement {
           />
           <SegmentedControl
             value={sortBy}
-            onChange={(value) => setSortBy(value as SortKey)}
+            onChange={(value) => updateAnalysisView({ sortBy: value as AnalysisSortKey })}
             radius="md"
             data={[
               { label: 'Overall', value: 'total' },
@@ -1011,7 +806,7 @@ export function Analysis(): ReactElement {
             leftSection={<IconSearch size={16} />}
             placeholder="Search team..."
             value={search}
-            onChange={(event) => setSearch(event.currentTarget.value)}
+            onChange={(event) => updateAnalysisView({ search: event.currentTarget.value })}
             w={220}
             radius="md"
             styles={{ input: { backgroundColor: 'var(--surface-raised)' } }}
@@ -1114,7 +909,7 @@ export function Analysis(): ReactElement {
 
                   <Paper p="sm" radius="md" style={{ backgroundColor: 'var(--surface-base)' }}>
                     <Text size="xs" c="slate.4" mb={4} fw={600}>Performance Profile</Text>
-                    <TeamRadarChart stats={stats} maxValues={maxValues} />
+                    <TeamProfileChart stats={stats} maxValues={maxValues} />
                   </Paper>
 
                   <SimpleGrid cols={3} spacing="xs">
@@ -1261,170 +1056,7 @@ export function Analysis(): ReactElement {
           className="animate-fadeInUp stagger-4"
           style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
         >
-          <Stack gap="md">
-            <Group gap="md" align="center">
-              <ThemeIcon size={40} radius="lg" variant="light" color="frc-blue">
-                <IconTable size={20} stroke={1.5} />
-              </ThemeIcon>
-              <Box>
-                <Text fw={700} c="slate.0">Raw Data Table</Text>
-                <Text size="sm" c="slate.4">All observations with sortable columns</Text>
-              </Box>
-              <Badge color="frc-blue" variant="light" radius="md" ml="auto">
-                {sortedTableObservations.length} rows
-              </Badge>
-            </Group>
-
-            <ScrollArea>
-              <Table striped highlightOnHover withTableBorder withColumnBorders>
-                <Table.Thead>
-                  <Table.Tr style={{ backgroundColor: 'var(--surface-base)' }}>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('team')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Team</Text>
-                        {tableSortBy === 'team' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('match')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Match</Text>
-                        {tableSortBy === 'match' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('auto')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Auto</Text>
-                        {tableSortBy === 'auto' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('teleop')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Teleop</Text>
-                        {tableSortBy === 'teleop' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('endgame')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Endgame</Text>
-                        {tableSortBy === 'endgame' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('total')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Total</Text>
-                        {tableSortBy === 'total' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th>
-                      <Text size="xs" fw={700} c="slate.1">Device / Scout</Text>
-                    </Table.Th>
-                    <Table.Th
-                      style={{ cursor: 'pointer', userSelect: 'none' }}
-                      onClick={() => handleTableHeaderClick('timestamp')}
-                    >
-                      <Group gap={4} wrap="nowrap">
-                        <Text size="xs" fw={700} c="slate.1">Timestamp</Text>
-                        {tableSortBy === 'timestamp' && (
-                          <ActionIcon size="xs" variant="transparent" color="slate">
-                            {tableSortDirection === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
-                          </ActionIcon>
-                        )}
-                      </Group>
-                    </Table.Th>
-                    <Table.Th>
-                      <Text size="xs" fw={700} c="slate.1">Notes</Text>
-                    </Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {sortedTableObservations.map((obs, index) => {
-                    const parsedTimestamp = new Date(obs.timestamp)
-                    const timestampDisplay = Number.isNaN(parsedTimestamp.getTime())
-                      ? obs.timestamp
-                      : parsedTimestamp.toLocaleString()
-
-                    return (
-                      <Table.Tr key={`${obs.teamNumber}-${obs.matchNumber}-${obs.timestamp}-${index}`}>
-                        <Table.Td>
-                          <Text size="sm" c="slate.1" className="mono-number">{obs.teamNumber}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="slate.1" className="mono-number">{obs.matchNumber}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="slate.2" className="mono-number">{obs.autoScore}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="slate.2" className="mono-number">{obs.teleopScore}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="slate.2" className="mono-number">{obs.endgameScore}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="frc-blue.4" fw={600} className="mono-number">{obs.totalScore}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c="slate.3" style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {getDeviceDisplayLabel(obs.deviceId)}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="xs" c="slate.4" style={{ whiteSpace: 'nowrap' }}>{timestampDisplay}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="xs" c="slate.3" lineClamp={2} style={{ maxWidth: 200 }}>
-                            {obs.notes.trim() || '—'}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    )
-                  })}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          </Stack>
+          <RawObservationsTable observations={allObservationsFlat} getDeviceDisplayLabel={getDeviceDisplayLabel} />
         </Card>
       </Stack>
     </Box>

@@ -95,7 +95,7 @@ export function Sync(): ReactElement {
           // hubs and the QR tab would keep preparing codes while nobody is looking at them.
           keepMounted={false}
         >
-          <Tabs.List>
+          <Tabs.List data-tour="sync-methods">
             <Tabs.Tab value="wifi" leftSection={<IconWifi size={16} />}>
               Wi-Fi
             </Tabs.Tab>

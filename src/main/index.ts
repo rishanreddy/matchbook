@@ -1,20 +1,29 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, systemPreferences } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import path from 'node:path'
-import { readFileSync } from 'node:fs'
+import { readFileSync, unlinkSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
 import updater from 'electron-updater'
+import log from 'electron-log/main'
 import type { ProgressInfo, UpdateInfo } from 'electron-updater'
 import { registerSyncServerIpcHandlers, stopSyncServer } from './syncServer'
 import { parseSavedWindowState, planMainWindow, type SavedWindowState } from './windowBounds'
+import { normalizeApplicationLogEntry } from '../shared/logging'
 
 const { autoUpdater } = updater
+log.transports.file.level = 'debug'
+log.transports.file.maxSize = 8 * 1024 * 1024
+log.transports.file.inspectOptions = { depth: 6, maxArrayLength: 40, maxStringLength: 4_000, breakLength: 120 }
 // Dev mode = loading from Vite dev server with HMR (electron-vite dev)
 // Preview mode = loading built files (electron-vite preview)  
 // Production = packaged app loading built files
 const IS_DEV = !app.isPackaged && process.env.ELECTRON_RENDERER_URL?.startsWith('http://localhost') === true
+log.transports.console.level = IS_DEV ? 'debug' : 'warn'
+// Renderer application logs go through the validated preload bridge. Console
+// messages are captured with Electron's current event shape below.
+log.initialize({ preload: false })
 const FORCE_DEV_UPDATES = process.env.FORCE_DEV_UPDATES === 'true'
 const REPO_URL = 'https://github.com/rishanreddy/matchbook'
 const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3'
@@ -24,13 +33,14 @@ let mainWindow: BrowserWindow | null = null
 
 if (!app.isPackaged) {
   const profileSuffix = IS_DEV ? 'dev' : 'preview'
-  const isolatedUserDataPath = path.join(app.getPath('userData'), profileSuffix)
+  const isolatedUserDataPath = process.env.MATCHBOOK_E2E_USER_DATA || path.join(app.getPath('userData'), profileSuffix)
   app.setPath('userData', isolatedUserDataPath)
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!hasSingleInstanceLock) {
+  log.warn('Another Matchbook instance already owns the single-instance lock; this process will exit')
   app.quit()
 }
 
@@ -41,6 +51,12 @@ function isSafeExternalUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+function classifyRendererConsoleSource(sourceId: string): string {
+  if (sourceId.startsWith('file:')) return 'local-file'
+  if (sourceId.startsWith('http://localhost') || sourceId.startsWith('http://127.0.0.1')) return 'local-dev-server'
+  return 'other'
 }
 
 async function openExternalUrl(url: string): Promise<void> {
@@ -73,6 +89,8 @@ async function requestTba(endpoint: string, apiKey: string): Promise<TbaRequestR
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), TBA_REQUEST_TIMEOUT_MS)
+  const startedAt = Date.now()
+  log.debug('TBA API request started', { endpoint: normalizedEndpoint, timeoutMs: TBA_REQUEST_TIMEOUT_MS })
 
   try {
     const response = await fetch(`${TBA_BASE_URL}${normalizedEndpoint}`, {
@@ -96,6 +114,14 @@ async function requestTba(endpoint: string, apiKey: string): Promise<TbaRequestR
       }
     }
 
+    log.info('TBA API request completed', {
+      endpoint: normalizedEndpoint,
+      status: response.status,
+      ok: response.ok,
+      elapsedMs: Date.now() - startedAt,
+      responseBytes: Buffer.byteLength(rawText),
+    })
+
     return {
       ok: response.ok,
       status: response.status,
@@ -103,6 +129,13 @@ async function requestTba(endpoint: string, apiKey: string): Promise<TbaRequestR
       data: parsedBody,
       retryAfter: response.headers.get('retry-after'),
     }
+  } catch (error: unknown) {
+    log.warn('TBA API request failed', {
+      endpoint: normalizedEndpoint,
+      elapsedMs: Date.now() - startedAt,
+      error,
+    })
+    throw error
   } finally {
     clearTimeout(timeout)
   }
@@ -187,19 +220,43 @@ function configureAutoUpdater(): void {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = canInstallUpdates()
 
-  autoUpdater.on('checking-for-update', () => emitUpdateStatus('updater:checking'))
-  autoUpdater.on('update-not-available', (info: UpdateInfo) => emitUpdateStatus('updater:not-available', info))
-  autoUpdater.on('update-available', (info: UpdateInfo) => emitUpdateStatus('updater:available', info))
-  autoUpdater.on('download-progress', (progress: ProgressInfo) =>
-    emitUpdateStatus('updater:download-progress', progress),
-  )
-  autoUpdater.on('update-downloaded', (info: UpdateInfo) => emitUpdateStatus('updater:downloaded', info))
+  autoUpdater.on('checking-for-update', () => {
+    log.info('Updater check started')
+    emitUpdateStatus('updater:checking')
+  })
+  autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+    log.info('No update is available', { version: info.version })
+    emitUpdateStatus('updater:not-available', info)
+  })
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    log.info('An update is available', { version: info.version, releaseDate: info.releaseDate })
+    emitUpdateStatus('updater:available', info)
+  })
+  let lastLoggedProgress = 0
+  autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+    const progressBucket = Math.floor(progress.percent / 10) * 10
+    if (progressBucket >= lastLoggedProgress + 10) {
+      lastLoggedProgress = progressBucket
+      log.info('Updater download progress', {
+        percent: progressBucket,
+        transferredBytes: progress.transferred,
+        totalBytes: progress.total,
+        bytesPerSecond: progress.bytesPerSecond,
+      })
+    }
+    emitUpdateStatus('updater:download-progress', progress)
+  })
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    log.info('Update download completed', { version: info.version })
+    emitUpdateStatus('updater:downloaded', info)
+  })
   autoUpdater.on('error', (error: Error) => {
     if (suppressUpdaterErrors) {
-      console.warn('Background update check failed:', error.message)
+      log.warn('Background update check failed in an offline-tolerant operation', error)
       return
     }
 
+    log.error('Updater reported an error', error)
     emitUpdateStatus('updater:error', error.message)
   })
 }
@@ -259,8 +316,12 @@ function readSavedWindowState(): SavedWindowState | null {
   try {
     const raw = readFileSync(path.join(app.getPath('userData'), WINDOW_STATE_FILE), 'utf8')
     return parseSavedWindowState(JSON.parse(raw) as unknown)
-  } catch {
-    // First launch, or an unreadable file: fall back to sizing from the screen.
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      log.debug('No saved window size is available; using screen defaults')
+    } else {
+      log.warn('Saved window size could not be read; using screen defaults', error)
+    }
     return null
   }
 }
@@ -275,8 +336,8 @@ function watchWindowState(window: BrowserWindow): void {
     }
 
     const state: SavedWindowState = { bounds: window.getNormalBounds(), isMaximized: window.isMaximized() }
-    void writeFile(path.join(app.getPath('userData'), WINDOW_STATE_FILE), JSON.stringify(state)).catch(() => {
-      // Remembering the window size is a convenience; never let it surface as an error.
+    void writeFile(path.join(app.getPath('userData'), WINDOW_STATE_FILE), JSON.stringify(state)).catch((error: unknown) => {
+      log.warn('Failed to save application window size', error)
     })
   }
 
@@ -307,6 +368,14 @@ function createMainWindow(): BrowserWindow {
     ? screen.getDisplayMatching(saved.bounds)
     : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   const plan = planMainWindow(display.workArea, saved)
+  log.info('Creating application window', {
+    restoredSavedBounds: Boolean(saved),
+    bounds: plan.bounds,
+    minWidth: plan.minWidth,
+    minHeight: plan.minHeight,
+    maximizeOnShow: plan.maximize,
+    displayScaleFactor: display.scaleFactor,
+  })
 
   const window = new BrowserWindow({
     ...plan.bounds,
@@ -350,17 +419,23 @@ function createMainWindow(): BrowserWindow {
       window.maximize()
     }
     window.show()
+    log.info('Application window is ready to show', {
+      maximized: window.isMaximized(),
+      bounds: window.getBounds(),
+    })
   })
 
   watchWindowState(window)
 
   window.on('closed', () => {
+    log.info('Application window closed')
     if (mainWindow === window) {
       mainWindow = null
     }
   })
 
   window.webContents.setWindowOpenHandler((details) => {
+    log.info('Renderer requested a new window', { allowedExternalUrl: isSafeExternalUrl(details.url) })
     if (isSafeExternalUrl(details.url)) {
       void shell.openExternal(details.url)
     }
@@ -370,6 +445,7 @@ function createMainWindow(): BrowserWindow {
 
   window.webContents.on('will-navigate', (event, url) => {
     event.preventDefault()
+    log.warn('Blocked top-level renderer navigation', { isSafeExternalUrl: isSafeExternalUrl(url) })
     if (isSafeExternalUrl(url)) {
       void shell.openExternal(url)
     }
@@ -378,7 +454,7 @@ function createMainWindow(): BrowserWindow {
   const rendererUrl = process.env.ELECTRON_RENDERER_URL
   if (rendererUrl) {
     window.loadURL(rendererUrl).catch((error: unknown) => {
-      console.error('Failed to load dev server URL:', error)
+      log.error('Failed to load renderer development URL', error)
     })
     // Only auto-open DevTools in true dev mode (not preview)
     if (IS_DEV) {
@@ -386,18 +462,125 @@ function createMainWindow(): BrowserWindow {
     }
   } else {
     window.loadFile(path.join(__dirname, '../renderer/index.html')).catch((error: unknown) => {
-      console.error('Failed to load built index.html:', error)
+      log.error('Failed to load packaged renderer entry point', error)
     })
   }
+
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    log.error('Renderer navigation failed', {
+      errorCode,
+      errorDescription,
+      isMainFrame,
+      isInternalUrl: validatedURL.startsWith('file:') || validatedURL.startsWith('http://localhost'),
+    })
+  })
+  window.webContents.on('did-finish-load', () => {
+    log.info('Renderer document finished loading', { rendererProcessId: window.webContents.getProcessId() })
+  })
+  window.webContents.on('console-message', (details) => {
+    const level = details.level === 'warning' ? 'warn' : details.level
+    const entry = normalizeApplicationLogEntry({
+      timestamp: new Date().toISOString(),
+      level,
+      message: details.message,
+      context: 'renderer-console',
+      data: {
+        source: classifyRendererConsoleSource(details.sourceId),
+        lineNumber: details.lineNumber,
+      },
+    })
+    if (!entry) return
+
+    const message = `[renderer-console] ${entry.message}`
+    const detail = { rendererTimestamp: entry.timestamp, data: entry.data }
+    switch (entry.level) {
+      case 'debug':
+        log.debug(message, detail)
+        break
+      case 'info':
+        log.info(message, detail)
+        break
+      case 'warn':
+        log.warn(message, detail)
+        break
+      case 'error':
+        log.error(message, detail)
+        break
+    }
+  })
+  window.webContents.on('render-process-gone', (_event, details) => {
+    log.error('Renderer process exited unexpectedly', {
+      reason: details.reason,
+      exitCode: details.exitCode,
+    })
+  })
+  window.webContents.on('unresponsive', () => log.error('Renderer became unresponsive'))
+  window.webContents.on('responsive', () => log.info('Renderer became responsive'))
 
   return window
 }
 
 function registerIpcHandlers(): void {
+  ipcMain.on('app:log', (event, rawEntry: unknown) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return
+    const entry = normalizeApplicationLogEntry(rawEntry)
+    if (!entry) return
+
+    const scope = entry.context ? `[${entry.context}]` : ''
+    const message = `[renderer]${scope} ${entry.message}`
+    const detail = { rendererTimestamp: entry.timestamp, ...(entry.data === undefined ? {} : { data: entry.data }) }
+    switch (entry.level) {
+      case 'debug':
+        log.debug(message, detail)
+        break
+      case 'info':
+        log.info(message, detail)
+        break
+      case 'warn':
+        log.warn(message, detail)
+        break
+      case 'error':
+        log.error(message, detail)
+        break
+    }
+  })
+  ipcMain.handle('app:open-diagnostic-log', async (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Untrusted diagnostic log request.')
+    log.info('User opened the local diagnostic log')
+    const error = await shell.openPath(log.transports.file.getFile().path)
+    if (error) throw new Error(error)
+  })
+  ipcMain.handle('app:export-diagnostic-logs', (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Untrusted diagnostic log request.')
+    const files = log.transports.file.readAllLogs().sort((a, b) => {
+      const aIsArchive = a.path.endsWith('.old.log')
+      const bIsArchive = b.path.endsWith('.old.log')
+      return aIsArchive === bIsArchive ? a.path.localeCompare(b.path) : aIsArchive ? -1 : 1
+    })
+    return files
+      .map(({ path: filePath, lines }) => `===== ${path.basename(filePath)} =====\n${lines.join('\n')}`)
+      .join('\n\n')
+  })
+  ipcMain.handle('app:clear-diagnostic-logs', (event) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Untrusted diagnostic log request.')
+    const fileTransport = log.transports.file
+    const activePath = fileTransport.getFile().path
+    for (const logFile of fileTransport.readAllLogs()) {
+      if (logFile.path === activePath) continue
+      try {
+        unlinkSync(logFile.path)
+      } catch (error: unknown) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      }
+    }
+    fileTransport.getFile().clear()
+    log.info('Local diagnostic log history cleared by the user')
+  })
   ipcMain.handle('app:get-version', () => app.getVersion())
   ipcMain.handle('app:update-capability', () => getUpdateCapability())
   ipcMain.handle('app:ensure-camera-access', async () => {
     if (process.platform !== 'darwin') {
+      log.info('Camera permission check completed', { platform: process.platform, status: 'granted' })
       return { granted: true, status: 'granted' }
     }
 
@@ -406,15 +589,18 @@ function registerIpcHandlers(): void {
       // Triggers the one-time macOS prompt. Without this the scanner can sit on an
       // empty camera list while the system waits to be asked.
       const granted = await systemPreferences.askForMediaAccess('camera')
+      log.info('macOS camera permission prompt completed', { granted })
       return { granted, status: granted ? 'granted' : 'denied' }
     }
 
+    log.info('macOS camera permission checked', { status })
     return { granted: status === 'granted', status }
   })
   ipcMain.handle('app:get-platform', () => process.platform)
   ipcMain.handle('app:ping', () => 'pong')
   ipcMain.handle('app:open-external', async (_event, url: string) => {
     await openExternalUrl(url)
+    log.info('Opened external link', { protocol: new URL(url).protocol, host: new URL(url).host })
     return { ok: true }
   })
   ipcMain.handle('tba:request', async (_event, endpoint: string, apiKey: string) => {
@@ -422,6 +608,7 @@ function registerIpcHandlers(): void {
   })
   ipcMain.handle('check-for-updates', async () => {
     if (!isUpdaterEnabled()) {
+      log.warn('Update check was requested in a build where update checks are disabled')
       return {
         supported: false,
         reason: 'Updates are available only in packaged builds. Run build:mac/build:win/build:linux to test update checks.',
@@ -429,12 +616,14 @@ function registerIpcHandlers(): void {
     }
 
     try {
+      log.info('User requested an update check')
       const result = await autoUpdater.checkForUpdates()
       return {
         supported: true,
         updateInfo: result?.updateInfo ?? null,
       }
     } catch (error: unknown) {
+      log.error('User-requested update check failed', error)
       const message = error instanceof Error ? error.message : 'Failed to check updates.'
       emitUpdateStatus('updater:error', message)
       throw error
@@ -443,13 +632,16 @@ function registerIpcHandlers(): void {
   ipcMain.handle('download-update', async () => {
     const capability = getUpdateCapability()
     if (!capability.canInstall) {
+      log.warn('Update download is unavailable for this build', { reason: capability.reason })
       return { supported: false, reason: capability.reason }
     }
 
     try {
+      log.info('User requested the available update download')
       await autoUpdater.downloadUpdate()
       return { supported: true }
     } catch (error: unknown) {
+      log.error('Update download failed', error)
       const message = error instanceof Error ? error.message : 'Failed to download update.'
       emitUpdateStatus('updater:error', message)
       throw error
@@ -458,9 +650,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle('install-update', () => {
     const capability = getUpdateCapability()
     if (!capability.canInstall) {
+      log.warn('Update installation is unavailable for this build', { reason: capability.reason })
       return { supported: false, reason: capability.reason }
     }
 
+    log.info('User requested installation of the downloaded update')
     autoUpdater.quitAndInstall()
     return { supported: true }
   })
@@ -469,6 +663,7 @@ function registerIpcHandlers(): void {
 
 if (hasSingleInstanceLock) {
   app.on('second-instance', () => {
+    log.info('A second launch request was routed to the existing application window')
     if (!mainWindow) {
       return
     }
@@ -481,6 +676,18 @@ if (hasSingleInstanceLock) {
   })
 
   app.whenReady().then(() => {
+    log.errorHandler.startCatching({ showDialog: false })
+    log.info('Matchbook startup completed', {
+      version: app.getVersion(),
+      platform: process.platform,
+      architecture: process.arch,
+      packaged: app.isPackaged,
+      developmentServer: IS_DEV,
+      electronVersion: process.versions.electron,
+      chromiumVersion: process.versions.chrome,
+      nodeVersion: process.versions.node,
+      updateChecksEnabled: isUpdaterEnabled(),
+    })
     registerIpcHandlers()
     configureApplicationMenu()
     configureAutoUpdater()
@@ -495,21 +702,20 @@ if (hasSingleInstanceLock) {
       if (process.platform === 'darwin') {
         // Recorded for the same reason as the updater line: when a scout says the QR
         // scanner will not open, this says whether macOS refused the camera.
-        console.log(`Camera access: ${systemPreferences.getMediaAccessStatus('camera')}`)
+        log.info('Camera permission status at startup', { status: systemPreferences.getMediaAccessStatus('camera') })
       }
 
       const capability = getUpdateCapability()
-      console.log(
-        `Updater: canCheck=${capability.canCheck} canInstall=${capability.canInstall}` +
-          (capability.reason ? ` reason=${capability.reason}` : ''),
-      )
+      log.info('Update capability evaluated', capability)
 
       suppressUpdaterErrors = true
       void autoUpdater
         .checkForUpdates()
         .catch((error: unknown) => {
           if (!isOfflineUpdateError(error)) {
-            console.warn('Startup update check failed:', error)
+            log.warn('Startup update check failed', error)
+          } else {
+            log.debug('Startup update check could not reach the network; the app will continue offline', error)
           }
         })
         .finally(() => {
@@ -524,18 +730,21 @@ if (hasSingleInstanceLock) {
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
+        log.info('Application reactivated without an open window')
         mainWindow = createMainWindow()
       }
     })
   })
 
   app.on('window-all-closed', () => {
+    log.info('All application windows closed', { platform: process.platform })
     if (process.platform !== 'darwin') {
       app.quit()
     }
   })
 
   app.on('before-quit', () => {
+    log.info('Application shutdown requested')
     void stopSyncServer()
   })
 }

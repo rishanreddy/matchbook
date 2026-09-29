@@ -17,7 +17,9 @@ import { BrowserRouter, HashRouter } from "react-router-dom";
 import { appTheme } from "./theme";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
+import "react-tourlight/styles.css";
 import App from "./App.tsx";
+import { TourlightRouterBridge } from "./components/TourlightRouterBridge";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { setupGlobalErrorHandlers } from "./lib/utils/errorHandler";
 import { setupToastKeyboardDismissal } from "./lib/utils/notify";
@@ -31,22 +33,25 @@ setupToastKeyboardDismissal();
 applyConfiguredSurveyJsLicenseKey();
 
 const isElectronRuntime = typeof window !== "undefined" && window.electronAPI;
-
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={appTheme} defaultColorScheme="dark">
       <Notifications aria-live="polite" position="bottom-right" limit={3} autoClose={4500} containerWidth={380} />
       {isElectronRuntime ? (
         <HashRouter>
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
+          <TourlightRouterBridge>
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
+          </TourlightRouterBridge>
         </HashRouter>
       ) : (
         <BrowserRouter>
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
+          <TourlightRouterBridge>
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
+          </TourlightRouterBridge>
         </BrowserRouter>
       )}
     </MantineProvider>

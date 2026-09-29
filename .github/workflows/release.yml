@@ -41,8 +41,8 @@ jobs:
       - name: Run release gates
         run: pnpm verify:production
 
-      - name: Launch the built Electron app
-        run: xvfb-run --auto-servernum pnpm smoke:electron
+      - name: Test the built Electron app
+        run: xvfb-run --auto-servernum pnpm test:e2e
 
   create-draft-release:
     needs: verify-release

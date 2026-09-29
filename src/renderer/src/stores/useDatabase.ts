@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createStoreHook } from './createStoreHook'
 import { initializeDatabase } from '../lib/db/database'
 import type { ScoutingDatabase } from '../lib/db/collections'
 import { handleError } from '../lib/utils/errorHandler'
@@ -14,7 +14,7 @@ interface DatabaseState {
   setError: (message: string) => void
 }
 
-export const useDatabaseStore = create<DatabaseState>((set, get) => ({
+export const useDatabaseStore = createStoreHook<DatabaseState>((set, get) => ({
   db: null,
   isLoading: false,
   isInitialized: false,
@@ -27,11 +27,16 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
 
     logger.info('Database initialization started')
     set({ isLoading: true, error: null })
+    const startedAt = Date.now()
     try {
       const db = await initializeDatabase()
-      logger.info('Database initialization completed')
+      logger.info('Database initialization completed', {
+        elapsedMs: Date.now() - startedAt,
+        collectionCount: Object.keys(db.collections).length,
+      }, 'database')
       set({ db, isLoading: false, isInitialized: true })
     } catch (error: unknown) {
+      logger.error('Database initialization failed in the application store', error, 'database')
       handleError(error, 'Database initialization')
       set({
         isLoading: false,

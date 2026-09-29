@@ -6,6 +6,7 @@ import type { DiscoveredHub } from '../../../../shared/electron'
 import { StepList } from '../../components/StepList'
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { handleError } from '../../lib/utils/errorHandler'
+import { logger } from '../../lib/utils/logger'
 import { PairingScanner } from './PairingScanner'
 import { SyncCard } from './SyncCard'
 import { describeTransfer, importTransfer, summarizeImport } from './syncData'
@@ -116,6 +117,10 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
       kind: 'success',
       message: `Paired with ${pairing.name || 'the lead scout’s laptop'}. Press Send my entries.`,
     })
+    logger.info('Scout paired with a lead scout over Wi-Fi', {
+      host: safeHost(pairing.url),
+      deviceNameProvided: Boolean(pairing.name),
+    }, 'sync.wifi.scout')
   }, [])
 
   const explain = (error: unknown, context: string): void => {
@@ -133,9 +138,19 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
 
     setBusy('send')
     setOutcome(null)
+    const startedAt = Date.now()
+    logger.info('Wi-Fi scouting upload started', {
+      host: safeHost(url),
+      entryCount,
+    }, 'sync.wifi.scout')
     try {
       const sent = await uploadScoutingData(db, { url, token })
       recordLastSent({ at: new Date().toISOString(), entries: sent.entries, method: 'wifi' })
+      logger.info('Wi-Fi scouting upload completed', {
+        host: safeHost(url),
+        sentEntries: sent.entries,
+        elapsedMs: Date.now() - startedAt,
+      }, 'sync.wifi.scout')
       setOutcome({
         kind: 'success',
         message:
@@ -144,6 +159,11 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
             : `Sent ${sent.entries.toLocaleString()} ${sent.entries === 1 ? 'entry' : 'entries'} to the lead scout at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`,
       })
     } catch (error: unknown) {
+      logger.error('Wi-Fi scouting upload failed', {
+        host: safeHost(url),
+        elapsedMs: Date.now() - startedAt,
+        error,
+      }, 'sync.wifi.scout')
       explain(error, 'Send over Wi-Fi')
     } finally {
       setBusy(null)
@@ -157,17 +177,34 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
 
     setBusy('setup')
     setOutcome(null)
+    const startedAt = Date.now()
+    logger.info('Wi-Fi scouting setup request started', { host: safeHost(url) }, 'sync.wifi.scout')
     try {
       const document = await fetchHubSetup({ url, token })
       const description = describeTransfer(document)
       if (description === 'nothing to add') {
+        logger.warn('Lead scout returned an empty Wi-Fi setup document', { elapsedMs: Date.now() - startedAt }, 'sync.wifi.scout')
         setOutcome({ kind: 'error', message: 'The lead scout has not created a scouting form yet. Ask them to set it up in Form Builder.' })
         return
       }
 
       const result = await importTransfer(db, document)
+      logger.info('Wi-Fi scouting setup request completed', {
+        host: safeHost(url),
+        collections: document.tasks.map(({ collection, rows }) => ({ collection, rowCount: rows.length })),
+        inserted: result.inserted,
+        updated: result.updated,
+        duplicates: result.duplicates,
+        errors: result.errors,
+        elapsedMs: Date.now() - startedAt,
+      }, 'sync.wifi.scout')
       setOutcome({ kind: 'success', message: `Got ${description} from the lead scout. ${summarizeImport(result)}` })
     } catch (error: unknown) {
+      logger.error('Wi-Fi scouting setup request failed', {
+        host: safeHost(url),
+        elapsedMs: Date.now() - startedAt,
+        error,
+      }, 'sync.wifi.scout')
       explain(error, 'Get setup over Wi-Fi')
     } finally {
       setBusy(null)
@@ -232,7 +269,7 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
           placeholder="ABCD2345"
           maxLength={8}
           autoComplete="off"
-          styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', letterSpacing: '0.12em' } }}
+          styles={{ input: { fontFamily: 'var(--fontFamilyMonospace)', letterSpacing: '0.12em' } }}
         />
 
         {savedButNotFound && !showManual && (
@@ -301,4 +338,12 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
       <PairingScanner opened={scanning} onClose={() => setScanning(false)} onPaired={applyPairing} />
     </SimpleGrid>
   )
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return 'invalid-address'
+  }
 }

@@ -1,7 +1,8 @@
-import { create } from 'zustand'
+import { createStoreHook } from './createStoreHook'
 import type { HubIdentity, SyncServerStatus } from '../../../shared/electron'
 import { isValidSyncToken } from '../../../shared/syncProtocol'
 import { createSyncToken, normalizeSyncToken } from '../features/sync/token'
+import { logger } from '../lib/utils/logger'
 
 const TOKEN_KEY = 'sync_server_auth_token'
 const PORT_KEY = 'sync_server_port'
@@ -67,7 +68,7 @@ type WifiHubState = {
   setSharedSummary: (summary: string | null) => void
 }
 
-export const useWifiHub = create<WifiHubState>((set, get) => ({
+export const useWifiHub = createStoreHook<WifiHubState>((set, get) => ({
   status: null,
   token: initialToken(),
   port: initialPort(),
@@ -97,15 +98,29 @@ export const useWifiHub = create<WifiHubState>((set, get) => ({
 
     const { token, port } = get()
     set({ isStarting: true, error: null })
+    const startedAt = Date.now()
+    logger.info('Wi-Fi sync receiver start requested', {
+      port,
+      identityConfigured: Boolean(identity.id && identity.name),
+    }, 'sync.wifi.hub')
     try {
       write(TOKEN_KEY, token)
       write(PORT_KEY, String(port))
       const status = await api.startSyncServer(port, token, identity)
       write(RECEIVING_KEY, 'true')
       set({ status, isStarting: false })
+      logger.info('Wi-Fi sync receiver started', {
+        port: status.port,
+        addressCount: status.urls.length,
+        queuedPayloads: status.queueLength,
+        quarantinedPayloads: status.failedQueueLength,
+        elapsedMs: Date.now() - startedAt,
+      }, 'sync.wifi.hub')
       return true
     } catch (error: unknown) {
-      set({ isStarting: false, error: explainStartFailure(error, port) })
+      const message = explainStartFailure(error, port)
+      set({ isStarting: false, error: message })
+      logger.error('Wi-Fi sync receiver failed to start', { port, elapsedMs: Date.now() - startedAt, error }, 'sync.wifi.hub')
       return false
     }
   },
@@ -117,10 +132,15 @@ export const useWifiHub = create<WifiHubState>((set, get) => ({
     }
 
     write(RECEIVING_KEY, 'false')
+    const startedAt = Date.now()
+    logger.info('Wi-Fi sync receiver stop requested', { wasRunning: get().status?.running ?? false }, 'sync.wifi.hub')
     try {
-      set({ status: await api.stopSyncServer(), error: null })
+      const status = await api.stopSyncServer()
+      set({ status, error: null })
+      logger.info('Wi-Fi sync receiver stopped', { elapsedMs: Date.now() - startedAt }, 'sync.wifi.hub')
     } catch (error: unknown) {
       set({ error: error instanceof Error ? error.message : 'Receiving could not be stopped.' })
+      logger.error('Wi-Fi sync receiver failed to stop', { elapsedMs: Date.now() - startedAt, error }, 'sync.wifi.hub')
     }
   },
 
@@ -131,6 +151,7 @@ export const useWifiHub = create<WifiHubState>((set, get) => ({
     const token = createSyncToken()
     write(TOKEN_KEY, token)
     set({ token })
+    logger.info('Wi-Fi sync authentication code renewed', {}, 'sync.wifi.hub')
   },
 
   setPort: (port) => {

@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
+import log from 'electron-log/main'
 import { isValidSyncPayload, isValidSyncToken, type SyncPayload } from '../shared/syncProtocol'
 import { HubBeacon, HubListener, type HubIdentity } from './discovery'
 
@@ -42,6 +43,8 @@ const failedPayloadQueue: FailedSyncPayload[] = []
 let isQueueLoaded = false
 let persistenceChain: Promise<void> = Promise.resolve()
 let pendingPayloadBytes = 0
+let unauthorizedRequestWindowStartedAt = Date.now()
+let unauthorizedRequestsInWindow = 0
 
 function getQueueFilePath(): string {
   return path.join(app.getPath('userData'), 'sync-payload-queue.json')
@@ -127,6 +130,27 @@ async function ensureQueueLoaded(): Promise<void> {
 
   pendingPayloadBytes = getPendingPayloads().reduce((total, payload) => total + getSerializedPayloadSize(payload), 0)
   isQueueLoaded = true
+  log.info('Persisted sync queues loaded', {
+    queuedPayloads: payloadQueue.length,
+    quarantinedPayloads: failedPayloadQueue.length,
+    pendingPayloadBytes,
+  })
+}
+
+function logRejectedSyncRequest(urlPath: string): void {
+  const now = Date.now()
+  if (now - unauthorizedRequestWindowStartedAt >= 60_000) {
+    unauthorizedRequestWindowStartedAt = now
+    unauthorizedRequestsInWindow = 0
+  }
+
+  unauthorizedRequestsInWindow += 1
+  if (unauthorizedRequestsInWindow <= 3 || unauthorizedRequestsInWindow % 25 === 0) {
+    log.warn('Rejected network sync request because its token did not match', {
+      path: urlPath,
+      rejectedCountInCurrentMinute: unauthorizedRequestsInWindow,
+    })
+  }
 }
 
 async function readJsonFile(filePath: string): Promise<unknown | null> {
@@ -324,9 +348,17 @@ export async function startSyncServer(port?: number, authToken?: string, identit
 
     // Parse URL path (strip query params)
     const urlPath = request.url.split('?')[0]
-    if (!app.isPackaged) {
-      console.log(`[Sync Server] ${request.method} ${urlPath}`)
-    }
+    const requestStartedAt = Date.now()
+    const requestMethod = request.method
+    log.debug('Network sync request received', { method: requestMethod, path: urlPath })
+    response.on('finish', () => {
+      log.debug('Network sync request completed', {
+        method: requestMethod,
+        path: urlPath,
+        statusCode: response.statusCode,
+        elapsedMs: Date.now() - requestStartedAt,
+      })
+    })
 
     if (request.method === 'OPTIONS') {
       response.writeHead(204)
@@ -337,6 +369,7 @@ export async function startSyncServer(port?: number, authToken?: string, identit
     const incomingTokenHeader = request.headers['x-sync-token']
     const incomingToken = Array.isArray(incomingTokenHeader) ? incomingTokenHeader[0] : incomingTokenHeader
     if (incomingToken !== serverAuthToken) {
+      logRejectedSyncRequest(urlPath)
       sendJson(response, 401, { ok: false, error: 'Invalid sync token.' })
       return
     }
@@ -357,11 +390,13 @@ export async function startSyncServer(port?: number, authToken?: string, identit
       void readJsonBody(request)
         .then(async (body) => {
           if (!isValidSyncPayload(body)) {
+            log.warn('Rejected sync upload because its document did not match the protocol')
             sendJson(response, 400, { ok: false, error: 'Invalid sync payload.' })
             return
           }
 
           if (body.collection !== 'scoutingData') {
+            log.warn('Rejected network sync upload for a configuration collection', { collection: body.collection })
             sendJson(response, 422, {
               ok: false,
               error: 'Network hub uploads accept scouting data only. Transfer forms and configuration with QR or database snapshots.',
@@ -371,6 +406,11 @@ export async function startSyncServer(port?: number, authToken?: string, identit
 
           await ensureQueueLoaded()
           if (!hasQueueCapacityFor(body)) {
+            log.warn('Sync upload queue is full; upload was not accepted', {
+              queueLength: payloadQueue.length,
+              pendingPayloadBytes,
+              uploadBytes: getSerializedPayloadSize(body),
+            })
             sendJson(response, 507, {
               ok: false,
               error: 'Hub sync queue is full. Ask the hub operator to process or clear queued payloads before retrying.',
@@ -381,11 +421,19 @@ export async function startSyncServer(port?: number, authToken?: string, identit
           pendingPayloadBytes += getSerializedPayloadSize(body)
           await schedulePersistence({ queue: true })
           sendJson(response, 200, { ok: true, queueLength: payloadQueue.length })
+          log.info('Sync upload accepted and persisted', {
+            collection: body.collection,
+            observationCount: body.data.length,
+            payloadBytes: getSerializedPayloadSize(body),
+            queueLength: payloadQueue.length,
+            pendingPayloadBytes,
+          })
           announcePayloadReceived()
         })
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : 'Upload failed.'
           const statusCode = error instanceof HttpRequestError ? error.statusCode : 400
+          log.warn('Sync upload failed before it could be queued', { statusCode, error })
           if (!response.writableEnded) {
             sendJson(response, statusCode, { ok: false, error: message })
           }
@@ -395,6 +443,7 @@ export async function startSyncServer(port?: number, authToken?: string, identit
 
     if (request.method === 'GET' && urlPath === '/config') {
       if (!publishedConfig) {
+        log.info('Sync configuration requested before the Hub has published setup')
         sendJson(response, 404, {
           ok: false,
           error: 'The lead scout has not shared a scouting form yet. Ask them to open Sync Data on their laptop.',
@@ -407,6 +456,7 @@ export async function startSyncServer(port?: number, authToken?: string, identit
       setCorsHeaders(response)
       response.writeHead(200, { 'Content-Type': 'application/json' })
       response.end(`{"ok":true,"publishedAt":${JSON.stringify(publishedConfig.publishedAt)},"document":${publishedConfig.json}}`)
+      log.info('Published sync configuration was served', { configBytes: Buffer.byteLength(publishedConfig.json, 'utf8') })
       return
     }
 
@@ -436,6 +486,7 @@ export async function startSyncServer(port?: number, authToken?: string, identit
       activeServer.listen(resolvedPort, '0.0.0.0')
     })
   } catch (error) {
+    log.error('Network sync server failed to start', { port: resolvedPort, error })
     if (server) {
       try {
         server.close()
@@ -451,12 +502,21 @@ export async function startSyncServer(port?: number, authToken?: string, identit
   }
 
   server.on('error', (error) => {
-    console.error('Network sync server error:', error)
+    log.error('Network sync server error:', error)
   })
 
   if (serverIdentity) {
     hubBeacon.start(serverIdentity, resolvedPort)
   }
+
+  log.info('Network sync server started', {
+    port: resolvedPort,
+    bindAddress: '0.0.0.0',
+    authenticationRequired: true,
+    identityConfigured: Boolean(serverIdentity),
+    queueLength: payloadQueue.length,
+    quarantinedPayloads: failedPayloadQueue.length,
+  })
 
   return getStatus()
 }
@@ -467,6 +527,11 @@ export async function stopSyncServer(): Promise<SyncServerStatus> {
   if (!server) {
     return getStatus()
   }
+
+  log.info('Stopping network sync server', {
+    queueLength: payloadQueue.length,
+    quarantinedPayloads: failedPayloadQueue.length,
+  })
 
   await new Promise<void>((resolve, reject) => {
     server?.close((error) => {
@@ -482,6 +547,7 @@ export async function stopSyncServer(): Promise<SyncServerStatus> {
   currentPort = null
   serverAuthToken = null
   serverIdentity = null
+  log.info('Network sync server stopped')
   return getStatus()
 }
 
@@ -493,6 +559,7 @@ export function publishSyncConfig(json: unknown): void {
 
   JSON.parse(json)
   publishedConfig = { json, publishedAt: new Date().toISOString() }
+  log.info('Shared scouting configuration updated', { configBytes: Buffer.byteLength(json, 'utf8') })
 }
 
 export async function consumeSyncPayloads(): Promise<SyncPayload[]> {
@@ -504,6 +571,11 @@ export async function consumeSyncPayloads(): Promise<SyncPayload[]> {
     pendingPayloadBytes - consumed.reduce((total, payload) => total + getSerializedPayloadSize(payload), 0),
   )
   await schedulePersistence({ queue: true })
+  log.info('Queued sync payloads handed to the renderer', {
+    payloadCount: consumed.length,
+    observationCount: consumed.reduce((total, payload) => total + payload.data.length, 0),
+    pendingPayloadsAfterConsume: payloadQueue.length,
+  })
   return consumed
 }
 
@@ -522,6 +594,11 @@ export async function ackSyncPayloads(count: number): Promise<SyncServerStatus> 
       pendingPayloadBytes - acknowledged.reduce((total, payload) => total + getSerializedPayloadSize(payload), 0),
     )
     await schedulePersistence({ queue: true })
+    log.info('Sync queue payloads acknowledged by the renderer', {
+      acknowledgedPayloads: acknowledged.length,
+      queueLength: payloadQueue.length,
+      pendingPayloadBytes,
+    })
   }
   return getStatus()
 }
@@ -536,6 +613,9 @@ export async function quarantineHeadPayload(reason: string): Promise<SyncServerS
       quarantinedAt: new Date().toISOString(),
     })
     await schedulePersistence({ queue: true, failed: true })
+    log.warn('Sync payload moved to quarantine', { reason, quarantinedPayloads: failedPayloadQueue.length })
+  } else {
+    log.warn('Requested sync quarantine, but the queue was empty')
   }
 
   return getStatus()
@@ -555,6 +635,10 @@ export async function retryFailedSyncPayloads(): Promise<SyncServerStatus> {
   const retriedPayloads = failedPayloadQueue.splice(0, failedPayloadQueue.length).map((entry) => entry.payload)
   payloadQueue.unshift(...retriedPayloads)
   await schedulePersistence({ queue: true, failed: true })
+  log.info('Quarantined sync payloads returned to the retry queue', {
+    retriedPayloads: retriedPayloads.length,
+    queueLength: payloadQueue.length,
+  })
   return getStatus()
 }
 
@@ -568,8 +652,10 @@ export async function clearFailedSyncPayloads(): Promise<SyncServerStatus> {
     0,
     pendingPayloadBytes - failedPayloadQueue.reduce((total, entry) => total + getSerializedPayloadSize(entry.payload), 0),
   )
+  const clearedCount = failedPayloadQueue.length
   failedPayloadQueue.length = 0
   await schedulePersistence({ failed: true })
+  log.warn('Quarantined sync payloads cleared', { clearedPayloads: clearedCount })
   return getStatus()
 }
 

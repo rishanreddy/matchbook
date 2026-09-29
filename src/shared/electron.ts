@@ -1,5 +1,7 @@
 export type { SyncCollection, SyncPayload } from './syncProtocol'
 import type { SyncPayload } from './syncProtocol'
+import type { ApplicationLogEntry } from './logging'
+export type { ApplicationLogEntry } from './logging'
 
 export type SyncServerStatus = {
   running: boolean
@@ -88,6 +90,10 @@ export interface ElectronAPI {
   onUpdaterError: (callback: (message: string) => void) => () => void
   onOpenAbout: (callback: () => void) => () => void
   onShowShortcuts: (callback: () => void) => () => void
+  writeLog: (entry: ApplicationLogEntry) => void
+  openDiagnosticLog: () => Promise<void>
+  exportDiagnosticLogs: () => Promise<string>
+  clearDiagnosticLogs: () => Promise<void>
   startSyncServer: (port?: number, authToken?: string, identity?: HubIdentity) => Promise<SyncServerStatus>
   /** Hands the hub's current form, event and schedule to the server so scouts can fetch them. */
   publishSyncConfig: (json: string) => Promise<void>

@@ -1,7 +1,7 @@
 {
   "name": "matchbook",
   "private": false,
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Matchbook: offline-first FRC scouting and sync platform",
   "author": "Rishan Reddy",
   "license": "MIT",
@@ -36,6 +36,7 @@
     "build:linux": "pnpm clean:release && pnpm build && electron-builder --linux --publish never",
     "test": "vitest run",
     "smoke:electron": "node scripts/smoke-electron.mjs",
+    "test:e2e": "node scripts/e2e-electron.mjs",
     "electron:dist": "pnpm build:unpack",
     "electron:dist:win": "pnpm build:win",
     "electron:dist:mac": "pnpm build:mac",
@@ -49,7 +50,17 @@
     "docs:check": "node scripts/sync-readme.mjs --check && node scripts/sync-guide-docs.mjs --check"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "@floating-ui/react-dom": "^2.1.9",
+    "@tabler/icons-react": "^3.48.0",
+    "@tanstack/charts": "0.18.0",
+    "@tanstack/react-hotkeys": "^0.9.1",
+    "@tanstack/react-store": "0.11.2",
+    "@tanstack/react-table": "^9.2.4",
+    "@tanstack/react-virtual": "^3.14.13",
+    "@tanstack/store": "0.11.2",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
+    "react-tourlight": "^0.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
@@ -59,17 +70,13 @@
     "@mantine/form": "^8.3.18",
     "@mantine/hooks": "^8.3.18",
     "@mantine/notifications": "^8.3.18",
-    "@tabler/icons-react": "^3.41.0",
-    "@tanstack/react-hotkeys": "^0.9.1",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.12.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/uuid": "^11.0.0",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.27",
-    "axios": "^1.20.0",
     "dexie": "^4.4.1",
     "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
@@ -92,7 +99,6 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.18.4",
-    "recharts": "^3.8.1",
     "rxdb": "^16.21.1",
     "rxjs": "^7.8.2",
     "survey-core": "^2.5.17",
@@ -103,10 +109,8 @@
     "tba-api-v3client": "^3.3.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
-    "uuid": "^13.0.1",
     "vite": "^7.2.0",
-    "vitest": "^5.0.1",
-    "zustand": "^5.0.12"
+    "vitest": "^5.0.1"
   },
   "pnpm": {
     "overrides": {

@@ -33,6 +33,10 @@ async function drainOnce(db: ScoutingDatabase): Promise<DrainResult> {
   }
 
   const incoming = await api.peekSyncPayloads()
+  const startedAt = Date.now()
+  if (incoming.length > 0) {
+    logger.info('Hub began processing Wi-Fi sync uploads', { queuedPayloads: incoming.length }, 'sync.wifi.hub')
+  }
   const results: ImportResult[] = []
   let payloads = 0
   let quarantined = 0
@@ -60,7 +64,21 @@ async function drainOnce(db: ScoutingDatabase): Promise<DrainResult> {
     }
   }
 
-  return { payloads, quarantined, result: mergeImportResults(results) }
+  const combinedResult = mergeImportResults(results)
+  if (incoming.length > 0) {
+    logger.info('Hub finished processing Wi-Fi sync uploads', {
+      queuedPayloads: incoming.length,
+      acknowledgedPayloads: payloads,
+      quarantinedPayloads: quarantined,
+      inserted: combinedResult.inserted,
+      updated: combinedResult.updated,
+      duplicates: combinedResult.duplicates,
+      errors: combinedResult.errors,
+      elapsedMs: Date.now() - startedAt,
+    }, 'sync.wifi.hub')
+  }
+
+  return { payloads, quarantined, result: combinedResult }
 }
 
 /**

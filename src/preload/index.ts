@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   CameraAccess,
+  ApplicationLogEntry,
   DiscoveredHub,
   ElectronAPI,
   FailedSyncPayload,
@@ -66,6 +67,10 @@ const electronApi: ElectronAPI = {
     ipcRenderer.on('app:show-shortcuts', listener)
     return () => ipcRenderer.removeListener('app:show-shortcuts', listener)
   },
+  writeLog: (entry: ApplicationLogEntry): void => ipcRenderer.send('app:log', entry),
+  openDiagnosticLog: (): Promise<void> => ipcRenderer.invoke('app:open-diagnostic-log'),
+  exportDiagnosticLogs: (): Promise<string> => ipcRenderer.invoke('app:export-diagnostic-logs'),
+  clearDiagnosticLogs: (): Promise<void> => ipcRenderer.invoke('app:clear-diagnostic-logs'),
   startSyncServer: (port?: number, authToken?: string, identity?: HubIdentity): Promise<SyncServerStatus> =>
     ipcRenderer.invoke('sync-server:start', port, authToken, identity),
   publishSyncConfig: (json: string): Promise<void> => ipcRenderer.invoke('sync-server:publish-config', json),

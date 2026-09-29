@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/qrTransfer'
 import { StepList } from '../../components/StepList'
 import type { ScoutingDatabase } from '../../lib/db/collections'
+import { logger } from '../../lib/utils/logger'
 import { QrReceivePanel } from './QrReceivePanel'
 import { QrSendOverlay } from './QrSendOverlay'
 import { SyncCard } from './SyncCard'
@@ -72,8 +73,10 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
     let cancelled = false
 
     const run = async (): Promise<void> => {
+      const startedAt = Date.now()
       setIsPreparing(true)
       setProblem(null)
+      logger.debug('QR transfer preparation started', { transferType: what, density }, 'sync.qr.send')
       try {
         const next = await prepareTransfer(db, what)
         const encoded = next.isEmpty ? null : await encodeQrTransfer(next.json, { density })
@@ -82,6 +85,15 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
         }
         setPrepared(next)
         setTransfer(encoded)
+        logger.info('QR transfer prepared', {
+          transferType: what,
+          recordCount: next.entries,
+          isEmpty: next.isEmpty,
+          serializedBytes: new TextEncoder().encode(next.json).byteLength,
+          frameCount: encoded?.frames.length ?? 0,
+          density,
+          elapsedMs: Date.now() - startedAt,
+        }, 'sync.qr.send')
       } catch (error: unknown) {
         if (cancelled || request !== latestRequest.current) {
           return
@@ -95,6 +107,12 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
               ? error.message
               : 'Could not get that ready.',
         )
+        logger.error('QR transfer preparation failed', {
+          transferType: what,
+          density,
+          elapsedMs: Date.now() - startedAt,
+          error,
+        }, 'sync.qr.send')
       } finally {
         if (!cancelled && request === latestRequest.current) {
           setIsPreparing(false)
@@ -151,6 +169,12 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
             onClick={() => {
               setConfirmSent(false)
               setShowing(true)
+              logger.info('QR sender display opened', {
+                frameCount,
+                transferType: what,
+                density,
+                setupDelayMs: 5_000,
+              }, 'sync.qr.send')
             }}
             disabled={!transfer || isPreparing}
             loading={isPreparing}
@@ -193,11 +217,15 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
           steps={[
             {
               title: 'On the laptop that is sending, press Show QR codes',
-              detail: 'It fills the screen with a code that changes every moment. Turn the screen brightness up.',
+              detail: 'A still code and a camera alignment guide appear first. Turn the screen brightness up.',
             },
             {
-              title: 'On the other laptop, open Sync Data, QR codes, and press Start camera',
-              detail: 'Hold its camera facing the sending screen, about a hand’s width away. Keep both laptops still.',
+              title: 'On the other laptop, open QR codes and press Start camera',
+              detail: 'Aim its camera at the sending screen, about a hand’s width away, with the whole code in view.',
+            },
+            {
+              title: 'Line up the camera, then keep the screen open',
+              detail: 'The first code stays still for five seconds. Matchbook then rotates the codes automatically and repeats them until the transfer is received.',
             },
             {
               title: 'Wait for “Everything arrived”, then press Add to this laptop',

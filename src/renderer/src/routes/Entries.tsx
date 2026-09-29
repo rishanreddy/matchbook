@@ -178,7 +178,7 @@ export function Entries(): ReactElement {
             : 'Removing an entry also queues a deletion for your next data sync. Send data after correcting an entry.'}
         </Alert>
 
-        <Card p="lg" radius="lg" className="surface-card">
+        <Card p="lg" radius="lg" className="surface-card" data-tour="entries-filter">
           <Group justify="space-between" align="end" wrap="wrap">
             <Box>
               <Text fw={600} c="slate.1">

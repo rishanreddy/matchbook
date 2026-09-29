@@ -64,7 +64,7 @@ export function PairingScanner({ opened, onClose, onPaired }: PairingScannerProp
 
   return (
     <Modal opened={opened} onClose={onClose} title="Scan the lead scout’s code" size="lg">
-      <div className="qr-preview" style={{ marginBottom: 'var(--mantine-spacing-md)' }}>
+      <div className="qr-preview" style={{ marginBottom: '16px' }}>
         <video ref={videoRef} muted playsInline aria-label="Camera view" />
       </div>
 
