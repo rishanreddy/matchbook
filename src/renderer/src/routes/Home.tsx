@@ -14,6 +14,8 @@ import {
 } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import {
+  IconBook,
+  IconCheck,
   IconClipboardCheck,
   IconChartBar,
   IconCloudUpload,
@@ -28,6 +30,8 @@ import type { ScoutingDataDocument } from '../lib/db/collections'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
 import { formatDateRange } from '../lib/utils/dates'
 import { RouteHelpModal } from '../components/RouteHelpModal'
+import { HubWifiSummary } from '../features/sync/HubWifiSummary'
+import { describeMethod, useLastSent } from '../features/sync/lastSent'
 import { handleError } from '../lib/utils/errorHandler'
 import { brand } from '../config/brand'
 
@@ -39,6 +43,8 @@ export function Home(): ReactElement {
   const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
   const [observationCount, setObservationCount] = useState(0)
   const [teamCount, setTeamCount] = useState(0)
+  const [entryTimes, setEntryTimes] = useState<string[]>([])
+  const lastSent = useLastSent()
   const [events, setEvents] = useState<EventDocType[]>([])
   const [hasActiveForm, setHasActiveForm] = useState(false)
 
@@ -87,6 +93,7 @@ export function Home(): ReactElement {
     const subscription = db.collections.scoutingData.find().$.subscribe((docs) => {
       const observations = docs as ScoutingDataDocument[]
       setObservationCount(observations.length)
+      setEntryTimes(observations.map((d) => String(d.get('createdAt') ?? '')))
       const uniqueTeams = new Set(observations.map((d) => d.get('teamNumber')))
       setTeamCount(uniqueTeams.size)
     })
@@ -95,18 +102,20 @@ export function Home(): ReactElement {
   }, [db])
 
   const currentEvent = events.find((e) => e.id === currentEventId)
+  // Entries made after the last successful send are the ones the lead scout does not have.
+  const unsentCount = lastSent ? entryTimes.filter((createdAt) => createdAt > lastSent.at).length : entryTimes.length
 
   if (isHub) {
     // Hub view - shows stats and quick actions
     return (
-      <Box className="container-wide" py="xl">
+      <Box className="container-wide">
         <Stack gap={40}>
           {/* Header with integrated event selector */}
           <Stack gap={24} className="animate-fadeInUp">
             <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
               <Box>
                 <Title order={1} c="slate.0" className="text-[32px] font-bold">
-                  {brand.name} Hub
+                  {brand.name} Lead Scout
                 </Title>
                 <Text size="md" c="slate.4" mt="xs">
                   Collect match data from your scout laptops and rank teams for alliance selection.
@@ -114,7 +123,7 @@ export function Home(): ReactElement {
               </Box>
 
               <RouteHelpModal
-                title="Hub Home"
+                title="Lead scout home"
                 description="This dashboard is your command center for sync, forms, and analysis."
                 steps={[
                   { title: 'Select Event', description: 'Set the active event for schedules and assignments.' },
@@ -125,7 +134,7 @@ export function Home(): ReactElement {
                   { text: 'Sync frequently between matches to keep analysis up to date.' },
                   { text: 'Keep active event accurate each day of competition.' },
                 ]}
-                tooltipLabel="Hub dashboard help"
+                tooltipLabel="What to do here"
                 color="frc-blue"
               />
             </Group>
@@ -225,6 +234,8 @@ export function Home(): ReactElement {
             </Box>
           </Stack>
 
+          <HubWifiSummary />
+
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg" className="animate-fadeInUp stagger-1">
             <Card p="xl" radius="lg" className="surface-card">
               <Group justify="space-between" align="flex-start" wrap="nowrap">
@@ -238,7 +249,7 @@ export function Home(): ReactElement {
                   <Text size="xs" c="slate.4" mt={6}>
                     {observationCount === 0
                       ? 'Nothing recorded yet. Scout data lands here once devices sync.'
-                      : 'Collected on this hub.'}
+                      : 'Collected on this laptop.'}
                   </Text>
                 </Box>
                 <ThemeIcon size={44} radius="md" variant="light" color="slate">
@@ -277,7 +288,7 @@ export function Home(): ReactElement {
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
               <Button
                 component={Link}
-                to="/sync"
+                to="/sync?tab=wifi"
                 size="md"
                 leftSection={<IconCloudUpload size={18} />}
               >
@@ -320,147 +331,140 @@ export function Home(): ReactElement {
     )
   }
 
-  // Scout view - simple "Scout a Match" button
+  // Scout view: one clear next step, and a plain answer to "did my scouting get to the lead scout?"
   return (
-    <Box className="container-wide" py="xl">
-      <Stack gap={48} align="center" justify="center" className="min-h-[60vh]">
-        {/* Hero section with integrated event selector */}
-        <Stack gap={32} align="center" className="animate-fadeInUp">
-          <Group justify="space-between" align="flex-start" w="100%" maw={640}>
-            <Box ta="center" style={{ flex: 1 }}>
-              <ThemeIcon 
-                size={96} 
-                radius="xl" 
-                variant="light"
-                color="slate"
-                mb="xl"
-              >
-                <IconClipboardCheck size={48} />
-              </ThemeIcon>
-              <Title order={1} c="slate.0" className="text-4xl font-bold">
-                {brand.name} Scout Mode
-              </Title>
-              <Text size="lg" c="slate.4" mt="md" maw={480} mx="auto">
-                Watch a match, record what you see, then send your data to the lead scout
+    <Box className="container-wide">
+      <Stack gap="lg" maw={680} mx="auto">
+        <Group justify="space-between" align="flex-start" wrap="nowrap" className="animate-fadeInUp">
+          <Box>
+            <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+              {brand.name} Scout Mode
+            </Title>
+            <Text size="sm" c="slate.3" mt={4}>
+              Watch a match, record what you see, then send it to the lead scout.
+            </Text>
+          </Box>
+
+          <RouteHelpModal
+            title="Scout home"
+            description="This screen always shows the next thing to do."
+            steps={[
+              { title: 'Get the form', description: 'The lead scout gives it to you once, over Wi-Fi or with QR codes.' },
+              { title: 'Scout a match', description: 'Pick the match and team, then answer the questions as it happens.' },
+              { title: 'Send your scouting', description: 'After a few matches, send your entries to the lead scout.' },
+            ]}
+            tips={[
+              { text: 'Everything you record is saved on this laptop straight away, even with no Wi-Fi.' },
+              { text: 'Sending the same entries twice is safe.' },
+            ]}
+            tooltipLabel="What to do here"
+            color="frc-blue"
+          />
+        </Group>
+
+        <Box className="home-next-step animate-fadeInUp stagger-1">
+          <Group gap="md" wrap="nowrap" align="flex-start">
+            <ThemeIcon size={44} radius="md" variant="default">
+              {hasActiveForm ? <IconClipboardCheck size={22} /> : <IconFileDownload size={22} />}
+            </ThemeIcon>
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Text fw={600} c="slate.0" size="lg">
+                {hasActiveForm ? 'Scout a match' : 'First, get the scouting form'}
+              </Text>
+              <Text size="sm" c="slate.3" mt={2}>
+                {hasActiveForm
+                  ? 'Pick the match and the team, then answer the questions as it happens.'
+                  : 'The lead scout has it. You get it once, over Wi-Fi or by scanning their QR codes.'}
               </Text>
             </Box>
-
-            <RouteHelpModal
-              title="Scout Home"
-              description="This view is optimized for fast match capture workflows."
-              steps={[
-                { title: 'Confirm Event', description: 'Choose active event for schedule-aware scouting.' },
-                { title: 'Open Scout Form', description: 'Tap Scout a Match and record one robot at a time.' },
-                { title: 'Send Data', description: 'Sync observations back to the Hub regularly.' },
-              ]}
-              tips={[
-                { text: 'If schedule data is missing, manual team and match entry still works.' },
-                { text: 'Sync between matches to reduce end-of-day backlog.' },
-              ]}
-              tooltipLabel="Scout mode help"
-              color="frc-blue"
-            />
           </Group>
-
-          {/* Integrated inline event selector */}
-          <Box
-            w="100%"
-            maw={480}
-            p="md"
-            style={{
-              border: '1px solid var(--border-default)',
-              borderRadius: '12px',
-            }}
-          >
-            <Group gap="sm" mb="xs" wrap="nowrap">
-              <ThemeIcon size={28} radius="md" variant="light" color="frc-orange">
-                <IconCalendarEvent size={14} />
-              </ThemeIcon>
-              <Box style={{ flex: 1, minWidth: 0 }}>
-                <Text size="xs" c="slate.4">
-                  Current event
-                </Text>
-                {currentEvent ? (
-                  <Text fw={600} size="sm" c="slate.1" mt={2} truncate>
-                    {currentEvent.name}
-                  </Text>
-                ) : (
-                  <Text size="xs" c="slate.5" mt={2}>No event selected</Text>
-                )}
-              </Box>
-            </Group>
-
-            <Select
-              placeholder="Select an event (optional)"
-              value={currentEventId}
-              onChange={(value) => {
-                if (value) {
-                  const selectedEvent = events.find((e) => e.id === value)
-                  if (selectedEvent) {
-                    setCurrentEvent(value, selectedEvent.season)
-                  }
-                }
-              }}
-              data={events.map((event) => ({
-                value: event.id,
-                label: `${event.name} (${event.season})`,
-              }))}
-              size="sm"
-              clearable
-              onClear={() => clearCurrentEvent()}
-            />
-            {currentEvent && (
-              <Button variant="subtle" color="slate" size="xs" mt="xs" onClick={clearCurrentEvent}>
-                Clear active event
-              </Button>
-            )}
-          </Box>
-        </Stack>
-
-        {/* Primary action - clear visual hierarchy */}
-        <Stack gap="md" w="100%" maw={480} className="animate-fadeInUp stagger-1">
           <Button
             component={Link}
-            to={hasActiveForm ? '/scout' : '/sync'}
+            to={hasActiveForm ? '/scout' : '/sync?tab=wifi'}
             size="lg"
             fullWidth
+            mt="md"
             leftSection={hasActiveForm ? <IconClipboardCheck size={20} /> : <IconFileDownload size={20} />}
           >
             {hasActiveForm ? 'Scout a match' : 'Get the scouting form'}
           </Button>
+        </Box>
 
-          {!hasActiveForm && (
-            <Text size="sm" c="slate.4" ta="center">
-              Receive the active form from the hub before recording your first match. Your device is otherwise ready to use offline.
-            </Text>
-          )}
-
-          {observationCount > 0 && (
-            <Group grow>
+        {observationCount > 0 && (
+          <Box className="home-next-step animate-fadeInUp stagger-2">
+            <Group gap="md" wrap="nowrap" align="flex-start">
+              <ThemeIcon size={44} radius="md" variant="default">
+                {unsentCount === 0 ? <IconCheck size={22} /> : <IconCloudUpload size={22} />}
+              </ThemeIcon>
+              <Box style={{ flex: 1, minWidth: 0 }}>
+                <Text fw={600} c="slate.0" size="lg">
+                  {unsentCount === 0
+                    ? 'The lead scout has all your scouting'
+                    : `${unsentCount.toLocaleString()} ${unsentCount === 1 ? 'entry has' : 'entries have'} not been sent yet`}
+                </Text>
+                <Text size="sm" c="slate.3" mt={2}>
+                  {lastSent
+                    ? `Last sent ${new Date(lastSent.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} ${describeMethod(lastSent.method)}.`
+                    : 'You have not sent anything to the lead scout yet.'}{' '}
+                  {unsentCount > 0 ? 'Send after every few matches so nothing piles up.' : ''}
+                </Text>
+              </Box>
+            </Group>
+            <Group mt="md" grow>
               <Button
                 component={Link}
-                to="/sync"
-                size="lg"
-                radius="lg"
-                variant="light"
-                color="frc-blue"
-                leftSection={<IconCloudUpload size={20} />}
+                to="/sync?tab=wifi"
+                variant={unsentCount > 0 ? 'filled' : 'default'}
+                leftSection={<IconCloudUpload size={18} />}
               >
-                Send data ({observationCount})
+                {unsentCount > 0 ? 'Send to the lead scout' : 'Send again'}
               </Button>
-              <Button
-                component={Link}
-                to="/entries"
-                size="lg"
-                radius="lg"
-                variant="default"
-                leftSection={<IconClipboardCheck size={20} />}
-              >
-                Review entries
+              <Button component={Link} to="/entries" variant="default" leftSection={<IconClipboardCheck size={18} />}>
+                Review my entries
               </Button>
             </Group>
-          )}
-        </Stack>
+          </Box>
+        )}
+
+        <Box className="home-next-step animate-fadeInUp stagger-3">
+          <Group gap="sm" mb="xs" wrap="nowrap">
+            <ThemeIcon size={28} radius="md" variant="default">
+              <IconCalendarEvent size={14} />
+            </ThemeIcon>
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Text size="xs" c="slate.4">
+                Current event
+              </Text>
+              <Text fw={600} size="sm" c={currentEvent ? 'slate.1' : 'slate.4'} truncate>
+                {currentEvent ? currentEvent.name : 'No event selected'}
+              </Text>
+            </Box>
+          </Group>
+          <Select
+            placeholder={events.length > 0 ? 'Choose an event' : 'The lead scout will send the event'}
+            value={currentEventId}
+            onChange={(value) => {
+              if (value) {
+                const selectedEvent = events.find((e) => e.id === value)
+                if (selectedEvent) {
+                  setCurrentEvent(value, selectedEvent.season)
+                }
+              }
+            }}
+            data={events.map((event) => ({
+              value: event.id,
+              label: `${event.name} (${event.season})`,
+            }))}
+            size="sm"
+            clearable
+            onClear={() => clearCurrentEvent()}
+            disabled={events.length === 0}
+          />
+        </Box>
+
+        <Button component={Link} to="/help" variant="subtle" color="slate" leftSection={<IconBook size={16} />} style={{ alignSelf: 'center' }}>
+          New here? Read the how-to guide
+        </Button>
       </Stack>
     </Box>
   )

@@ -52,9 +52,9 @@ export function createCommandItems({ navigate, openShortcutHelp }: CreateCommand
     },
     {
       id: 'go-sync',
-      label: 'Go to Sync',
+      label: 'Go to Sync Data',
       category: 'Navigation',
-      keywords: 'sync import export',
+      keywords: 'sync send receive wifi qr file import export',
       action: () => navigate('/sync'),
     },
     {
@@ -66,10 +66,10 @@ export function createCommandItems({ navigate, openShortcutHelp }: CreateCommand
     },
     {
       id: 'quick-export',
-      label: 'Quick Action: Open Sync export',
+      label: 'Quick Action: Save a backup file',
       category: 'Actions',
-      keywords: 'export csv qr database',
-      action: () => navigate('/sync'),
+      keywords: 'export backup save file csv spreadsheet',
+      action: () => navigate('/sync?tab=file'),
     },
     {
       id: 'quick-shortcuts',

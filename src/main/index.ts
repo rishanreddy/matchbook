@@ -1,11 +1,14 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, systemPreferences } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, screen, shell, systemPreferences } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import path from 'node:path'
+import { readFileSync } from 'node:fs'
+import { writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import process from 'node:process'
 import updater from 'electron-updater'
 import type { ProgressInfo, UpdateInfo } from 'electron-updater'
 import { registerSyncServerIpcHandlers, stopSyncServer } from './syncServer'
+import { parseSavedWindowState, planMainWindow, type SavedWindowState } from './windowBounds'
 
 const { autoUpdater } = updater
 // Dev mode = loading from Vite dev server with HMR (electron-vite dev)
@@ -249,12 +252,66 @@ function configureApplicationMenu(): void {
   Menu.setApplicationMenu(menu)
 }
 
+const WINDOW_STATE_FILE = 'window-state.json'
+const WINDOW_STATE_SAVE_DELAY_MS = 400
+
+function readSavedWindowState(): SavedWindowState | null {
+  try {
+    const raw = readFileSync(path.join(app.getPath('userData'), WINDOW_STATE_FILE), 'utf8')
+    return parseSavedWindowState(JSON.parse(raw) as unknown)
+  } catch {
+    // First launch, or an unreadable file: fall back to sizing from the screen.
+    return null
+  }
+}
+
+function watchWindowState(window: BrowserWindow): void {
+  let timer: NodeJS.Timeout | null = null
+
+  const save = (): void => {
+    timer = null
+    if (window.isDestroyed() || window.isMinimized() || window.isFullScreen()) {
+      return
+    }
+
+    const state: SavedWindowState = { bounds: window.getNormalBounds(), isMaximized: window.isMaximized() }
+    void writeFile(path.join(app.getPath('userData'), WINDOW_STATE_FILE), JSON.stringify(state)).catch(() => {
+      // Remembering the window size is a convenience; never let it surface as an error.
+    })
+  }
+
+  const scheduleSave = (): void => {
+    if (timer) {
+      clearTimeout(timer)
+    }
+    timer = setTimeout(save, WINDOW_STATE_SAVE_DELAY_MS)
+  }
+
+  window.on('resize', scheduleSave)
+  window.on('move', scheduleSave)
+  window.on('maximize', scheduleSave)
+  window.on('unmaximize', scheduleSave)
+  window.on('close', () => {
+    if (timer) {
+      clearTimeout(timer)
+    }
+    save()
+  })
+}
+
 function createMainWindow(): BrowserWindow {
+  // Size from the screen the window will open on. A fixed size larger than the usable
+  // area put the bottom of every page under the taskbar on small laptops.
+  const saved = readSavedWindowState()
+  const display = saved
+    ? screen.getDisplayMatching(saved.bounds)
+    : screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
+  const plan = planMainWindow(display.workArea, saved)
+
   const window = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1024,
-    minHeight: 720,
+    ...plan.bounds,
+    minWidth: plan.minWidth,
+    minHeight: plan.minHeight,
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -289,8 +346,13 @@ function createMainWindow(): BrowserWindow {
   })
 
   window.on('ready-to-show', () => {
+    if (plan.maximize) {
+      window.maximize()
+    }
     window.show()
   })
+
+  watchWindowState(window)
 
   window.on('closed', () => {
     if (mainWindow === window) {

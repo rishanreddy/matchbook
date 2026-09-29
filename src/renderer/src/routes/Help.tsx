@@ -8,8 +8,9 @@ import {
   Button,
   Card,
   Group,
-  List,
+  Modal,
   Paper,
+  SegmentedControl,
   SimpleGrid,
   Stack,
   Text,
@@ -17,26 +18,94 @@ import {
   Title,
 } from '@mantine/core'
 import { formatForDisplay } from '@tanstack/react-hotkeys'
-import {
-  IconHelp,
-  IconRocket,
-  IconKeyboard,
-  IconQuestionMark,
-  IconBook,
-  IconBug,
-  IconTarget,
-  IconRefresh,
-  IconForms,
-} from '@tabler/icons-react'
-import { Link } from 'react-router-dom'
-import { RouteHelpModal } from '../components/RouteHelpModal'
+import { IconBook, IconBug, IconBulb, IconHelp, IconKeyboard, IconLifebuoy, IconPlayerPlay } from '@tabler/icons-react'
+import { StepList } from '../components/StepList'
 import { brand } from '../config/brand'
 import { appShortcuts, getShortcutHotkey, loadShortcutBindings, type ShortcutBindings } from '../config/shortcuts'
+import { guide, type GuideImage, type GuideTask } from '../content/guide'
+import { GUIDE_IMAGES } from '../content/guideImages'
+import { GUIDE_VIDEOS } from '../content/guideVideos'
+import { renderInline } from '../content/inline'
+import { useIsHub } from '../stores/useDeviceStore'
 
 const docsBaseUrl = brand.repoUrl
 const issuesUrl = brand.supportIssuesUrl
 
+type Audience = 'scout' | 'lead'
+
+function GuideFigure({ image }: { image: GuideImage }): ReactElement {
+  const [zoomed, setZoomed] = useState(false)
+  const source = GUIDE_IMAGES[image.key]
+
+  return (
+    <>
+      <figure className="guide-figure">
+        <button type="button" className="guide-figure__button" onClick={() => setZoomed(true)} aria-label={`Enlarge picture: ${image.caption}`}>
+          <img src={source} alt={image.alt} loading="lazy" />
+        </button>
+        <figcaption>{image.caption}</figcaption>
+      </figure>
+
+      <Modal opened={zoomed} onClose={() => setZoomed(false)} title={image.caption} size="min(1200px, 96vw)">
+        <img src={source} alt={image.alt} style={{ display: 'block', width: '100%', borderRadius: 6 }} />
+      </Modal>
+    </>
+  )
+}
+
+function TaskAccordion({ tasks }: { tasks: GuideTask[] }): ReactElement {
+  return (
+    <Accordion multiple variant="separated" radius="md" defaultValue={tasks.slice(0, 1).map((task) => task.id)} className="guide-accordion">
+      {tasks.map((task, index) => (
+        <Accordion.Item key={task.id} value={task.id}>
+          <Accordion.Control>
+            <Group gap="md" wrap="nowrap">
+              <span className="guide-task-number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <Box style={{ minWidth: 0 }}>
+                <Text fw={600} c="slate.0">
+                  {task.title}
+                </Text>
+                <Text size="sm" c="slate.3">
+                  {task.summary}
+                </Text>
+              </Box>
+            </Group>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="guide-task-body">
+              <Stack gap="lg">
+                <StepList steps={task.steps.map((step) => ({ title: step.text, detail: step.detail }))} />
+
+                {task.tip ? (
+                  <Group gap="sm" wrap="nowrap" align="flex-start" className="guide-tip">
+                    <ThemeIcon variant="default" size={28} radius="md">
+                      <IconBulb size={16} />
+                    </ThemeIcon>
+                    <Text size="sm" c="slate.1">
+                      {renderInline(task.tip)}
+                    </Text>
+                  </Group>
+                ) : null}
+              </Stack>
+
+              <Stack gap="md">
+                {task.images.map((image) => (
+                  <GuideFigure key={image.key} image={image} />
+                ))}
+              </Stack>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
+      ))}
+    </Accordion>
+  )
+}
+
 export function Help(): ReactElement {
+  const isHub = useIsHub()
+  const [audience, setAudience] = useState<Audience>(isHub ? 'lead' : 'scout')
   const [shortcutBindings, setShortcutBindings] = useState<ShortcutBindings>(() => loadShortcutBindings())
 
   useEffect(() => {
@@ -73,283 +142,208 @@ export function Help(): ReactElement {
   }
 
   return (
-    <Box className="container-wide" py="xl">
-      <Stack gap={32}>
-        {/* Header */}
-        <Box className="animate-fadeInUp">
-          <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
-            <Group gap="md">
-              <ThemeIcon size={48} radius="xl" variant="light">
-                <IconHelp size={26} stroke={1.5} />
-              </ThemeIcon>
-              <Box>
-                <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
-                  Help & Support
-                </Title>
-                <Text size="sm" c="slate.4">Guides, shortcuts, and troubleshooting</Text>
-              </Box>
-            </Group>
+    <Box className="container-wide">
+      <Stack gap="xl">
+        <Group justify="space-between" align="flex-start" wrap="nowrap" className="animate-fadeInUp">
+          <Group gap="md" wrap="nowrap">
+            <ThemeIcon size={48} radius="md" variant="default">
+              <IconHelp size={26} stroke={1.5} />
+            </ThemeIcon>
+            <Box>
+              <Title order={1} c="slate.0" style={{ fontSize: 28, fontWeight: 700 }}>
+                How to use Matchbook
+              </Title>
+              <Text size="sm" c="slate.3">
+                Step-by-step guides with pictures. No experience needed.
+              </Text>
+            </Box>
+          </Group>
+        </Group>
 
-            <RouteHelpModal
-              title="Help Center"
-              description="Use this page for quick onboarding, shortcuts, and troubleshooting references."
-              steps={[
-                { title: 'Start with Quick Start', description: 'Follow role setup and sync flow before event kickoff.' },
-                { title: 'Learn Shortcuts', description: 'Use keyboard commands to move faster between pages.' },
-                { title: 'Report Issues', description: 'Send reproducible bug details with steps and screenshots.' },
+        <Stack gap="md">
+          <Group gap="sm">
+            <ThemeIcon variant="default" size={32} radius="md">
+              <IconPlayerPlay size={18} />
+            </ThemeIcon>
+            <Title order={2} c="slate.0" style={{ fontSize: 20 }}>
+              Watch first
+            </Title>
+          </Group>
+          <Text size="sm" c="slate.3">
+            Two short videos with captions and no sound. They work with no internet.
+          </Text>
+
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+            {GUIDE_VIDEOS.map((video) => (
+              <Card key={video.id} p="md">
+                <video
+                  className="guide-video"
+                  controls
+                  preload="none"
+                  poster={video.poster}
+                  src={video.src}
+                  aria-label={`${video.title}: ${video.summary}`}
+                />
+                <Group justify="space-between" align="flex-start" wrap="nowrap" mt="sm" gap="sm">
+                  <Box style={{ minWidth: 0 }}>
+                    <Text fw={600} c="slate.0">
+                      {video.title}
+                    </Text>
+                    <Text size="sm" c="slate.3">
+                      {video.summary}
+                    </Text>
+                  </Box>
+                  <Badge variant="light" color="gray" radius="sm" style={{ flexShrink: 0 }}>
+                    {video.length}
+                  </Badge>
+                </Group>
+              </Card>
+            ))}
+          </SimpleGrid>
+        </Stack>
+
+        <Stack gap="md">
+          <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+            <Text fw={600} c="slate.1">
+              Which are you?
+            </Text>
+            <SegmentedControl
+              value={audience}
+              onChange={(value) => setAudience(value as Audience)}
+              aria-label="Show the guide for"
+              data={[
+                { value: 'scout', label: 'I am a scout' },
+                { value: 'lead', label: 'I am the lead scout' },
               ]}
-              tips={[
-                { text: 'Hub laptops should manage forms, events, and analytics.' },
-                { text: 'Scout laptops should focus on rapid match entry and sync.' },
-              ]}
-              tooltipLabel="How to use this page"
-              color="frc-blue"
             />
           </Group>
-        </Box>
 
-        {/* Quick Start */}
-        <Card 
-          p="lg" 
-          radius="lg" 
-          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-        >
-          <Stack gap="md">
-            <Group gap="sm">
-              <ThemeIcon size={32} radius="lg" variant="light" color="frc-blue">
-                <IconRocket size={16} />
-              </ThemeIcon>
-              <Text fw={600} c="slate.0" size="lg">Quick Start</Text>
-            </Group>
+          <Text size="sm" c="slate.3">
+            {audience === 'scout'
+              ? 'You watch matches and record what the robots do. Open a step to see how.'
+              : 'You set up the event and the form, collect everyone’s scouting, and compare teams. Open a step to see how.'}
+          </Text>
 
-            <List 
-              spacing="sm" 
-              size="sm"
-              styles={{
-                item: { color: 'var(--mantine-color-slate-2)' },
-              }}
-            >
-              <List.Item>Open Device Setup and choose Hub or Scout mode for this laptop.</List.Item>
-              <List.Item>You can change device role later in Settings → Device Role.</List.Item>
-              <List.Item>If you are the hub, customize the scouting form in Form Builder.</List.Item>
-              <List.Item>Scouts open Scout, enter match and team numbers, then save observations.</List.Item>
-              <List.Item>Use Sync to transfer either scoutingData or formSchemas between devices with QR codes.</List.Item>
-              <List.Item>Open Analysis on the hub to review team averages and trends.</List.Item>
-            </List>
+          <TaskAccordion key={audience} tasks={audience === 'scout' ? guide.scoutTasks : guide.leadTasks} />
+        </Stack>
 
-            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-              <Button 
-                component={Link} 
-                to="/form-builder" 
-                variant="light" 
-                color="frc-blue"
-                leftSection={<IconForms size={16} />}
-                radius="md"
-                fullWidth
-              >
-                Form Builder
-              </Button>
-              <Button 
-                component={Link} 
-                to="/sync" 
-                variant="light" 
-                color="frc-blue"
-                leftSection={<IconRefresh size={16} />}
-                radius="md"
-                fullWidth
-              >
-                Sync
-              </Button>
-              <Button 
-                component={Link} 
-                to="/scout" 
-                variant="light" 
-                color="frc-blue"
-                leftSection={<IconTarget size={16} />}
-                radius="md"
-                fullWidth
-              >
-                Scout
-              </Button>
-            </SimpleGrid>
-          </Stack>
-        </Card>
+        <Stack gap="md">
+          <Group gap="sm">
+            <ThemeIcon variant="default" size={32} radius="md">
+              <IconLifebuoy size={18} />
+            </ThemeIcon>
+            <Title order={2} c="slate.0" style={{ fontSize: 20 }}>
+              Something is not working
+            </Title>
+          </Group>
 
-        {/* Keyboard Shortcuts */}
-        <Card 
-          p="lg" 
-          radius="lg" 
-          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-        >
-          <Stack gap="md">
-            <Group gap="sm">
-              <ThemeIcon size={32} radius="lg" variant="light" color="frc-orange">
-                <IconKeyboard size={16} />
-              </ThemeIcon>
-              <Text fw={600} c="slate.0" size="lg">Keyboard Shortcuts</Text>
-            </Group>
-
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-              {shortcutRows.map((shortcut) => (
-                <Paper 
-                  key={`${shortcut.action}-${shortcut.keys}`}
-                  p="sm" 
-                  radius="md" 
-                  style={{ backgroundColor: 'var(--surface-base)' }}
-                >
-                  <Group justify="space-between">
-                    <Text size="sm" c="slate.3">{shortcut.action}</Text>
-                    <Badge variant="light" color="frc-blue" radius="md" className="mono-number">
-                      {shortcut.keys}
-                    </Badge>
-                  </Group>
-                </Paper>
-              ))}
-            </SimpleGrid>
-          </Stack>
-        </Card>
-
-        {/* FAQ */}
-        <Card 
-          p="lg" 
-          radius="lg" 
-          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-        >
-          <Stack gap="md">
-            <Group gap="sm">
-              <ThemeIcon size={32} radius="lg" variant="light" color="success">
-                <IconQuestionMark size={16} />
-              </ThemeIcon>
-              <Text fw={600} c="slate.0" size="lg">Frequently Asked Questions</Text>
-            </Group>
-
-            <Accordion 
-              variant="separated" 
-              radius="md"
-              styles={{
-                item: {
-                  backgroundColor: 'var(--surface-base)',
-                  border: '1px solid var(--border-default)',
-                },
-                control: {
-                  padding: 'var(--mantine-spacing-md)',
-                },
-                panel: {
-                  padding: 'var(--mantine-spacing-md)',
-                  paddingTop: 0,
-                },
-              }}
-            >
-              <Accordion.Item value="no-events">
+          <Accordion variant="separated" radius="md" className="guide-accordion">
+            {guide.troubleshooting.map((item) => (
+              <Accordion.Item key={item.id} value={item.id}>
                 <Accordion.Control>
-                  <Text fw={500} c="slate.1">Why do I not see the form I expected?</Text>
+                  <Text fw={500} c="slate.1">
+                    {item.question}
+                  </Text>
                 </Accordion.Control>
                 <Accordion.Panel>
-                  <Text size="sm" c="slate.4">
-                    The app now uses one active scouting form. Open Form Builder on the hub and save the form you want scouts to use.
-                  </Text>
+                  <Stack gap="xs">
+                    {item.answer.map((paragraph) => (
+                      <Text key={paragraph} size="sm" c="slate.2">
+                        {renderInline(paragraph)}
+                      </Text>
+                    ))}
+                  </Stack>
                 </Accordion.Panel>
               </Accordion.Item>
+            ))}
+          </Accordion>
+        </Stack>
 
-              <Accordion.Item value="offline-sync">
-                <Accordion.Control>
-                  <Text fw={500} c="slate.1">How do I sync without internet?</Text>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Text size="sm" c="slate.4">
-                    Use QR export/import from the Sync page. Select scoutingData for match entries or formSchemas for form distribution.
-                  </Text>
-                </Accordion.Panel>
-              </Accordion.Item>
+        <Stack gap="md">
+          <Group gap="sm">
+            <ThemeIcon variant="default" size={32} radius="md">
+              <IconBook size={18} />
+            </ThemeIcon>
+            <Title order={2} c="slate.0" style={{ fontSize: 20 }}>
+              Words we use
+            </Title>
+          </Group>
 
-              <Accordion.Item value="form-builder">
-                <Accordion.Control>
-                  <Text fw={500} c="slate.1">Where do I create scouting questions?</Text>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Text size="sm" c="slate.4">
-                    Use Form Builder to build and save the active scouting form. That saved form is used for all new scouting entries.
-                  </Text>
-                </Accordion.Panel>
-              </Accordion.Item>
-            </Accordion>
-          </Stack>
-        </Card>
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+            {guide.glossary.map((item) => (
+              <Paper key={item.term} p="md" radius="md" className="guide-word">
+                <Text fw={600} c="slate.0" size="sm">
+                  {item.term}
+                </Text>
+                <Text size="sm" c="slate.3" mt={2}>
+                  {item.meaning}
+                </Text>
+              </Paper>
+            ))}
+          </SimpleGrid>
+        </Stack>
 
-        {/* Documentation */}
-        <Card 
-          p="lg" 
-          radius="lg" 
-          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-        >
+        <Accordion variant="separated" radius="md" className="guide-accordion">
+          <Accordion.Item value="shortcuts">
+            <Accordion.Control>
+              <Group gap="sm">
+                <IconKeyboard size={18} />
+                <Text fw={500} c="slate.1">
+                  Keyboard shortcuts
+                </Text>
+              </Group>
+            </Accordion.Control>
+            <Accordion.Panel>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                {shortcutRows.map((shortcut) => (
+                  <Paper key={`${shortcut.action}-${shortcut.keys}`} p="sm" radius="md" style={{ backgroundColor: 'var(--surface-base)' }}>
+                    <Group justify="space-between" wrap="nowrap">
+                      <Text size="sm" c="slate.3">
+                        {shortcut.action}
+                      </Text>
+                      <Badge variant="light" color="gray" radius="md" className="mono-number">
+                        {shortcut.keys}
+                      </Badge>
+                    </Group>
+                  </Paper>
+                ))}
+              </SimpleGrid>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
+
+        <Card p="lg">
           <Stack gap="md">
             <Group gap="sm">
-              <ThemeIcon size={32} radius="lg" variant="light" color="frc-blue">
-                <IconBook size={16} />
+              <ThemeIcon variant="default" size={32} radius="md">
+                <IconBug size={18} />
               </ThemeIcon>
-              <Text fw={600} c="slate.0" size="lg">Documentation & Tutorials</Text>
+              <Text fw={600} c="slate.0" size="lg">
+                Still stuck?
+              </Text>
             </Group>
 
             <Text size="sm" c="slate.3">
-              Project docs and issue tracking live in the GitHub repository. Open the repository for the latest setup notes and development details.
+              Tell us what you were doing, what you expected, and what happened instead. Say whether the laptop was a scout or the
+              lead scout, and include a screenshot if you can.
             </Text>
 
-            <Anchor
-              href={docsBaseUrl}
-              c="frc-blue.4"
-              onClick={(event) => {
-                event.preventDefault()
-                openExternal(docsBaseUrl)
-              }}
-            >
-              Open project repository
-            </Anchor>
-
-            <Paper p="md" radius="md" style={{ backgroundColor: 'rgba(154, 166, 182, 0.08)', border: '1px solid rgba(154, 166, 182, 0.2)' }}>
-              <Group gap="sm" wrap="nowrap" align="flex-start">
-                <ThemeIcon size={28} radius="md" variant="light" color="frc-blue">
-                  <IconBook size={14} />
-                </ThemeIcon>
-                <Stack gap={2}>
-                  <Text size="sm" fw={600} c="slate.1">
-                    Video tutorials coming soon
-                  </Text>
-                  <Text size="xs" c="slate.4">
-                    Official training videos will be added before production release.
-                  </Text>
-                </Stack>
-              </Group>
-            </Paper>
-          </Stack>
-        </Card>
-
-        {/* Report Issue */}
-        <Card 
-          p="lg" 
-          radius="lg" 
-          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-        >
-          <Stack gap="md">
-            <Group gap="sm">
-              <ThemeIcon size={32} radius="lg" variant="light" color="danger">
-                <IconBug size={16} />
-              </ThemeIcon>
-              <Text fw={600} c="slate.0" size="lg">Report an Issue</Text>
+            <Group>
+              <Button variant="default" onClick={() => openExternal(issuesUrl)} leftSection={<IconBug size={16} />}>
+                Report a problem
+              </Button>
+              <Anchor
+                href={docsBaseUrl}
+                c="slate.2"
+                size="sm"
+                onClick={(event) => {
+                  event.preventDefault()
+                  openExternal(docsBaseUrl)
+                }}
+              >
+                Project page
+              </Anchor>
             </Group>
-
-            <Text size="sm" c="slate.4">
-              Include steps to reproduce, screenshots, device role, and match or team numbers when possible.
-            </Text>
-
-            <Button 
-              color="danger" 
-              variant="light"
-              onClick={() => openExternal(issuesUrl)}
-              leftSection={<IconBug size={16} />}
-              radius="md"
-            >
-              Report Issue on GitHub
-            </Button>
           </Stack>
         </Card>
       </Stack>

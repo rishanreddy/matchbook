@@ -16,7 +16,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import { IconAlertTriangle, IconClipboardCheck, IconTrash } from '@tabler/icons-react'
 import type { ScoutingDataDocType } from '../lib/db/schemas/scoutingData.schema'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
@@ -114,7 +114,7 @@ export function Entries(): ReactElement {
     // Enforce ownership again at the mutation boundary; navigating directly to this
     // route must never let a scout delete another scout's record.
     if (!isHub && (!deviceId || entryPendingDeletion.deviceId !== deviceId)) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Cannot remove this entry',
         message: 'Scout laptops can only remove entries created on this device.',
@@ -127,18 +127,18 @@ export function Entries(): ReactElement {
     try {
       const document = await db.collections.scoutingData.findOne(entryPendingDeletion.id).exec()
       if (!document) {
-        notifications.show({ color: 'yellow', title: 'Entry already removed', message: 'That observation is no longer stored here.' })
+        notify({ color: 'yellow', title: 'Entry already removed', message: 'That observation is no longer stored here.' })
       } else {
         await document.remove()
         const deletionQueued = rememberScoutingDeletion(entryPendingDeletion.id)
-        notifications.show({
+        notify({
           color: deletionQueued ? 'green' : 'yellow',
           title: 'Observation removed',
           message: deletionQueued
             ? isHub
-              ? 'The hub will keep this correction even if an old scout copy uploads again.'
-              : 'The removal will be sent to the hub the next time you send data.'
-            : 'Removed from this laptop, but the sync correction could not be queued. Keep this app open and retry from the hub if needed.',
+              ? 'The lead scout’s laptop will keep this correction even if an old copy is sent again.'
+              : 'The removal will be sent to the lead scout the next time you send your entries.'
+            : 'Removed from this laptop, but the sync correction could not be queued. Keep this app open and try again.',
         })
       }
       setEntryPendingDeletion(null)
@@ -154,7 +154,7 @@ export function Entries(): ReactElement {
     : 'this observation'
 
   return (
-    <Box className="container-wide" py="xl">
+    <Box className="container-wide">
       <Stack gap="xl">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <Box>
@@ -163,8 +163,8 @@ export function Entries(): ReactElement {
             </Title>
             <Text c="slate.4" mt="xs" maw={620}>
               {isHub
-                ? 'Review every observation received by this hub and remove an entry that should not influence analysis.'
-                : 'Review entries saved on this laptop. Remove a mistake before or after you send it to the hub.'}
+                ? 'Review every entry this laptop has received, and remove one that should not count in the analysis.'
+                : 'Review entries saved on this laptop. Remove a mistake before or after you send it to the lead scout.'}
             </Text>
           </Box>
           <ThemeIcon size={42} radius="md" variant="light" color="frc-blue">
@@ -174,7 +174,7 @@ export function Entries(): ReactElement {
 
         <Alert color="blue" variant="light" title={isHub ? 'Hub corrections persist' : 'Corrections sync to the hub'}>
           {isHub
-            ? 'When you remove an observation, this hub remembers the removal and rejects a stale copy if a scout uploads it later.'
+            ? 'When you remove an entry, this laptop remembers it. If a scout sends an old copy later, it is ignored.'
             : 'Removing an entry also queues a deletion for your next data sync. Send data after correcting an entry.'}
         </Alert>
 
@@ -272,8 +272,8 @@ export function Entries(): ReactElement {
           </Alert>
           <Text size="sm" c="slate.3">
             {isHub
-              ? 'This hub will remember the removal so an older upload cannot recreate it.'
-              : 'The removal will be included the next time you send data to the hub.'}
+              ? 'This laptop will remember the removal, so an older copy cannot bring it back.'
+              : 'The removal will be sent to the lead scout the next time you send your entries.'}
           </Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setEntryPendingDeletion(null)} disabled={isDeleting}>

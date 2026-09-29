@@ -64,11 +64,12 @@ async function collections() {
 async function stack() {
   const pkg = JSON.parse(await readFile(resolve('package.json'), 'utf8'))
   const major = (range) => (range ?? '').replace(/^[^0-9]*/, '').split('.')[0]
+  const version = (name) => pkg.dependencies?.[name] ?? pkg.devDependencies?.[name]
   const parts = [
-    `Electron ${major(pkg.devDependencies.electron)}`,
-    `React ${major(pkg.dependencies.react)}`,
-    `TypeScript ${major(pkg.devDependencies.typescript)}`,
-    `RxDB ${major(pkg.dependencies.rxdb)}`,
+    `Electron ${major(version('electron'))}`,
+    `React ${major(version('react'))}`,
+    `TypeScript ${major(version('typescript'))}`,
+    `RxDB ${major(version('rxdb'))}`,
     'Mantine',
     'Vite',
   ]

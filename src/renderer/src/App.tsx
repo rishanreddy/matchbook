@@ -37,6 +37,7 @@ import { AboutDialog } from './components/AboutDialog'
 import { DatabaseInitScreen } from './components/DatabaseInitScreen'
 import { FirstRunWizard } from './components/FirstRunWizard'
 import { UpdateBanner } from './components/UpdateBanner'
+import { useHubSyncService } from './features/sync/useHubSyncService'
 import { HubOnlyRoute } from './components/HubOnlyRoute'
 import { resetDatabase } from './lib/db/database'
 import { navGroups, navItems } from './config/navigation'
@@ -87,30 +88,32 @@ function App() {
   const currentEventId = useEventStore((state) => state.currentEventId)
   const currentSeason = useEventStore((state) => state.currentSeason)
   
+  useHubSyncService()
+
   // Load device and event settings from localStorage on mount
   useEffect(() => {
     loadDeviceFromStorage()
     loadEventFromStorage()
   }, [loadDeviceFromStorage, loadEventFromStorage])
 
-  // Fetch event name when currentEventId changes
+  // Follow the current event's name as it changes. It is a live query rather than a one-off
+  // lookup: a scout's chosen event can be selected before the event itself arrives from the
+  // lead scout, and the sidebar must then switch from the raw id to the name.
   useEffect(() => {
     if (!db || !currentEventId) {
       setCurrentEventName(null)
       return
     }
 
-    const fetchEventName = async (): Promise<void> => {
-      try {
-        const event = await db.collections.events.findOne(currentEventId).exec()
-        setCurrentEventName(event ? event.name : null)
-      } catch (error: unknown) {
+    const subscription = db.collections.events.findOne(currentEventId).$.subscribe({
+      next: (event) => setCurrentEventName(event ? event.name : null),
+      error: (error: unknown) => {
         handleError(error, 'Fetching event name')
         setCurrentEventName(null)
-      }
-    }
+      },
+    })
 
-    void fetchEventName()
+    return () => subscription.unsubscribe()
   }, [db, currentEventId])
 
   useEffect(() => {
@@ -373,7 +376,10 @@ function App() {
 
   useEffect(() => {
     if (pathname) {
-      mainRef.current?.focus()
+      const main = mainRef.current
+      // A new page starts at its top; otherwise a short window opens it half-way down.
+      main?.scrollTo({ top: 0 })
+      main?.focus({ preventScroll: true })
     }
   }, [pathname])
 
@@ -441,9 +447,11 @@ function App() {
   return (
     <AppShell
       className="app-shell-root"
-      header={{ height: 64 }}
-      navbar={{ width: 260, breakpoint: 'sm', collapsed: { mobile: !opened } }}
-      padding={isFormBuilderRoute ? 0 : 'lg'}
+      header={{ height: 56 }}
+      // Below `md` (992px) the sidebar becomes a slide-over opened from the burger, so a
+      // narrow window keeps its full width for the page instead of losing a quarter of it.
+      navbar={{ width: { base: 232, lg: 256 }, breakpoint: 'md', collapsed: { mobile: !opened } }}
+      padding={isFormBuilderRoute ? 0 : { base: 'sm', md: 'md', lg: 'lg' }}
       styles={{
         header: {
           backgroundColor: 'var(--surface-base)',
@@ -459,9 +467,9 @@ function App() {
       }}
     >
       <AppShell.Header className="frc-accent-line">
-        <Group h="100%" px="lg" justify="space-between">
-          <Group gap="md">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation menu" />
+        <Group h="100%" px={{ base: 'sm', md: 'lg' }} justify="space-between" wrap="nowrap">
+          <Group gap="md" wrap="nowrap">
+            <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" aria-label="Toggle navigation menu" />
             <Group gap="sm" className="app-logo-container">
               <Box c="slate.0" lh={0} aria-hidden="true">
                 <BrandIcon size={34} />
@@ -470,7 +478,7 @@ function App() {
                 <Title order={4} c="slate.0" fw={600} lh={1.2} style={{ letterSpacing: '-0.01em' }}>
                   {brand.name}
                 </Title>
-                <Text size="xs" c="slate.3">
+                <Text size="xs" c="slate.3" className="app-header-tagline">
                   {brand.tagline}
                 </Text>
               </Box>
@@ -543,7 +551,7 @@ function App() {
               leftSection={isHub ? <IconServer size={14} /> : <IconUsers size={14} />}
               className="app-version-badge"
             >
-              {isHub ? 'Hub' : 'Scout'}
+              {isHub ? 'Lead scout' : 'Scout'}
             </Badge>
           </Group>
         </Group>
@@ -591,6 +599,8 @@ function App() {
           </Text>
         </AppShell.Section>
       </AppShell.Navbar>
+
+      {opened && <div className="app-nav-scrim" onClick={close} aria-hidden="true" />}
 
       <a className="skip-link" href="#main-content">
         Skip to content

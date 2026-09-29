@@ -55,6 +55,9 @@ mac:
   entitlementsInherit: build/entitlements.mac.inherit.plist
   extendInfo:
     NSCameraUsageDescription: Matchbook uses the camera only when you choose to scan a QR code.
+    # macOS 15 and later asks before an app talks to other devices on the local network.
+    # Wi-Fi sync sends scouting data to the lead scout's laptop, so it needs this.
+    NSLocalNetworkUsageDescription: Matchbook uses your local network only to send scouting data between your team's laptops.
 
 linux:
   target:

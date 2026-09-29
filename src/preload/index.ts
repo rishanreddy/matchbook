@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   CameraAccess,
+  DiscoveredHub,
   ElectronAPI,
   FailedSyncPayload,
+  HubIdentity,
   SyncPayload,
   SyncServerStatus,
   TbaRequestResult,
@@ -64,8 +66,17 @@ const electronApi: ElectronAPI = {
     ipcRenderer.on('app:show-shortcuts', listener)
     return () => ipcRenderer.removeListener('app:show-shortcuts', listener)
   },
-  startSyncServer: (port?: number, authToken?: string): Promise<SyncServerStatus> =>
-    ipcRenderer.invoke('sync-server:start', port, authToken),
+  startSyncServer: (port?: number, authToken?: string, identity?: HubIdentity): Promise<SyncServerStatus> =>
+    ipcRenderer.invoke('sync-server:start', port, authToken, identity),
+  publishSyncConfig: (json: string): Promise<void> => ipcRenderer.invoke('sync-server:publish-config', json),
+  onSyncPayloadReceived: (callback: (info: { queueLength: number }) => void): UnsubscribeFn => {
+    const listener = (_event: unknown, info: { queueLength: number }): void => callback(info)
+    ipcRenderer.on('sync-server:payload-received', listener)
+    return () => ipcRenderer.removeListener('sync-server:payload-received', listener)
+  },
+  startHubDiscovery: (): Promise<void> => ipcRenderer.invoke('discovery:start'),
+  stopHubDiscovery: (): Promise<void> => ipcRenderer.invoke('discovery:stop'),
+  listDiscoveredHubs: (): Promise<DiscoveredHub[]> => ipcRenderer.invoke('discovery:list'),
   stopSyncServer: (): Promise<SyncServerStatus> => ipcRenderer.invoke('sync-server:stop'),
   getSyncServerStatus: (): Promise<SyncServerStatus> => ipcRenderer.invoke('sync-server:status'),
   consumeSyncPayloads: (): Promise<SyncPayload[]> => ipcRenderer.invoke('sync-server:consume'),

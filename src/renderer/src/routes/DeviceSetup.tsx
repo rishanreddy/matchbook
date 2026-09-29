@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Box, Button, Card, Group, Paper, SegmentedControl, Stack, Text, TextInput, ThemeIcon, Title } from '@mantine/core'
 import { useForm } from '@mantine/form'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import { IconDeviceLaptop, IconServer, IconUser, IconUsers } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
 import { RouteHelpModal } from '../components/RouteHelpModal'
@@ -90,7 +90,7 @@ export function DeviceSetup(): ReactElement {
 
   const handleSubmit = async (values: DeviceSetupFormValues): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Database unavailable',
         message: 'Please wait for database initialization and try again.',
@@ -142,7 +142,7 @@ export function DeviceSetup(): ReactElement {
         await existingScout.remove()
       }
 
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Device registered',
         message: 'This laptop is ready for scouting.',
@@ -157,7 +157,7 @@ export function DeviceSetup(): ReactElement {
   }
 
   return (
-    <Box className="container-wide" py="xl">
+    <Box className="container-wide">
       <Stack gap={24}>
         <Card
           p="lg"
@@ -188,11 +188,11 @@ export function DeviceSetup(): ReactElement {
               description="Register each laptop once before event use."
               steps={[
                 { title: 'Name the Device', description: 'Use a clear label like Scout Laptop 1.' },
-                { title: 'Pick Role', description: 'Hub for lead station, Scout for data-entry stations.' },
+                { title: 'Pick Role', description: 'Lead scout for the one laptop that collects everything. Scout for every other laptop.' },
                 { title: 'Save Registration', description: 'Store this identity for sync and assignments.' },
               ]}
               tips={[
-                { text: 'Only one Hub device should be active per scouting setup.' },
+                { text: 'Only one laptop should be the lead scout.' },
                 { text: 'Scout name is optional but helps assignment visibility.' },
               ]}
               tooltipLabel="Device setup help"
@@ -233,7 +233,7 @@ export function DeviceSetup(): ReactElement {
                   <Group justify="space-between" align="center">
                     <Text size="sm" fw={600} c="slate.1">Device Role</Text>
                     <Badge color={form.values.isPrimary ? 'frc-orange' : 'frc-blue'} variant="light" radius="md">
-                      {form.values.isPrimary ? 'Hub' : 'Scout'}
+                      {form.values.isPrimary ? 'Lead scout' : 'Scout'}
                     </Badge>
                   </Group>
                   <SegmentedControl
@@ -244,7 +244,7 @@ export function DeviceSetup(): ReactElement {
                         label: (
                           <Group gap={6} justify="center" wrap="nowrap">
                             <IconUsers size={14} />
-                            <span>Scout Device</span>
+                            <span>Scout</span>
                           </Group>
                         ),
                         value: 'scout',
@@ -253,7 +253,7 @@ export function DeviceSetup(): ReactElement {
                         label: (
                           <Group gap={6} justify="center" wrap="nowrap">
                             <IconServer size={14} />
-                            <span>Hub Device</span>
+                            <span>Lead scout</span>
                           </Group>
                         ),
                         value: 'hub',
@@ -263,7 +263,7 @@ export function DeviceSetup(): ReactElement {
                     disabled={isInitializing}
                   />
                   <Text size="xs" c="slate.4">
-                    Hub devices collect data and manage assignments. Scout devices focus on quick match entry.
+                    The lead scout collects everyone’s scouting and builds the form. Scouts watch matches and record what they see.
                   </Text>
                 </Stack>
               </Paper>

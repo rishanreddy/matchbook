@@ -15,15 +15,18 @@ import { MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import { BrowserRouter, HashRouter } from "react-router-dom";
 import { appTheme } from "./theme";
-import "./index.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import App from "./App.tsx";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { setupGlobalErrorHandlers } from "./lib/utils/errorHandler";
+import { setupToastKeyboardDismissal } from "./lib/utils/notify";
 import { applyConfiguredSurveyJsLicenseKey } from "./lib/utils/surveyLicense";
+// Keep last: production loads app CSS after vendor CSS, and dev has to cascade the same way.
+import "./index.css";
 
 setupGlobalErrorHandlers();
+setupToastKeyboardDismissal();
 
 applyConfiguredSurveyJsLicenseKey();
 
@@ -32,7 +35,7 @@ const isElectronRuntime = typeof window !== "undefined" && window.electronAPI;
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={appTheme} defaultColorScheme="dark">
-      <Notifications aria-live="polite" position="bottom-right" limit={4} autoClose={5000} />
+      <Notifications aria-live="polite" position="bottom-right" limit={3} autoClose={4500} containerWidth={380} />
       {isElectronRuntime ? (
         <HashRouter>
           <ErrorBoundary>

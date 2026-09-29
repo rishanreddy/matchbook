@@ -1,0 +1,347 @@
+{
+  "scoutTasks": [
+    {
+      "id": "get-form",
+      "title": "Get the scouting form (once)",
+      "summary": "The lead scout gives you the questions you will answer.",
+      "images": [
+        {
+          "key": "wifiScout",
+          "alt": "The Wi-Fi screen on a scout laptop, showing the lead scout’s laptop in a list, a box for the code, and the Send button.",
+          "caption": "The Sync Data screen on a scout’s laptop."
+        }
+      ],
+      "steps": [
+        {
+          "text": "Connect this laptop to the same Wi-Fi as the lead scout.",
+          "detail": "A phone hotspot works too. The internet is not needed."
+        },
+        { "text": "Open **Sync Data** in the left menu, then choose **Wi-Fi**." },
+        {
+          "text": "Click the lead scout’s laptop in the list.",
+          "detail": "Its name is whatever the lead scout called it, like “Lead Laptop”. Not there? See “I can’t find the lead scout’s laptop” further down."
+        },
+        {
+          "text": "Type the 8-letter code from the lead scout’s screen.",
+          "detail": "You only need to do this once."
+        },
+        {
+          "text": "Press **Get form and schedule**.",
+          "detail": "You will see “Got 1 scouting form…”. You are ready to scout."
+        }
+      ],
+      "tip": "No Wi-Fi at all? Use **QR codes** or **File** instead. They are in the same Sync Data screen."
+    },
+    {
+      "id": "scout-match",
+      "title": "Scout a match",
+      "summary": "Pick the match and the team, then answer the questions as it happens.",
+      "images": [
+        { "key": "scoutSetup", "alt": "The Scout Match screen with the match and team chosen, and the Start Scouting button.", "caption": "1. Pick the match. 2. Pick the team. 3. Start Scouting." },
+        { "key": "scoutForm", "alt": "The first page of the scouting form with two questions and the Next button.", "caption": "Answer the questions. Press Next for the next page." },
+        { "key": "scoutComplete", "alt": "The last page of the scouting form with the Complete button.", "caption": "On the last page, press Complete." }
+      ],
+      "steps": [
+        { "text": "Press **Scout Match** in the left menu, or press **Scout a match** on the Home screen." },
+        {
+          "text": "Pick the **Match**, then the **Team** you are watching.",
+          "detail": "The match is not on the list? Open **Manual Entry** and type the numbers instead."
+        },
+        { "text": "Press **Start Scouting**." },
+        {
+          "text": "Answer the questions while you watch.",
+          "detail": "Tap **Yes** or **No**, or type a number. There is no rush. Your answers are saved as you go."
+        },
+        {
+          "text": "Press **Next** to go to the next page.",
+          "detail": "The **Next** button always stays at the bottom of the window."
+        },
+        {
+          "text": "On the last page, press **Complete**.",
+          "detail": "You will see “Saved!”. That entry is now safe on this laptop, even with no Wi-Fi."
+        }
+      ],
+      "tip": "Closed the form by accident? Pick the same match and team again. Your answers are still there."
+    },
+    {
+      "id": "send",
+      "title": "Send your scouting to the lead scout",
+      "summary": "Do this every few matches so nothing piles up.",
+      "images": [
+        { "key": "homeScout", "alt": "The scout Home screen with a card that says how many entries have not been sent yet.", "caption": "The Home screen tells you how many entries the lead scout does not have yet." }
+      ],
+      "steps": [
+        {
+          "text": "Make sure you are on the same Wi-Fi as the lead scout, then open **Sync Data** and **Wi-Fi**.",
+          "detail": "Or press **Send to the lead scout** on the Home screen."
+        },
+        { "text": "Click the lead scout’s laptop, and type the code if it is not already filled in." },
+        {
+          "text": "Press **Send my entries**.",
+          "detail": "You will see “Sent 12 entries to the lead scout”. Sending the same entries again is safe. The lead scout keeps one copy of each."
+        }
+      ],
+      "tip": "No Wi-Fi? Use **QR codes** (next section) or **File**. They move exactly the same data."
+    },
+    {
+      "id": "qr",
+      "title": "Send with QR codes (no Wi-Fi needed)",
+      "summary": "One laptop shows codes on its screen. The other reads them with its camera.",
+      "images": [
+        { "key": "qrSend", "alt": "A full-screen QR code with Pause and speed buttons.", "caption": "The sending laptop shows codes." },
+        { "key": "qrReceive", "alt": "The receiving laptop showing the camera view and a progress bar of received codes.", "caption": "The receiving laptop reads them with its camera." }
+      ],
+      "steps": [
+        {
+          "text": "On the laptop that is **sending**, open **Sync Data**, then **QR codes**. Choose what to send and press **Show QR codes**.",
+          "detail": "Turn the screen brightness up. The screen fills with a code that keeps changing. That is normal."
+        },
+        {
+          "text": "On the laptop that is **receiving**, open **Sync Data**, then **QR codes**, and press **Start camera**.",
+          "detail": "Point its camera at the sending screen, about a hand’s width away. Keep both laptops still."
+        },
+        {
+          "text": "Wait for **Everything arrived**.",
+          "detail": "The codes repeat, so it does not matter where it starts or if it misses a few. Small squares turn green as it goes."
+        },
+        { "text": "Press **Add to this laptop** on the receiving laptop." },
+        { "text": "On the sending laptop, press **Done**, and answer **Did it arrive?**" }
+      ],
+      "tip": "If it will not read, choose **Bigger squares** on the sending screen, move a little closer, and check that neither screen has glare on it."
+    },
+    {
+      "id": "file",
+      "title": "Send with a file (USB stick, AirDrop, email)",
+      "summary": "Save a file, carry it to the other laptop, and open it there.",
+      "images": [
+        { "key": "fileTab", "alt": "The File screen with a Save file button and an Open a file box.", "caption": "Save a file on one laptop, open it on the other." }
+      ],
+      "steps": [
+        { "text": "Open **Sync Data**, then **File**." },
+        { "text": "Choose **My scouting entries** and press **Save file**." },
+        {
+          "text": "Get the file to the lead scout.",
+          "detail": "A USB stick, AirDrop, an email, or a shared drive all work. A USB stick needs no internet at all."
+        },
+        {
+          "text": "On the lead scout’s laptop: **Sync Data**, **File**, choose the file under **Open a file**, and press **Add to this laptop**."
+        }
+      ],
+      "tip": "A saved file is also the best backup. Save one every few matches and keep it somewhere other than this laptop."
+    },
+    {
+      "id": "fix",
+      "title": "Fix a mistake",
+      "summary": "Scouted the wrong team? Remove the entry and scout it again.",
+      "images": [
+        { "key": "entries", "alt": "The Review Entries list, with a trash can button on each row.", "caption": "Press the trash can on the entry you want to remove." }
+      ],
+      "steps": [
+        { "text": "Open **Review Entries** in the left menu." },
+        { "text": "Find the entry. Each row shows the match and the team." },
+        { "text": "Press the trash can on that row, and confirm." },
+        {
+          "text": "Scout the match again, then send your entries.",
+          "detail": "The lead scout’s laptop is told about the removal too, so the wrong entry disappears there as well."
+        }
+      ],
+      "tip": "You can only remove entries that were made on your own laptop."
+    }
+  ],
+  "leadTasks": [
+    {
+      "id": "lead-setup",
+      "title": "Set up before the event",
+      "summary": "Do this while you still have internet.",
+      "images": [
+        { "key": "events", "alt": "The Events screen with a Fetch Events button.", "caption": "Events is where you load the match schedule." }
+      ],
+      "steps": [
+        {
+          "text": "Get a free key from The Blue Alliance.",
+          "detail": "Go to thebluealliance.com, sign in, open **Account**, and create a **Read API Key**. Copy it."
+        },
+        { "text": "In Matchbook, open **Settings** and paste the key into the Blue Alliance box." },
+        {
+          "text": "Open **Events**, press **Fetch Events**, find your event, and press **Import**.",
+          "detail": "This downloads the match schedule. After this, you do not need the internet."
+        },
+        { "text": "On the **Home** screen, choose your event under **Current event**." }
+      ],
+      "tip": "No internet at the event? Do this at school or at home first. Everything after this works with no internet."
+    },
+    {
+      "id": "lead-form",
+      "title": "Build the scouting form",
+      "summary": "The questions every scout will answer for every match.",
+      "images": [
+        { "key": "formBuilder", "alt": "The Form Builder screen with a Save Form button at the top right.", "caption": "Press Save Form when you are happy with the questions." }
+      ],
+      "steps": [
+        { "text": "Open **Form Builder**, under Lead Scout Tools." },
+        {
+          "text": "For your first event, press **Use the starter form**.",
+          "detail": "It already has pages for Autonomous, Teleop, Endgame, and Problems and notes. You can change, add, or remove any question."
+        },
+        {
+          "text": "When you are happy, press **Save Form** at the top right.",
+          "detail": "This is now the form your scouts will get."
+        }
+      ],
+      "tip": "Want Matchbook to rank teams? Start the name of each scored question with **auto**, **teleop**, or **endgame**. Questions that should not add to a score, like “dropped pieces”, should not start with those words."
+    },
+    {
+      "id": "lead-receive",
+      "title": "Collect scouting from the scouts",
+      "summary": "Scouts send their entries straight to your laptop over Wi-Fi.",
+      "images": [
+        { "key": "wifiHub", "alt": "The lead scout’s Wi-Fi screen with a large code and a square pairing code.", "caption": "The code on this screen is what scouts type." }
+      ],
+      "steps": [
+        {
+          "text": "Put your laptop and the scouts’ laptops on the same Wi-Fi.",
+          "detail": "A phone hotspot is perfect, and the internet is not needed. Avoid the venue’s public Wi-Fi. It often stops laptops from seeing each other."
+        },
+        { "text": "Open **Sync Data**, then **Wi-Fi**, and press **Start receiving**." },
+        {
+          "text": "Tell the scouts the **code** on your screen.",
+          "detail": "Or let them scan the small square code instead of typing."
+        },
+        {
+          "text": "Each scout presses **Get form and schedule** once, and later **Send my entries** every few matches."
+        },
+        {
+          "text": "Their entries appear on your laptop by themselves.",
+          "detail": "The **Home** screen keeps count."
+        }
+      ],
+      "tip": "If Windows asks about the firewall the first time, choose **Allow** for private networks. Without it, scouts cannot reach your laptop."
+    },
+    {
+      "id": "lead-analysis",
+      "title": "Compare teams",
+      "summary": "See which teams are strongest, and build your pick list.",
+      "images": [
+        { "key": "analysis", "alt": "The Analysis screen with charts for each team.", "caption": "Analysis turns everyone’s entries into charts." }
+      ],
+      "steps": [
+        { "text": "Open **Analysis** in the left menu." },
+        { "text": "Choose **Overall**, **Auto**, **Teleop**, or **Endgame** to compare teams." },
+        { "text": "Type a team number in the search box to look at just that team." }
+      ],
+      "tip": "Rankings only mean something once scouts have covered most teams. The Home screen shows how many teams are covered."
+    },
+    {
+      "id": "lead-backup",
+      "title": "Back up your data",
+      "summary": "A saved copy, kept somewhere other than this laptop.",
+      "images": [
+        { "key": "fileTab", "alt": "The File screen with a Save file button.", "caption": "Save everything as a file." }
+      ],
+      "steps": [
+        { "text": "Open **Sync Data**, then **File**." },
+        { "text": "Choose **Everything on this laptop (a backup)** and press **Save file**." },
+        { "text": "Copy the file to a USB stick or a cloud drive." }
+      ],
+      "tip": "Do this every few matches and at the end of each day. After the event, save one more backup **before** using **Advanced, Delete all scouting entries**."
+    }
+  ],
+  "troubleshooting": [
+    {
+      "id": "no-form",
+      "question": "It says there is no scouting form.",
+      "answer": [
+        "The form comes from the lead scout. Follow **Get the scouting form** in the scouts’ guide.",
+        "The lead scout must have pressed **Save Form** in **Form Builder** first."
+      ]
+    },
+    {
+      "id": "no-hub",
+      "question": "I can’t find the lead scout’s laptop in the list.",
+      "answer": [
+        "Check these three things, in order:",
+        "**1.** Is your laptop on the same Wi-Fi as the lead scout’s? Being on a different network is the most common reason.",
+        "**2.** Has the lead scout pressed **Start receiving**? Their screen must say **Receiving**.",
+        "**3.** Some venue Wi-Fi networks stop laptops from seeing each other. Use a phone hotspot, or a small travel router just for your team.",
+        "Still stuck? Use **Scan the lead scout’s code instead**, or send with **QR codes** or a **File**. They work with no Wi-Fi."
+      ]
+    },
+    {
+      "id": "wrong-code",
+      "question": "It says the code does not match.",
+      "answer": [
+        "Check the code on the lead scout’s screen. It is 8 letters and numbers, like GRGB 5VDW.",
+        "Codes never use the letters **I** and **O** or the numbers **0** and **1**, so they cannot be mixed up. If the lead scout made a new code, use the new one."
+      ]
+    },
+    {
+      "id": "camera",
+      "question": "The camera will not start.",
+      "answer": [
+        "**On a Mac:** open **System Settings**, then **Privacy & Security**, then **Camera**, and switch **Matchbook** on. Then close and reopen Matchbook.",
+        "**On Windows:** open **Settings**, then **Privacy & security**, then **Camera**, and turn on **Let desktop apps access your camera**.",
+        "If another app is using the camera (Zoom, Teams, Photo Booth), close it."
+      ]
+    },
+    {
+      "id": "qr-wont-read",
+      "question": "The QR codes will not read.",
+      "answer": [
+        "Turn the sending screen’s brightness all the way up.",
+        "Move the laptops a little closer or farther apart until the camera picture shows the whole code.",
+        "Avoid glare on either screen, and keep both laptops still.",
+        "On the sending screen, choose **Bigger squares**. The codes get simpler and easier to read."
+      ]
+    },
+    {
+      "id": "covered-button",
+      "question": "A message is covering a button.",
+      "answer": [
+        "Messages fade away on their own after a few seconds, and you can click right through them.",
+        "Press **Esc** to clear all messages at once."
+      ]
+    },
+    {
+      "id": "too-big",
+      "question": "The window is too big for my screen, or buttons are cut off.",
+      "answer": [
+        "Matchbook fits itself to your screen. If everything still looks too large, make it smaller: hold **Ctrl** (Windows) or **Command** (Mac) and press **-** a couple of times. Press **Ctrl** or **Command** and **0** to go back to normal.",
+        "In a narrow window, the menu hides behind the **☰** button at the top left."
+      ]
+    },
+    {
+      "id": "firewall",
+      "question": "Windows asked about a firewall.",
+      "answer": [
+        "Choose **Allow access** for **Private networks**. This lets the scouts’ laptops reach the lead scout’s laptop. It does not open anything to the internet."
+      ]
+    },
+    {
+      "id": "lost-data",
+      "question": "Did I lose my entries?",
+      "answer": [
+        "Every entry you save is stored on the laptop right away. Closing Matchbook, or closing the laptop, does not delete it.",
+        "Open **Review Entries** to see them. To be extra safe, save a backup file every few matches (**Sync Data**, then **File**)."
+      ]
+    },
+    {
+      "id": "update",
+      "question": "Matchbook says there is an update.",
+      "answer": [
+        "You can ignore it during an event. Matchbook never installs anything by itself.",
+        "Update between events, when you have internet, and make sure every laptop ends up on the same version."
+      ]
+    }
+  ],
+  "glossary": [
+    { "term": "Lead scout", "meaning": "The one laptop that collects everyone’s scouting and helps decide who to pick. Matchbook also calls it the hub." },
+    { "term": "Scout", "meaning": "A laptop used to watch matches and record what the robots do." },
+    { "term": "Entry", "meaning": "Everything you recorded about one robot in one match." },
+    { "term": "Form", "meaning": "The list of questions you answer for every entry." },
+    { "term": "Sync", "meaning": "Moving entries, or the form, from one laptop to another." },
+    { "term": "QR code", "meaning": "A square picture that holds data. One laptop shows it and another reads it with its camera." },
+    { "term": "Hotspot", "meaning": "Wi-Fi shared from a phone. Good for a team that wants its own network at an event." },
+    { "term": "Backup", "meaning": "A saved copy of your data, kept somewhere other than this laptop." },
+    { "term": "Event", "meaning": "One competition, like the San Diego Regional." }
+  ]
+}

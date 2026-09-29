@@ -1,30 +1,39 @@
 # Matchbook competition-day checklist
 
-Use this checklist before matches begin. Matchbook is designed to keep scouting local and usable without internet; network sync only needs the team hub and a private LAN.
+Use this checklist before matches begin. Matchbook keeps scouting local and usable without internet. Wi-Fi sync only needs the hub and the scouts on the same private network, such as a phone hotspot.
+
+New scouts can open **Help** in the app for step-by-step pictures and two short videos. It is worth having each scout watch "Your first match" before the event.
 
 ## Before leaving for the event
 
 1. Install the same Matchbook release on every hub and scout laptop.
 2. On the hub, import the event schedule, create or select the scouting form, assign scouts, and run one sample entry through Analysis.
 3. On every scout, complete first-run setup and confirm the device name is recognizable.
-4. Rehearse one network transfer and one QR transfer. Confirm the hub imports the record exactly once.
-5. Export a database snapshot from the hub and save it somewhere separate from that laptop.
+4. Rehearse one Wi-Fi transfer and one QR transfer. Confirm the hub gets each record exactly once.
+5. On the hub, open **Sync Data, File**, save **Everything on this laptop**, and keep the file somewhere separate from that laptop.
+6. Have each scout do one full sample match, so nobody meets the form for the first time in the stands.
 
 ## At the venue
 
 1. Designate one laptop as the hub. Keep it plugged in when possible.
-2. Connect only the team laptops to a private hotspot or router. Do not use a public event Wi-Fi network for data transfer.
-3. On the hub, open **Sync Data → Network**, start the server, and share the shown hub address and eight-character token with scouts.
-4. On each scout, enter the hub address and token once. Send a small test payload, then have the hub apply it.
-5. During matches, scouts can continue recording even when the network is unavailable. Do not reset local cache to solve a sync problem.
-6. Every few matches, apply incoming payloads on the hub and export a hub snapshot to removable storage or another team-controlled device.
+2. Connect only the team laptops to a private hotspot or router. Do not use the venue's public Wi-Fi for data transfer: it often stops laptops from seeing each other.
+3. On the hub, open **Sync Data, Wi-Fi** and press **Start receiving**. Read the code on the screen to the scouts, or let them scan the small square code. Windows may ask about the firewall the first time: allow it on private networks.
+4. On each scout, open **Sync Data, Wi-Fi**, click the hub in the list, and type the code. Press **Get form and schedule** once.
+5. During matches, scouts keep recording even when the network is unavailable. Do not reset the local cache to solve a sync problem.
+6. Every few matches each scout presses **Send my entries**. The hub adds them on its own, and its Home screen counts them. A scout's Home screen shows how many entries the hub does not have yet.
+7. Every few matches, save a backup file from the hub (**Sync Data, File**) to a USB stick or another team-controlled device.
+
+The hub starts receiving again by itself if the app or the laptop restarts, with the same code, so scouts do not need to pair again.
 
 ## If sync fails
 
-- **Wrong token / address:** Re-check both fields. The hub accepts only private-LAN HTTP addresses and a matching eight-character token.
-- **No network:** Use QR export/import. CSV and database snapshots are available as fallback transfer methods.
-- **Payload appears in quarantine:** Read the reason, correct the source issue if necessary, then requeue it. Do not clear quarantine until its source data is confirmed elsewhere.
-- **Database startup error:** Retry first. Reset cache only after confirming the device’s records are already on the hub or backed up; Matchbook requires typing `RESET` before this destructive action.
+- **The hub is not in the scout's list:** The laptops must be on the same Wi-Fi, and the hub must say **Receiving**. If they are, the network is probably isolating clients. Use a hotspot, or have the scout press **Scan the lead scout's code instead** or **Type the address by hand**.
+- **The code does not match:** Codes are 8 letters and numbers, never I, O, 0 or 1. If the hub made a new code, use the new one.
+- **No network at all:** Use **QR codes** (one laptop shows codes, the other reads them with its camera) or **File** (USB stick, AirDrop, email). They move exactly the same data.
+- **QR codes will not read:** Turn the brightness of the sending screen all the way up, move the laptops a little closer, avoid glare, and choose **Bigger squares** on the sending screen.
+- **The camera will not start:** On a Mac, allow Matchbook under System Settings, Privacy & Security, Camera. On Windows, turn on camera access for desktop apps under Settings, Privacy & security, Camera. Close any other app using the camera.
+- **An upload was set aside:** The hub's Wi-Fi screen says why. Nothing is lost. Press **Try again**, and only choose **Remove them** if the scout still has those entries or you have a backup.
+- **Database startup error:** Retry first. Reset the cache only after confirming the device's records are already on the hub or backed up; Matchbook requires typing `RESET` before this destructive action.
 
 ## Release and rollback
 

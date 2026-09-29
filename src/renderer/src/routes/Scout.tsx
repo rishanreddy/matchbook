@@ -17,7 +17,7 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import { IconArrowLeft, IconCheck, IconClipboardCheck, IconInfoCircle, IconRefresh, IconAlertCircle, IconCircleCheck } from '@tabler/icons-react'
 import { Model } from 'survey-core'
 import { Survey } from 'survey-react-ui'
@@ -301,16 +301,16 @@ export function Scout(): ReactElement {
 
   const handleStartScouting = (): void => {
     if (!hasActiveForm) {
-      notifications.show({
+      notify({
         color: 'yellow',
-        title: 'Sync required',
-        message: 'No active scouting form is synced. Sync an active form before scouting.',
+        title: 'No scouting form yet',
+        message: 'This laptop does not have a scouting form yet. Get the form from the lead scout first (Sync Data).',
       })
       return
     }
 
     if (currentEventId && isLoadingEventMatches) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Loading event schedule',
         message: 'Please wait for event match data to finish loading.',
@@ -319,7 +319,7 @@ export function Scout(): ReactElement {
     }
 
     if (scheduleValidationError) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Match validation failed',
         message: scheduleValidationError,
@@ -328,7 +328,7 @@ export function Scout(): ReactElement {
     }
 
     if (!canStartScouting) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Invalid match or team number',
         message: 'Match number and team number must be whole numbers greater than zero.',
@@ -358,6 +358,12 @@ export function Scout(): ReactElement {
     applyMatchbookSurveyTheme(model)
     model.checkErrorsMode = 'onValueChanged'
     model.textUpdateMode = 'onTyping'
+    // The header above already names the match and team; repeating the form title cost
+    // a screenful of height on a small laptop before the first question.
+    model.showTitle = false
+    if (model.pageCount > 1) {
+      model.showProgressBar = 'top'
+    }
 
     if (surveyDraftKey) {
       let draftRaw: string | null = null
@@ -434,7 +440,7 @@ export function Scout(): ReactElement {
   const saveObservation = useCallback(
     async (formData: Record<string, unknown>): Promise<void> => {
       if (!db || !isPositiveInteger(matchNumber) || !isPositiveInteger(teamNumber)) {
-        notifications.show({
+        notify({
           color: 'red',
           title: 'Invalid submission context',
           message: 'Match and team number must be valid whole numbers before saving.',
@@ -463,7 +469,7 @@ export function Scout(): ReactElement {
           createdAt: now,
         })
 
-        notifications.show({
+        notify({
           color: 'green',
           title: 'Saved!',
           message: `Match ${matchNumber}, Team ${teamNumber} recorded.`,
@@ -510,87 +516,45 @@ export function Scout(): ReactElement {
 
   if (showForm) {
     return (
-      <Box className="container-wide" py="xl">
-        <Stack gap={24}>
-          <Box className="animate-fadeInUp">
+      <Box className="container-wide scout-form-page">
+        <Group className="scout-form-bar" justify="space-between" align="center" wrap="nowrap" gap="sm">
+          <Group gap="md" wrap="nowrap" style={{ minWidth: 0 }}>
             <Button
-              variant="subtle"
-              color="slate"
-              size="sm"
-              mb="md"
+              variant="default"
+              size="compact-md"
               onClick={() => setShowForm(false)}
               leftSection={<IconArrowLeft size={14} />}
-              className="transition-all duration-200 hover:translate-x-[-2px]"
             >
               Back
             </Button>
+            <Box style={{ minWidth: 0 }}>
+              <Title order={2} c="slate.0" className="scout-form-heading">
+                Match {matchNumber} · Team {teamNumber}
+              </Title>
+              <Text size="xs" c="slate.4" truncate>
+                Saved on this laptop as you go. Press Back any time and pick this match again to carry on.
+              </Text>
+            </Box>
+          </Group>
+        </Group>
 
-            <Card
-              p="lg"
-              radius="xl"
-              className="animate-fadeInUp stagger-1 transition-all duration-300 hover:shadow-xl"
-              style={{
-                background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
-                border: '1px solid rgba(154, 166, 182, 0.25)',
-              }}
-            >
-              <Group gap="md" align="center" wrap="wrap">
-                <ThemeIcon
-                  size={56}
-                  radius="xl" variant="light"
-                >
-                  <IconClipboardCheck size={28} stroke={1.5} />
-                </ThemeIcon>
-                <Box>
-                  <Title order={1} c="slate.0" style={{ fontSize: 24, fontWeight: 700 }}>
-                    Match {matchNumber} · Team {teamNumber}
-                  </Title>
-                  <Text size="sm" c="slate.4">Fill out the form below and submit when done</Text>
-                </Box>
-              </Group>
-            </Card>
-          </Box>
-
-          <Card
-            p="xl"
-            radius="xl"
-            className="animate-fadeInUp stagger-2 transition-all duration-300 hover:shadow-xl"
-            style={{
-              background: 'linear-gradient(180deg, rgba(20, 26, 38, 0.95), rgba(15, 21, 32, 0.98))',
-              border: '1px solid rgba(148, 163, 184, 0.12)',
-              backdropFilter: 'blur(12px)',
-              position: 'relative',
-            }}
-          >
-            <Box
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '3px',
-                background: 'linear-gradient(90deg, var(--mantine-color-frc-blue-5), var(--mantine-color-frc-blue-7))',
-                borderRadius: '12px 12px 0 0',
-              }}
-            />
-            <LoadingOverlay visible={isSubmitting} overlayProps={{ blur: 2 }} />
-            <Box className="survey-runtime-container" />
-            {survey ? (
-              <Survey model={survey} />
-            ) : (
-              <Group justify="center" py="xl">
-                <Loader size="sm" color="frc-blue" />
-                <Text size="sm" c="slate.4">Preparing form...</Text>
-              </Group>
-            )}
-          </Card>
-        </Stack>
+        <Box className="scout-form-card">
+          <LoadingOverlay visible={isSubmitting} overlayProps={{ blur: 2 }} />
+          {survey ? (
+            <Survey model={survey} />
+          ) : (
+            <Group justify="center" py="xl">
+              <Loader size="sm" color="frc-blue" />
+              <Text size="sm" c="slate.4">Preparing form...</Text>
+            </Group>
+          )}
+        </Box>
       </Box>
     )
   }
 
   return (
-    <Box className="container-wide" py="xl">
+    <Box className="container-wide">
       <Stack gap={24}>
         {/* Header */}
         <Box className="animate-fadeInUp">
@@ -658,21 +622,21 @@ export function Scout(): ReactElement {
                 <Box>
                   <Text fw={600} c="frc-orange.3" size="sm">No Active Scouting Form</Text>
                   <Text size="xs" c="slate.4" mt={2}>
-                    Sync or build a scouting form to start recording match data.
+                    Get the scouting form from the lead scout to start recording matches.
                   </Text>
                 </Box>
                 <RouteHelpModal
                   title="Getting Started with Scouting"
                   description="Before you can record match observations, you need an active scouting form synced to this device."
                   steps={[
-                    { title: 'Sync a Form', description: 'Go to Sync Data to download a scouting form from the hub.' },
-                    { title: 'Build a Form', description: 'On the hub, use Form Builder to create a custom scouting form.' },
-                    { title: 'Set Active', description: 'Mark the form as active so scouts can use it.' },
+                    { title: 'Get the form', description: 'Open Sync Data and get the scouting form from the lead scout, over Wi-Fi, with QR codes, or from a file.' },
+                    { title: 'Build a form', description: 'On the lead scout’s laptop, use Form Builder to create the scouting form.' },
+                    { title: 'Save it', description: 'Press Save Form so scouts can get it.' },
                   ]}
                   tips={[
                     { text: 'Forms contain questions about robot capabilities, scoring, and defense.' },
                     { text: 'Multiple forms can exist; only one can be active at a time.' },
-                    { text: 'Scouts on other devices will need to sync to get the latest form.' },
+                    { text: 'Scouts get the latest form from the lead scout in Sync Data.' },
                   ]}
                   iconSize={16}
                   tooltipLabel="Form help"
@@ -682,12 +646,12 @@ export function Scout(): ReactElement {
 
               <Group gap="sm">
                 <Button
-                  onClick={() => navigate('/sync')}
+                  onClick={() => navigate('/sync?tab=wifi')}
                   leftSection={<IconRefresh size={16} />}
                   size="sm"
                   className="transition-all duration-200 hover:shadow-lg hover:shadow-frc-blue-5/20"
                 >
-                  Open Sync
+                  Get the form
                 </Button>
                 {isHub && (
                   <Button
@@ -949,7 +913,7 @@ export function Scout(): ReactElement {
               </Button>
               {!hasActiveForm && (
                 <Text size="xs" c="slate.5" ta="center" mt="sm">
-                  Sync or build a form to enable scouting
+                  Get the form from the lead scout to start scouting
                 </Text>
               )}
             </Box>

@@ -186,16 +186,18 @@
 
   .app-main-content {
     @apply relative;
-    min-height: calc(100vh - 60px);
   }
 
+  /* The shell is exactly one window tall and the main column is the only thing that
+     scrolls. `dvh` follows the real window height; `vh` did not, and the old
+     `calc(100vh - 64px)` was silently overridden by Mantine's own min-height. */
   .app-shell-root {
-    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
 
   .app-shell-root .mantine-AppShell-main {
-    height: calc(100vh - 64px);
+    height: 100dvh;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
@@ -204,18 +206,12 @@
     overflow: hidden;
   }
 
-  .app-nav-scroll {
-    overflow-y: hidden;
-  }
-
-  @media (max-height: 820px) {
-    .app-nav-scroll {
-      overflow-y: auto;
-    }
-  }
-
-  .app-page-container {
-    animation: pageEnter 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  /* The nav list is the part of the sidebar that gives way on a short screen. The
+     event card and version footer stay put, so Settings and Help are always
+     reachable by scrolling instead of being hidden behind them. */
+  .app-shell-root .app-nav-scroll {
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .app-page-container--full {
@@ -1193,4 +1189,510 @@ body,
 
 .current-event-card:hover {
   background-color: var(--surface-hover);
+}
+
+/* ============================================
+   Toasts
+   ============================================ */
+/* A toast that takes pointer events becomes a trap: it appears under the cursor,
+   Mantine pauses its timer on mouse-enter, and it swallows the click meant for the
+   button beneath it. Toasts are therefore click-through; only the close button (and
+   toasts that explicitly hold a button) can be clicked. */
+.mantine-Notifications-root {
+  pointer-events: none;
+}
+
+.mb-toast {
+  pointer-events: none;
+}
+
+.mb-toast .mantine-Notification-closeButton {
+  pointer-events: auto;
+}
+
+.mb-toast.mb-toast--interactive {
+  pointer-events: auto;
+}
+
+/* ============================================
+   Compact chrome for short or narrow windows
+   ============================================ */
+/* Scouts run this on 1366x768 and 1080p laptops scaled to 125-150%, which leaves
+   roughly 600-700 CSS pixels of height. The chrome has to give way to the data. */
+@media (max-height: 760px) {
+  .app-shell-root .app-nav-root {
+    margin-bottom: 1px;
+    padding-block: 4px;
+  }
+
+  .app-shell-root .app-nav-group-title {
+    margin-top: 6px;
+    padding-bottom: 0;
+  }
+
+  .app-shell-root .app-sidebar-footer {
+    padding-block: 6px;
+  }
+
+  .app-shell-root .current-event-card {
+    padding: 6px 10px;
+  }
+}
+
+@media (max-height: 640px) {
+  .app-shell-root .app-sidebar-footer {
+    display: none;
+  }
+}
+
+.app-shell-root .app-header-tagline {
+  display: none;
+}
+
+@media (min-width: 75em) {
+  .app-shell-root .app-header-tagline {
+    display: block;
+  }
+}
+
+/* ============================================
+   Scouting form
+   ============================================ */
+.scout-form-bar {
+  margin-bottom: var(--mantine-spacing-sm);
+}
+
+.scout-form-heading {
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.scout-form-card {
+  position: relative;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+/* The buttons that move a scout between pages stay on screen, however long the page is. */
+.scout-form-card .sv-components-container-contentBottom {
+  position: sticky;
+  /* Sticky offsets are measured inside the scroll container's padding, so pull the
+     bar down by that padding to sit flush with the bottom of the window. */
+  bottom: calc(var(--app-shell-padding, 0px) * -1);
+  z-index: 20;
+  border-top: 1px solid var(--border-default);
+  background: var(--surface-raised);
+}
+
+.scout-form-card .sd-body__navigation {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 16px;
+}
+
+.scout-form-card .sd-navigation__prev-btn {
+  margin-right: auto;
+}
+
+.scout-form-card .sd-body__navigation .sd-btn {
+  min-width: 120px;
+  padding: 10px 22px;
+  font-weight: 600;
+}
+
+/* Amber marks the one action that moves the scout forward. */
+.scout-form-card .sd-navigation__next-btn,
+.scout-form-card .sd-navigation__complete-btn {
+  background: var(--accent);
+  color: #141006;
+}
+
+.scout-form-card .sd-navigation__next-btn:hover,
+.scout-form-card .sd-navigation__complete-btn:hover {
+  background: var(--accent-strong);
+}
+
+.scout-form-card .sd-navigation__next-btn *,
+.scout-form-card .sd-navigation__complete-btn * {
+  color: #141006;
+}
+
+/* SurveyJS wraps the form in its own overflow:auto boxes, which would capture the
+   sticky navigation bar. Let it overflow so it pins to the app's scroll area. */
+.scout-form-card .sd-root-modern,
+.scout-form-card .sv-scroll__scroller {
+  overflow: visible !important;
+}
+
+/* ============================================
+   First-run wizard: pinned footer
+   ============================================ */
+/* Header, progress and footer keep their size; only the middle scrolls. Before, the
+   whole card scrolled as one, so on a short window Back/Continue sat below the fold
+   and a new user had no reason to look for them. */
+.mantine-Modal-content.wizard-modal-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wizard-modal-content .wizard-modal-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wizard-modal-content .onboarding-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.wizard-modal-content .onboarding-header,
+.wizard-modal-content .onboarding-progress,
+.wizard-modal-content .onboarding-footer {
+  flex: none;
+}
+
+.wizard-modal-content .onboarding-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-height: 640px) {
+  .wizard-modal-content .onboarding-lede {
+    display: none;
+  }
+
+  .wizard-modal-content .onboarding-header {
+    padding-block: 12px 10px;
+  }
+
+  .wizard-modal-content .onboarding-progress {
+    padding-block: 8px;
+  }
+}
+
+/* ============================================
+   Sidebar as a slide-over on narrow windows
+   ============================================ */
+/* Mantine stretches a collapsed navbar across the whole window. A panel with a
+   click-away scrim reads as a menu instead of a page. */
+@media (max-width: 61.99em) {
+  .app-shell-root .mantine-AppShell-navbar {
+    width: min(300px, 86vw);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+  }
+
+  .app-nav-scrim {
+    position: fixed;
+    inset: 56px 0 0 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.45);
+  }
+}
+
+@media (min-width: 62em) {
+  .app-nav-scrim {
+    display: none;
+  }
+}
+
+@media (max-height: 640px) {
+  .app-shell-root .app-nav-group-title {
+    margin-top: 2px;
+    padding-block: 0;
+    font-size: 10px;
+    line-height: 14px;
+  }
+}
+
+/* ============================================
+   Step list
+   ============================================ */
+.step-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-list__item {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.step-list__number {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ============================================
+   QR sender (full-window loop of codes)
+   ============================================ */
+.qr-send {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-base);
+}
+
+.qr-send__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.qr-send__title {
+  min-width: 0;
+}
+
+/* The code is centred by position rather than padded, so the size measured from this
+   box is exactly the size the code can be. */
+.qr-send__area {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.qr-send__code {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  background: #ffffff;
+  line-height: 0;
+}
+
+.qr-send__controls {
+  display: grid;
+  flex: none;
+  gap: 8px;
+  justify-items: center;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border-default);
+}
+
+@media (max-height: 560px) {
+  .qr-send__controls > :last-child {
+    display: none;
+  }
+}
+
+/* ============================================
+   QR receiver
+   ============================================ */
+.qr-preview {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: #000000;
+  aspect-ratio: 16 / 9;
+}
+
+.qr-preview video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-preview--off {
+  display: none;
+}
+
+.qr-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.qr-progress__cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--surface-elevated);
+}
+
+.qr-progress__cell--done {
+  background: var(--mantine-color-success-5);
+}
+
+/* ============================================
+   Wi-Fi sync
+   ============================================ */
+.wifi-code {
+  display: inline-block;
+  padding: 10px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 1.9rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.pairing-code {
+  width: fit-content;
+  border-radius: 4px;
+  background: #ffffff;
+  line-height: 0;
+}
+
+.hub-choice {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-base);
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.hub-choice:hover {
+  background: var(--surface-hover);
+}
+
+.hub-choice[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-active);
+}
+
+/* ============================================
+   Scout home
+   ============================================ */
+.home-next-step {
+  padding: var(--mantine-spacing-md);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+/* ============================================
+   How-to guide
+   ============================================ */
+.guide-accordion .mantine-Accordion-item {
+  border: 1px solid var(--border-default);
+  background: var(--surface-raised);
+}
+
+.guide-accordion .mantine-Accordion-control {
+  padding-block: 12px;
+}
+
+.guide-task-number {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.guide-figure {
+  margin: 0;
+}
+
+.guide-figure__button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-base);
+  cursor: zoom-in;
+}
+
+.guide-figure__button img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.guide-figure figcaption {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.guide-tip {
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-base);
+}
+
+.guide-word {
+  border: 1px solid var(--border-default);
+  background: var(--surface-raised);
+}
+
+/* Steps and pictures sit side by side when there is room, with the steps first otherwise. */
+.guide-task-body {
+  display: grid;
+  gap: 24px;
+  padding-top: 4px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1100px) {
+  .guide-task-body {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
+}
+
+.step-list__title strong {
+  font-weight: 700;
+}
+
+.guide-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: #000000;
 }

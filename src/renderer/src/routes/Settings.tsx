@@ -22,7 +22,7 @@ import {
   Title,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import { formatForDisplay, normalizeHotkey, useHotkeyRecorder } from '@tanstack/react-hotkeys'
 import {
   IconSettings,
@@ -184,7 +184,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       const conflictingId = findShortcutConflict(normalized, recordingShortcutId, shortcutBindings)
       if (conflictingId) {
         const conflictDefinition = getShortcutDefinition(conflictingId)
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Shortcut already in use',
           message: `${formatForDisplay(normalized)} is already assigned to "${conflictDefinition.description}".`,
@@ -258,7 +258,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     })
     const offError = window.electronAPI.onUpdaterError((message) => {
       setUpdateState('error')
-      notifications.show({ color: 'red', title: 'Update error', message })
+      notify({ color: 'red', title: 'Update error', message })
     })
 
     return () => {
@@ -513,7 +513,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       const resolvedDeviceId = deviceId ?? (await getOrCreateDeviceId())
       const now = new Date().toISOString()
 
-      let resolvedDeviceName = nextIsHub ? 'Hub Device' : 'Scout Device'
+      let resolvedDeviceName = nextIsHub ? 'Lead Scout Laptop' : 'Scout Laptop'
       if (db) {
         const existingDevice = await db.collections.devices.findOne(resolvedDeviceId).exec()
         resolvedDeviceName = existingDevice?.name ?? resolvedDeviceName
@@ -532,11 +532,11 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
         isPrimary: nextIsHub,
       })
 
-      setFormMessage(`Device role switched to ${nextIsHub ? 'Hub' : 'Scout'}.`)
-      notifications.show({
+      setFormMessage(`Device role switched to ${nextIsHub ? 'Lead scout' : 'Scout'}.`)
+      notify({
         color: 'green',
         title: 'Role updated',
-        message: `This device is now in ${nextIsHub ? 'Hub' : 'Scout'} mode.`,
+        message: `This laptop is now set up as ${nextIsHub ? 'the lead scout' : 'a scout'}.`,
       })
     } catch (error: unknown) {
       handleError(error, 'Update device role')
@@ -553,7 +553,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   const handleCurrentEventChange = (value: string | null): void => {
     if (!value) {
       clearCurrentEvent()
-      notifications.show({
+      notify({
         color: 'blue',
         title: 'Current event cleared',
         message: 'No default event is selected.',
@@ -563,7 +563,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
     const selected = events.find((event) => event.id === value)
     if (!selected) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Event unavailable',
         message: 'Selected event is not in local storage.',
@@ -572,7 +572,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     }
 
     setCurrentEvent(selected.id, selected.season)
-    notifications.show({
+    notify({
       color: 'green',
       title: 'Current event updated',
       message: `Set to ${selected.name} (${selected.season}).`,
@@ -581,7 +581,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
   const handleTestConnection = async (): Promise<void> => {
     if (!tbaApiKey.trim()) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Missing API key',
         message: 'Enter a TBA API key before testing the connection.',
@@ -591,7 +591,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
     try {
       await getTbaStatus(tbaApiKey.trim())
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Connection successful',
         message: 'TBA API key verified successfully.',
@@ -613,13 +613,13 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
   const handleExportLogs = (): void => {
     downloadTextFile(logger.exportLogs(), `matchbook-logs-${new Date().toISOString().slice(0, 10)}.json`)
-    notifications.show({ color: 'green', title: 'Logs exported', message: 'Downloaded logs as JSON.' })
+    notify({ color: 'green', title: 'Logs exported', message: 'Downloaded logs as JSON.' })
   }
 
   const handleClearLogs = (): void => {
     logger.clearLogs()
     clearLogsModalHandlers.close()
-    notifications.show({ color: 'green', title: 'Logs cleared', message: 'All logs were removed.' })
+    notify({ color: 'green', title: 'Logs cleared', message: 'All logs were removed.' })
   }
 
   const refreshScoutingDataCount = useCallback(async (): Promise<void> => {
@@ -648,7 +648,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
   const handleDeleteScoutingData = async (): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Database not ready',
         message: 'Please wait for database initialization.',
@@ -657,7 +657,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
     }
 
     if (deleteScoutingDataConfirmText.trim().toUpperCase() !== 'DELETE') {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Confirmation required',
         message: 'Type DELETE to confirm deleting scouting data.',
@@ -670,7 +670,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       const docs = await db.collections.scoutingData.find().exec()
       await Promise.all(docs.map(async (doc) => await doc.remove()))
 
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Scouting data deleted',
         message: `Removed ${docs.length} scouting observation${docs.length === 1 ? '' : 's'} from this device.`,
@@ -697,7 +697,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       const payload = result as UpdaterActionResult
       if (!payload.supported) {
         setUpdateState('idle')
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Updates unavailable in this build',
           message: payload.reason ?? 'Update checks are disabled for this runtime.',
@@ -718,7 +718,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       const payload = result as UpdaterActionResult
       if (!payload.supported) {
         setUpdateState('idle')
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Download unavailable',
           message: payload.reason ?? 'Update download is disabled for this runtime.',
@@ -737,7 +737,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       const result = await window.electronAPI.installUpdate()
       const payload = result as UpdaterActionResult
       if (!payload.supported) {
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Install unavailable',
           message: payload.reason ?? 'Install is disabled for this runtime.',
@@ -757,7 +757,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   }, [formMessage])
 
   return (
-    <Box className="container-wide" py="xl">
+    <Box className="container-wide">
       <Stack gap={32}>
         {/* Header */}
         <Box className="animate-fadeInUp">

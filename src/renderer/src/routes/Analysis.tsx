@@ -874,7 +874,7 @@ export function Analysis(): ReactElement {
 
   if (observations.length === 0) {
     return (
-      <Box className="container-wide" py="xl">
+      <Box className="container-wide">
         <Stack gap={32}>
           <Box className="animate-fadeInUp">
             <Group gap="md">
@@ -898,11 +898,11 @@ export function Analysis(): ReactElement {
               <Box maw={440}>
                 <Text fw={600} c="slate.0" size="xl" mb={8}>Nothing to analyze yet</Text>
                 <Text c="slate.3" mb="lg">
-                  Team rankings appear once match data reaches this hub. Collect it from the
-                  scout laptops over the network, by QR code, or from a CSV file.
+                  Team rankings appear once scouting reaches this laptop. Collect it from the
+                  scouts over Wi-Fi, with QR codes, or from a file.
                 </Text>
                 <Group justify="center" gap="sm">
-                  <Button leftSection={<IconCloudUpload size={16} />} onClick={() => navigate('/sync')}>
+                  <Button leftSection={<IconCloudUpload size={16} />} onClick={() => navigate('/sync?tab=wifi')}>
                     Receive scout data
                   </Button>
                   <Button
@@ -922,7 +922,7 @@ export function Analysis(): ReactElement {
   }
 
   return (
-    <Box className="container-wide" py="xl">
+    <Box className="container-wide">
       <Stack gap={32}>
         {hasNoScorableData && (
           <Alert

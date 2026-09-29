@@ -3,8 +3,9 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { isValidSyncPayload, isValidSyncToken, type SyncPayload } from '../shared/syncProtocol'
+import { HubBeacon, HubListener, type HubIdentity } from './discovery'
 
 type FailedSyncPayload = {
   payload: SyncPayload
@@ -16,6 +17,9 @@ type SyncServerStatus = {
   running: boolean
   port: number | null
   url: string | null
+  /** Every address this laptop can be reached on, best first. A laptop with Wi-Fi and Ethernet has two. */
+  urls: string[]
+  name: string | null
   queueLength: number
   failedQueueLength: number
   authRequired: boolean
@@ -29,6 +33,10 @@ const MAX_PENDING_BYTES = 50 * 1024 * 1024
 let server: Server | null = null
 let currentPort: number | null = null
 let serverAuthToken: string | null = null
+let serverIdentity: HubIdentity | null = null
+let publishedConfig: { json: string; publishedAt: string } | null = null
+const hubBeacon = new HubBeacon()
+const hubListener = new HubListener()
 const payloadQueue: SyncPayload[] = []
 const failedPayloadQueue: FailedSyncPayload[] = []
 let isQueueLoaded = false
@@ -245,18 +253,28 @@ function getLanIpv4Addresses(): string[] {
 }
 
 function getStatus(): SyncServerStatus {
-  const preferredAddress = currentPort ? getLanIpv4Addresses()[0] : null
+  const addresses = currentPort ? getLanIpv4Addresses() : []
+  const urls = currentPort ? (addresses.length > 0 ? addresses : ['127.0.0.1']).map((address) => `http://${address}:${currentPort}`) : []
 
   return {
     running: server !== null,
     port: currentPort,
-    url: currentPort
-      ? `http://${preferredAddress ?? '127.0.0.1'}:${currentPort}`
-      : null,
+    url: urls[0] ?? null,
+    urls,
+    name: serverIdentity?.name ?? null,
     queueLength: payloadQueue.length,
     failedQueueLength: failedPayloadQueue.length,
     authRequired: Boolean(serverAuthToken),
   }
+}
+
+/** Tells the window a scout just delivered something, so it can be added without a button press. */
+function announcePayloadReceived(): void {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('sync-server:payload-received', { queueLength: payloadQueue.length })
+    }
+  })
 }
 
 function getPendingPayloads(): SyncPayload[] {
@@ -276,7 +294,7 @@ function hasQueueCapacityFor(payload: SyncPayload): boolean {
   return pendingPayloadBytes + getSerializedPayloadSize(payload) <= MAX_PENDING_BYTES
 }
 
-export async function startSyncServer(port?: number, authToken?: string): Promise<SyncServerStatus> {
+export async function startSyncServer(port?: number, authToken?: string, identity?: HubIdentity): Promise<SyncServerStatus> {
   await ensureQueueLoaded()
 
   if (server !== null) {
@@ -294,6 +312,7 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
   }
 
   serverAuthToken = normalizedAuthToken
+  serverIdentity = identity && identity.id && identity.name ? { id: String(identity.id), name: String(identity.name).slice(0, 60) } : null
 
   server = createServer((request, response) => {
     setCorsHeaders(response)
@@ -362,6 +381,7 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
           pendingPayloadBytes += getSerializedPayloadSize(body)
           await schedulePersistence({ queue: true })
           sendJson(response, 200, { ok: true, queueLength: payloadQueue.length })
+          announcePayloadReceived()
         })
         .catch((error: unknown) => {
           const message = error instanceof Error ? error.message : 'Upload failed.'
@@ -370,6 +390,23 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
             sendJson(response, statusCode, { ok: false, error: message })
           }
         })
+      return
+    }
+
+    if (request.method === 'GET' && urlPath === '/config') {
+      if (!publishedConfig) {
+        sendJson(response, 404, {
+          ok: false,
+          error: 'The lead scout has not shared a scouting form yet. Ask them to open Sync Data on their laptop.',
+        })
+        return
+      }
+
+      // The stored text was validated as JSON when it was published, so it is spliced in
+      // as-is rather than parsed and re-serialised on every request.
+      setCorsHeaders(response)
+      response.writeHead(200, { 'Content-Type': 'application/json' })
+      response.end(`{"ok":true,"publishedAt":${JSON.stringify(publishedConfig.publishedAt)},"document":${publishedConfig.json}}`)
       return
     }
 
@@ -409,6 +446,7 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
     server = null
     currentPort = null
     serverAuthToken = null
+    serverIdentity = null
     throw error
   }
 
@@ -416,10 +454,16 @@ export async function startSyncServer(port?: number, authToken?: string): Promis
     console.error('Network sync server error:', error)
   })
 
+  if (serverIdentity) {
+    hubBeacon.start(serverIdentity, resolvedPort)
+  }
+
   return getStatus()
 }
 
 export async function stopSyncServer(): Promise<SyncServerStatus> {
+  hubBeacon.stop()
+  publishedConfig = null
   if (!server) {
     return getStatus()
   }
@@ -437,7 +481,18 @@ export async function stopSyncServer(): Promise<SyncServerStatus> {
   server = null
   currentPort = null
   serverAuthToken = null
+  serverIdentity = null
   return getStatus()
+}
+
+/** The renderer hands over the current form, event and schedule so scouts can fetch them. */
+export function publishSyncConfig(json: unknown): void {
+  if (typeof json !== 'string' || json.length === 0 || Buffer.byteLength(json, 'utf8') > MAX_UPLOAD_BYTES) {
+    throw new Error('The shared setup is missing or too large.')
+  }
+
+  JSON.parse(json)
+  publishedConfig = { json, publishedAt: new Date().toISOString() }
 }
 
 export async function consumeSyncPayloads(): Promise<SyncPayload[]> {
@@ -519,7 +574,14 @@ export async function clearFailedSyncPayloads(): Promise<SyncServerStatus> {
 }
 
 export function registerSyncServerIpcHandlers(): void {
-  ipcMain.handle('sync-server:start', async (_event, port?: number, authToken?: string) => await startSyncServer(port, authToken))
+  ipcMain.handle(
+    'sync-server:start',
+    async (_event, port?: number, authToken?: string, identity?: HubIdentity) => await startSyncServer(port, authToken, identity),
+  )
+  ipcMain.handle('sync-server:publish-config', (_event, json: unknown) => publishSyncConfig(json))
+  ipcMain.handle('discovery:start', () => hubListener.start())
+  ipcMain.handle('discovery:stop', () => hubListener.stop())
+  ipcMain.handle('discovery:list', () => hubListener.list())
   ipcMain.handle('sync-server:stop', async () => await stopSyncServer())
   ipcMain.handle('sync-server:status', async () => {
     await ensureQueueLoaded()

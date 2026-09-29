@@ -5,9 +5,23 @@ export type SyncServerStatus = {
   running: boolean
   port: number | null
   url: string | null
+  /** Every address this laptop can be reached on, best first. */
+  urls: string[]
+  /** The name this hub is announcing on the network, if it is running. */
+  name: string | null
   queueLength: number
   failedQueueLength: number
   authRequired: boolean
+}
+
+export type HubIdentity = {
+  id: string
+  name: string
+}
+
+export type DiscoveredHub = HubIdentity & {
+  url: string
+  lastSeenAt: number
 }
 
 export type FailedSyncPayload = {
@@ -74,7 +88,14 @@ export interface ElectronAPI {
   onUpdaterError: (callback: (message: string) => void) => () => void
   onOpenAbout: (callback: () => void) => () => void
   onShowShortcuts: (callback: () => void) => () => void
-  startSyncServer: (port?: number, authToken?: string) => Promise<SyncServerStatus>
+  startSyncServer: (port?: number, authToken?: string, identity?: HubIdentity) => Promise<SyncServerStatus>
+  /** Hands the hub's current form, event and schedule to the server so scouts can fetch them. */
+  publishSyncConfig: (json: string) => Promise<void>
+  /** Fires when a scout has just delivered data to this hub. Returns an unsubscribe function. */
+  onSyncPayloadReceived: (callback: (info: { queueLength: number }) => void) => () => void
+  startHubDiscovery: () => Promise<void>
+  stopHubDiscovery: () => Promise<void>
+  listDiscoveredHubs: () => Promise<DiscoveredHub[]>
   stopSyncServer: () => Promise<SyncServerStatus>
   getSyncServerStatus: () => Promise<SyncServerStatus>
   consumeSyncPayloads: () => Promise<SyncPayload[]>

@@ -14,14 +14,13 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Switch,
   Table,
   Text,
   TextInput,
   ThemeIcon,
   Title,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import {
   IconAlertTriangle,
   IconCheck,
@@ -67,31 +66,6 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
   const [previewDocs, setPreviewDocs] = useState<Record<string, unknown>[]>([])
   const [previewTotalCount, setPreviewTotalCount] = useState<number>(0)
   const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(false)
-  const [forceSmallQrChunks, setForceSmallQrChunks] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('sync_force_small_qr_chunks') === 'true'
-    } catch {
-      return false
-    }
-  })
-
-  const setForceSmallQrChunkMode = (enabled: boolean): void => {
-    setForceSmallQrChunks(enabled)
-    try {
-      localStorage.setItem('sync_force_small_qr_chunks', String(enabled))
-    } catch {
-      // ignore persistence failures
-    }
-    window.dispatchEvent(new CustomEvent('sync:force-small-qr-chunks-changed', { detail: enabled }))
-    notifications.show({
-      color: 'green',
-      title: enabled ? 'QR test mode enabled' : 'QR test mode disabled',
-      message: enabled
-        ? 'Sync QR exports will use smaller chunk size for multi-chunk testing.'
-        : 'Sync QR exports reverted to normal chunk size.',
-    })
-  }
-
   const collectionOptions = useMemo(
     () =>
       db
@@ -115,7 +89,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const loadDatabaseStats = async (): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Database not ready',
         message: 'Please wait for database initialization.',
@@ -144,7 +118,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const loadCollectionPreview = async (): Promise<void> => {
     if (!db || !previewCollection) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Collection unavailable',
         message: 'Select a collection after database initialization.',
@@ -164,7 +138,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     const collection = collectionsMap[previewCollection]
 
     if (!collection) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Collection missing',
         message: `Collection "${previewCollection}" is not available on this database instance.`,
@@ -196,7 +170,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     navigator.clipboard
       .writeText(JSON.stringify(payload, null, 2))
       .then(() => {
-        notifications.show({
+        notify({
           color: 'green',
           title: 'Copied',
           message: 'Collection preview JSON copied to clipboard.',
@@ -209,7 +183,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const handleResetDatabase = async (): Promise<void> => {
     if (confirmText !== 'RESET') {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Confirmation required',
         message: 'Please type RESET to confirm.',
@@ -226,7 +200,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
       setResetModalOpen(false)
       setConfirmText('')
 
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Database reset',
         message: 'Local database cleared. Reinitializing...',
@@ -252,7 +226,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     navigator.clipboard
       .writeText(JSON.stringify(info, null, 2))
       .then(() => {
-        notifications.show({
+        notify({
           color: 'green',
           title: 'Copied',
           message: 'Database info copied to clipboard',
@@ -276,7 +250,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const exportLogs = (): void => {
     downloadTextFile(logger.exportLogs(), `matchbook-logs-${new Date().toISOString().slice(0, 10)}.json`)
-    notifications.show({
+    notify({
       color: 'green',
       title: 'Logs exported',
       message: 'Downloaded logs as JSON.',
@@ -285,7 +259,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const setOnboardingState = async (completed: boolean): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Database not ready',
         message: 'Wait for database initialization and try again.',
@@ -309,7 +283,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
         localStorage.removeItem('matchbook-current-season')
       }
 
-      notifications.show({
+      notify({
         color: 'green',
         title: completed ? 'Onboarding marked complete' : 'Onboarding reset',
         message: completed
@@ -324,7 +298,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
   const clearLogs = (): void => {
     logger.clearLogs()
     setClearLogsModalOpen(false)
-    notifications.show({
+    notify({
       color: 'green',
       title: 'Logs cleared',
       message: 'Stored logs were removed.',
@@ -333,7 +307,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const openClearScoutingDataModal = async (): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Database not ready',
         message: 'Wait for database initialization and try again.',
@@ -353,7 +327,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const clearScoutingData = async (): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Database not ready',
         message: 'Wait for database initialization and try again.',
@@ -362,7 +336,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     }
 
     if (clearScoutingDataConfirmText.trim().toUpperCase() !== 'DELETE') {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Confirmation required',
         message: 'Type DELETE to confirm clearing scouting data.',
@@ -374,7 +348,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     try {
       const docs = await db.collections.scoutingData.find().exec()
       await Promise.all(docs.map(async (doc) => await doc.remove()))
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Scouting data cleared',
         message: `Removed ${docs.length} scouting records.`,
@@ -392,7 +366,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const openClearEventImportsModal = async (): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Database not ready',
         message: 'Wait for database initialization and try again.',
@@ -417,7 +391,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
 
   const clearEventImports = async (): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Database not ready',
         message: 'Wait for database initialization and try again.',
@@ -426,7 +400,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
     }
 
     if (clearEventImportsConfirmText.trim().toUpperCase() !== 'DELETE') {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Confirmation required',
         message: 'Type DELETE to confirm clearing imported event data.',
@@ -448,7 +422,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
         ...assignmentDocs.map(async (doc) => await doc.remove()),
       ])
 
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Event imports cleared',
         message: `Removed ${eventDocs.length} events, ${matchDocs.length} matches, and ${assignmentDocs.length} assignments.`,
@@ -792,7 +766,7 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
                 onClick={() =>
                   navigator.clipboard
                     .writeText(navigator.userAgent)
-                    .then(() => notifications.show({ title: 'Copied', message: 'User agent copied' }))
+                    .then(() => notify({ title: 'Copied', message: 'User agent copied' }))
                     .catch((e) => handleError(e, 'Copy user agent'))
                 }
               >
@@ -800,22 +774,6 @@ export function DeveloperTools({ appVersion }: DeveloperToolsProps): ReactElemen
               </Button>
             </SimpleGrid>
 
-            <Paper p="md" radius="md" style={{ backgroundColor: 'var(--surface-raised)' }}>
-              <Stack gap="xs">
-                <Text size="sm" fw={600} c="slate.2">
-                  Sync QR Testing
-                </Text>
-                <Switch
-                  label="Force small QR chunks"
-                  checked={forceSmallQrChunks}
-                  onChange={(event) => setForceSmallQrChunkMode(event.currentTarget.checked)}
-                  styles={{ label: { color: 'var(--mantine-color-slate-2)' } }}
-                />
-                <Text size="xs" c="slate.4">
-                  Makes QR exports split into smaller chunks so multi-chunk scan behavior is easier to test.
-                </Text>
-              </Stack>
-            </Paper>
           </Stack>
         </Card>
 

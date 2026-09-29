@@ -20,7 +20,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import {
   IconAlertTriangle,
   IconCalendarEvent,
@@ -199,7 +199,7 @@ export function EventManagement(): ReactElement {
       })
 
       logger.info('Event removed', { eventKey, ...removalCounts })
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Event removed',
         message: `Removed ${eventPendingRemoval.short_name ?? eventPendingRemoval.name} and its ${removalCounts.matches} matches. You can import it again at any time.`,
@@ -217,7 +217,7 @@ export function EventManagement(): ReactElement {
   const handleFetchEvents = async (): Promise<void> => {
     const tbaApiKey = getTbaApiKey()
     if (!tbaApiKey) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'TBA API key required',
         message: 'Set your API key in Settings before fetching events.',
@@ -232,7 +232,7 @@ export function EventManagement(): ReactElement {
       const fetchedEvents = await getEventsByYear(parsedYear, tbaApiKey)
       setEvents(fetchedEvents)
       await updateImportedStatus(fetchedEvents)
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Events fetched',
         message: `Loaded ${fetchedEvents.length} events for ${parsedYear}.`,
@@ -248,7 +248,7 @@ export function EventManagement(): ReactElement {
 
   const handleImportEvent = async (event: TBAEvent): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Database unavailable',
         message: 'Please wait for database initialization and try again.',
@@ -258,7 +258,7 @@ export function EventManagement(): ReactElement {
 
     const tbaApiKey = getTbaApiKey()
     if (!tbaApiKey) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'TBA API key required',
         message: 'Set your API key in Settings before importing events.',
@@ -324,7 +324,7 @@ export function EventManagement(): ReactElement {
       })
 
       setImportedEventKeys((prev) => new Set(prev).add(event.key))
-      notifications.show({
+      notify({
         color: 'green',
         title: alreadyImported ? 'Event re-synced' : 'Event imported',
         message: `${alreadyImported ? 'Updated' : 'Imported'} ${sortedMatches.length} matches, removed ${staleMatchDocs.length} stale matches, and ${teams ? `fetched ${teams.length} teams` : 'skipped team list fetch'} for ${eventDetails.short_name ?? eventDetails.name}.`,

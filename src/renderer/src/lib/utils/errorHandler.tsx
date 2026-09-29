@@ -1,7 +1,7 @@
 import { Button, Group, Stack, Text } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import axios from 'axios'
 import { logger } from './logger'
+import { notify } from './notify'
 
 export class AppError extends Error {
   public readonly code: string
@@ -86,7 +86,7 @@ export function handleError(error: unknown, context?: string): void {
     recentNotifications.delete(key)
   }, NOTIFICATION_DEDUP_WINDOW_MS)
 
-  notifications.show({
+  notify({
     color: 'red',
     title: 'Action failed',
     message,
@@ -114,10 +114,11 @@ export function notifyErrorWithRetry(
     recentNotifications.delete(key)
   }, NOTIFICATION_DEDUP_WINDOW_MS)
 
-  notifications.show({
+  notify({
     color: 'red',
     title: 'Action failed',
-    autoClose: false,
+    autoClose: 15_000,
+    interactive: true,
     message: (
       <Stack gap="xs">
         <Text size="sm">{message}</Text>

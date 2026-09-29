@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react'
 import { ActionIcon, Box, Button, Group, Progress, Text } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import { IconArrowUpCircle, IconX } from '@tabler/icons-react'
 
 type BannerState = 'hidden' | 'available' | 'downloading' | 'downloaded'
@@ -88,7 +88,7 @@ export function UpdateBanner(): ReactElement | null {
     try {
       const result = await window.electronAPI.downloadUpdate()
       if (!result.supported) {
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Update not downloaded',
           message: result.reason ?? 'This build cannot install updates.',
@@ -96,7 +96,7 @@ export function UpdateBanner(): ReactElement | null {
         setState('hidden')
       }
     } catch (error: unknown) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Download failed',
         message:
@@ -123,7 +123,7 @@ export function UpdateBanner(): ReactElement | null {
     try {
       await window.electronAPI.installUpdate()
     } catch (error: unknown) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Install failed',
         message: error instanceof Error ? error.message : 'Could not start the installer.',

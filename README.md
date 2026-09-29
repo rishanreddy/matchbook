@@ -23,10 +23,14 @@ laptop ranks teams so you can build an alliance picklist.
 
 It runs with no internet. Competition halls rarely have usable Wi-Fi, and the field
 network is off limits, so every laptop keeps its own complete database and data moves
-between them over your own LAN, a QR code, or a USB stick.
+between them over a hotspot or router you brought, with QR codes, or on a USB stick.
+
+It is meant to be picked up by scouts who have never used anything like it. The app has
+a **How to use Matchbook** page with step-by-step pictures, two short captioned videos,
+and plain answers to the things that go wrong. Nothing in it needs the internet.
 
 <p align="center">
-  <img src="docs/images/home.png" alt="The hub home screen" width="88%">
+  <img src="docs/images/home.png" alt="The lead scout home screen, with the Wi-Fi receiving card and next steps" width="88%">
 </p>
 
 ## How data moves
@@ -44,9 +48,9 @@ flowchart LR
 
     HUB["Hub laptop<br/>(lead scout)"]
 
-    S1 -- "LAN / QR / CSV" --> HUB
-    S2 -- "LAN / QR / CSV" --> HUB
-    S3 -- "LAN / QR / CSV" --> HUB
+    S1 -- "Wi-Fi / QR / file" --> HUB
+    S2 -- "Wi-Fi / QR / file" --> HUB
+    S3 -- "Wi-Fi / QR / file" --> HUB
 
     TBA["The Blue Alliance"] -. "event + schedule<br/>(only when online)" .-> HUB
     HUB --> AN["Analysis<br/>team rankings"]
@@ -157,12 +161,13 @@ name anything.
   <img src="docs/images/form-builder.png" alt="Form Builder" width="88%">
 </p>
 
-**Set up the scout laptops.** Register each one as a scout in Device Setup. Each gets
-its own name so the hub can tell them apart. Send them the form from Sync. Scout
-laptops never need a TBA key.
+**Set up the scout laptops.** The first time Matchbook opens it asks whether the laptop
+is a scout or the lead scout, and for a name. Each scout then gets the form from the hub
+in Sync Data, once. Scout laptops never need a TBA key.
 
-**At the event.** Scouts record matches. Between match blocks you pull the data back to
-the hub through Sync, then open Analysis to compare teams.
+**At the event.** Scouts record matches. On the hub, press Start receiving in Sync Data,
+and scouts send their entries from their own laptops every few matches. They arrive on
+their own. Open Analysis to compare teams.
 
 <p align="center">
   <img src="docs/images/analysis.png" alt="The analysis screen" width="88%">
@@ -190,20 +195,40 @@ the hub through Sync, then open Analysis to compare teams.
 ## Moving data between laptops
 
 <p align="center">
-  <img src="docs/images/sync.png" alt="The sync screen" width="88%">
+  <img src="docs/images/sync.png" alt="Sync Data on the Wi-Fi tab, showing the code scouts type and the pairing QR code" width="88%">
 </p>
 
 | Method | Use it when | Notes |
 |---|---|---|
-| LAN | You brought your own router or hotspot | Fastest. The hub runs a local server and scouts upload to its address. Protected by a token, and it only talks to private addresses. |
-| QR code | There is no network at all | The scout shows a code, the hub scans it. Fine for a handful of matches, slow for a full day. |
-| CSV | You want the raw rows | Export to a USB stick. Also how you get the data into a spreadsheet. |
-| Database snapshot | Setting up a new laptop, or taking a backup | Copies everything at once. |
+| Wi-Fi | You brought your own router or a phone hotspot | Fastest. The hub shows a code, scouts pick the hub from a list that appears on its own, type the code once, and press Send. The hub adds what arrives without a button press, and starts receiving again by itself if it restarts. Scouts can also fetch the form and schedule this way. |
+| QR codes | There is no network at all | One laptop shows a loop of codes, the other reads them with its camera, in any order, and finishes even if it misses some. About 100 entries take a few dozen codes and roughly ten seconds. |
+| File | A USB stick, AirDrop or email is easier | A saved copy of everything, or just the entries, or just the form. Also the backup. |
+| Spreadsheet | You want the raw rows | CSV export and import, under Advanced. |
+
+Scouts can also scan a small pairing code from the hub's screen instead of typing its
+address and code. Sending the same entries twice is always safe: the hub keeps one copy of
+each, and a correction a scout makes travels with their next send.
 
 Sync covers <!-- generated:collections -->
 `scouting data`, `form schemas`, `analysis configs`, `events`, `matches`, `assignments`
 <!-- /generated:collections --> so a scout laptop that has never seen the internet still
 ends up with the right form and schedule.
+
+**Networking notes.** Wi-Fi sync uses TCP port 41735 on the hub and UDP port 41736 for
+discovery, both on the local network only, and it only ever talks to private addresses.
+Windows asks about the firewall the first time the hub starts receiving: allow it on
+private networks. Venue Wi-Fi often stops laptops from seeing each other (client
+isolation); a hotspot or a small travel router does not have that problem.
+
+### Why there is no Bluetooth
+
+It was considered, and it would make transfers worse. Electron's only Bluetooth support is
+Web Bluetooth, which lets an app connect to a device such as a sensor but cannot make a
+laptop advertise itself, so two laptops cannot talk to each other with it. Doing it
+properly needs a native module per operating system, with its own permissions and, on some
+Windows setups, replacement Bluetooth drivers. It would also be slower than Wi-Fi, and the
+2.4 GHz band at a competition is already crowded. The Wi-Fi discovery and pairing code
+give the same "no typing addresses" convenience without any of that.
 
 ## When Matchbook is the wrong tool
 
@@ -244,13 +269,16 @@ Electron 41, React 19, TypeScript 5, RxDB 16, Mantine, Vite
 
 ```
 src/
-  main/        Electron main process. Window, updater, LAN sync server.
+  main/        Electron main process. Window sizing, updater, Wi-Fi sync server, discovery.
   preload/     Context bridge. Sandboxed, CommonJS.
   renderer/    The React app.
     routes/    One file per screen.
+    features/  Sync: Wi-Fi, QR codes, files, and the code behind them.
+    content/   The how-to guide (guide.json) and its screenshots and videos.
     lib/db/    RxDB schemas and collections.
-    lib/utils/ Scoring, analysis config, sync helpers.
-  shared/      Types and the sync protocol, used by both processes.
+    lib/qr/    QR camera scanner and decoder.
+    lib/utils/ Scoring, analysis config, toasts, helpers.
+  shared/      Types, the sync protocol and the QR frame codec, used by both processes.
 build/logo/    Vector source for the app mark. Its README explains how to regenerate icons.
 scripts/       Release artifact checks and the README generator.
 ```

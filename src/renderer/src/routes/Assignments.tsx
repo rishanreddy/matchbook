@@ -16,7 +16,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import {
   IconCalendarEvent,
   IconClipboardCheck,
@@ -145,7 +145,7 @@ export function Assignments(): ReactElement {
       const refreshed = refreshedDocs.map((doc) => doc.toJSON())
 
       if (mutated) {
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Assignments normalized',
           message: 'Duplicate assignment slots were merged using the latest assignment.',
@@ -186,7 +186,7 @@ export function Assignments(): ReactElement {
           setSelectedEvent((current) => current ?? loadedEvents[0].id)
         }
       } catch (error: unknown) {
-        notifications.show({
+        notify({
           color: 'red',
           title: 'Failed to load assignments page',
           message: error instanceof Error ? error.message : 'Could not load events/scouts from local database.',
@@ -229,7 +229,7 @@ export function Assignments(): ReactElement {
         )
         setAssignments(assignmentDocs)
       } catch (error: unknown) {
-        notifications.show({
+        notify({
           color: 'red',
           title: 'Failed to load matches/assignments',
           message: error instanceof Error ? error.message : 'Could not load event matches and assignments.',
@@ -268,7 +268,7 @@ export function Assignments(): ReactElement {
         .exec()
 
       if (existing) {
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Already assigned',
           message: `${getAlliancePositionLabel(position)} for Match ${match.matchNumber} is already assigned.`,
@@ -278,7 +278,7 @@ export function Assignments(): ReactElement {
 
       const teamKey = getTeamFromMatch(toTBAMatch(match), position)
       if (!teamKey) {
-        notifications.show({
+        notify({
           color: 'red',
           title: 'Missing team data',
           message: `Could not resolve team for ${getAlliancePositionLabel(position)} in Match ${match.matchNumber}.`,
@@ -302,14 +302,14 @@ export function Assignments(): ReactElement {
       })
 
       await refreshAssignments()
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Assignment created',
         message: `Assigned ${scout?.name ?? selectedScoutId} to Match ${match.matchNumber} ${getAlliancePositionLabel(position)}.`,
       })
     } catch (error: unknown) {
       if (isConflictError(error)) {
-        notifications.show({
+        notify({
           color: 'yellow',
           title: 'Already assigned',
           message: `${getAlliancePositionLabel(position)} for Match ${match.matchNumber} was assigned by another update.`,
@@ -318,7 +318,7 @@ export function Assignments(): ReactElement {
         return
       }
 
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Assignment failed',
         message: error instanceof Error ? error.message : 'Could not create assignment.',
@@ -341,7 +341,7 @@ export function Assignments(): ReactElement {
     )
 
     if (unassignedSlots.length === 0) {
-      notifications.show({
+      notify({
         color: 'blue',
         title: 'No open slots',
         message: 'All qualification positions are already assigned.',
@@ -387,13 +387,13 @@ export function Assignments(): ReactElement {
       }
 
       await refreshAssignments()
-      notifications.show({
+      notify({
         color: failedCount > 0 ? 'yellow' : 'green',
         title: failedCount > 0 ? 'Auto-assign finished with issues' : 'Auto-assign complete',
         message: `${insertedCount} assigned, ${skippedCount} skipped, ${failedCount} failed.`,
       })
     } catch (error: unknown) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Auto-assign failed',
         message: error instanceof Error ? error.message : 'Could not auto-assign open slots.',
@@ -404,7 +404,7 @@ export function Assignments(): ReactElement {
   }
 
   return (
-    <Box className="container-wide" py="xl">
+    <Box className="container-wide">
       <Stack gap={24}>
         <Card
           p="lg"

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Box, Button, Group, Loader, Stack, Text } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
 import { IconCheck, IconInfoCircle, IconSparkles } from '@tabler/icons-react'
 import { SurveyCreator, SurveyCreatorComponent } from 'survey-creator-react'
 import { ExpressionErrorType, Model } from 'survey-core'
@@ -95,7 +95,7 @@ export function FormBuilder(): ReactElement {
           logger.info('No active form schema found, starting with empty form')
         }
       } catch (error: unknown) {
-        notifications.show({
+        notify({
           color: 'red',
           title: 'Failed to load form schema',
           message: error instanceof Error ? error.message : 'Could not load form.',
@@ -110,7 +110,7 @@ export function FormBuilder(): ReactElement {
 
   const handleSave = useCallback(async (): Promise<boolean> => {
     if (!db) {
-      notifications.show({ color: 'yellow', title: 'Database not ready', message: 'Please wait for initialization.' })
+      notify({ color: 'yellow', title: 'Database not ready', message: 'Please wait for initialization.' })
       return false
     }
 
@@ -118,7 +118,7 @@ export function FormBuilder(): ReactElement {
     try {
       validationModel = new Model(creator.JSON)
     } catch (error: unknown) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Invalid form JSON',
         message: error instanceof Error ? error.message : 'Form JSON is invalid.',
@@ -131,7 +131,7 @@ export function FormBuilder(): ReactElement {
     if (expressionIssues.length > 0) {
       const issue = expressionIssues[0]
       const issueError = issue.errors[0]
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Invalid survey logic',
         message: `Fix ${issue.propertyName} (${describeExpressionError(issueError.errorType)}) before saving.`,
@@ -189,7 +189,7 @@ export function FormBuilder(): ReactElement {
         .exec()
       setLoadedSchema(refreshed[0]?.toJSON() ?? null)
 
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Form saved',
         message: 'Your scouting form is now active and will be used for new entries.',
@@ -197,7 +197,7 @@ export function FormBuilder(): ReactElement {
       })
       return true
     } catch (error: unknown) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Save failed',
         message: error instanceof Error ? error.message : 'Unable to save form.',
@@ -209,7 +209,7 @@ export function FormBuilder(): ReactElement {
   const handleUseDefaultForm = useCallback((): void => {
     creator.JSON = DEFAULT_SCOUTING_FORM
     setIsFormEmpty(false)
-    notifications.show({
+    notify({
       color: 'green',
       title: 'Starter form loaded',
       message: 'Edit anything you like, then press Save Form to send it to your scouts.',

@@ -18,7 +18,8 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
+import { notify } from '../lib/utils/notify'
+import { useNavigate } from 'react-router-dom'
 import {
   IconAlertTriangle,
   IconCheck,
@@ -41,9 +42,18 @@ type FirstRunWizardProps = {
   onComplete: () => void
 }
 
+type WizardStep = 'role' | 'event' | 'ready'
+
+const STEP_TITLES: Record<WizardStep, string> = {
+  role: 'Who is using this laptop?',
+  event: 'The Blue Alliance (optional)',
+  ready: 'All set',
+}
+
 export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const setDevice = useDeviceStore((state) => state.setDevice)
+  const navigate = useNavigate()
   const [activeStep, setActiveStep] = useState<number>(0)
   const [deviceId, setDeviceId] = useState<string>('')
   const [deviceName, setDeviceName] = useState<string>('')
@@ -57,6 +67,10 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   const isHub = role === 'hub'
+  // Only the lead scout imports events, so only the lead scout is asked about a Blue Alliance key.
+  const steps: WizardStep[] = isHub ? ['role', 'event', 'ready'] : ['role', 'ready']
+  const currentStep: WizardStep = steps[Math.min(activeStep, steps.length - 1)]
+  const lastStepIndex = steps.length - 1
   const canContinueFromDeviceStep = deviceName.trim().length > 0
   // Matchbook remains useful with no internet. TBA validation is helpful before importing an event,
   // but must never prevent a field device from being configured for offline collection.
@@ -146,8 +160,8 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
   }
 
   const handleNextStep = (): void => {
-    if (activeStep === 0 && !canContinueFromDeviceStep) {
-      notifications.show({
+    if (currentStep === 'role' && !canContinueFromDeviceStep) {
+      notify({
         color: 'yellow',
         title: 'Device name required',
         message: 'Give this laptop a device name before continuing.',
@@ -155,7 +169,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
       return
     }
 
-    setActiveStep((step) => Math.min(step + 1, 2))
+    setActiveStep((step) => Math.min(step + 1, lastStepIndex))
   }
 
   const handleBackStep = (): void => {
@@ -173,9 +187,9 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
     }
   }
 
-  const completeWizard = async (): Promise<void> => {
+  const completeWizard = async (options: { openGuide?: boolean } = {}): Promise<void> => {
     if (!db) {
-      notifications.show({
+      notify({
         color: 'red',
         title: 'Database unavailable',
         message: 'Please wait for the local database to initialize.',
@@ -184,7 +198,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
     }
 
     if (!canContinueFromDeviceStep || !canContinueFromApiStep) {
-      notifications.show({
+      notify({
         color: 'yellow',
         title: 'Onboarding incomplete',
         message: 'Add a name for this device before finishing setup.',
@@ -244,13 +258,16 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
         role: isHub ? 'hub' : 'scout',
       })
 
-      notifications.show({
+      notify({
         color: 'green',
         title: 'Setup complete',
         message: `${brand.name} is ready for event use.`,
       })
 
       onComplete()
+      if (options.openGuide) {
+        navigate('/help')
+      }
     } catch (error: unknown) {
       handleError(error, 'Complete onboarding wizard')
     } finally {
@@ -290,34 +307,36 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
               title="First-run setup"
               description="Set this device up once. You can change any of these choices later in Settings."
               steps={[
-                { title: 'Choose device role', description: 'One laptop runs the hub; other laptops collect observations.' },
-                { title: 'Add event access', description: 'A TBA key is optional and can be tested whenever internet is available.' },
-                { title: 'Confirm', description: 'Review the device identity before entering Matchbook.' },
+                { title: 'Choose a role', description: 'One laptop is the lead scout. Every other laptop is a scout.' },
+                { title: 'Blue Alliance key (lead scout only)', description: 'Optional. It lets Matchbook load the match schedule when you have internet.' },
+                { title: 'Finish', description: 'Check the name, then start using Matchbook.' },
               ]}
               tips={[
-                { text: 'You can complete hub setup without internet and import event data later.' },
-                { text: 'Use a visible label on every laptop, such as “Red 2” or “Pit Hub”.' },
+                { text: 'You can finish setup with no internet and load the event later.' },
+                { text: 'Give every laptop a name your team will recognize, such as “Red 2” or “Pit laptop”.' },
               ]}
               tooltipLabel="Setup guidance"
               color="frc-blue"
               iconSize={16}
             />
           </Group>
-          <Text c="slate.3" maw={520} mt="sm">
-            Name the laptop, choose its job, then decide whether to connect event data now or later.
+          <Text c="slate.3" maw={520} mt="sm" className="onboarding-lede">
+            {isHub
+              ? 'Name this laptop, then we will set up the lead scout tools.'
+              : 'Name this laptop. It takes about a minute, and you can change it later in Settings.'}
           </Text>
         </Box>
 
-        <Box className="onboarding-progress" aria-label={`Step ${activeStep + 1} of 3`}>
+        <Box className="onboarding-progress" aria-label={`Step ${activeStep + 1} of ${steps.length}`}>
           <Group justify="space-between" mb={8}>
             <Text size="sm" fw={600} c="slate.2">
-              {activeStep === 0 ? 'Device role' : activeStep === 1 ? 'Event access' : 'Ready to scout'}
+              {STEP_TITLES[currentStep]}
             </Text>
             <Badge variant="light" color="frc-blue" className="mono-number">
-              {activeStep + 1}/3
+              {activeStep + 1}/{steps.length}
             </Badge>
           </Group>
-          <Progress value={((activeStep + 1) / 3) * 100} color="frc-blue" size="xs" radius="xl" />
+          <Progress value={((activeStep + 1) / steps.length) * 100} color="frc-blue" size="xs" radius="xl" />
         </Box>
 
         <Box className="onboarding-content">
@@ -329,9 +348,9 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
           </Group>
         ) : (
           <>
-            {activeStep === 0 && (
+            {currentStep === 'role' && (
               <Stack gap="md">
-                <Text fw={600} c="slate.1">What will this laptop do?</Text>
+                <Text fw={600} c="slate.1">What will this laptop be used for?</Text>
                 <Group grow align="stretch" className="onboarding-role-group">
                   <Box
                     component="button"
@@ -342,8 +361,8 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                   >
                     <Box component="span" className="onboarding-role-content">
                       <Box component="span" className="onboarding-role-icon onboarding-role-icon--scout"><IconUsers size={18} /></Box>
-                      <Box component="span" className="onboarding-role-name">Scout device</Box>
-                      <Box component="span" className="onboarding-role-detail">Records one robot at a time, even with no network.</Box>
+                      <Box component="span" className="onboarding-role-name">Scout</Box>
+                      <Box component="span" className="onboarding-role-detail">I will watch matches and record what the robots do. Works with no Wi-Fi.</Box>
                     </Box>
                   </Box>
                   <Box
@@ -355,27 +374,27 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                   >
                     <Box component="span" className="onboarding-role-content">
                       <Box component="span" className="onboarding-role-icon onboarding-role-icon--hub"><IconServer size={18} /></Box>
-                      <Box component="span" className="onboarding-role-name">Hub device</Box>
-                      <Box component="span" className="onboarding-role-detail">Manages forms, receives sync, and reviews team data.</Box>
+                      <Box component="span" className="onboarding-role-name">Lead scout</Box>
+                      <Box component="span" className="onboarding-role-detail">I will build the form, collect everyone’s scouting, and compare teams.</Box>
                     </Box>
                   </Box>
                 </Group>
 
-                <Divider label="Device identity" labelPosition="left" />
+                <Divider label="Name this laptop" labelPosition="left" />
 
                 <TextInput
-                  label="Device name"
+                  label="Laptop name"
                   placeholder="Scout Laptop 1"
                   value={deviceName}
                   onChange={(event) => setDeviceName(event.currentTarget.value)}
+                  description="Something your team will recognize, like “Scout 3” or “Red Alliance”."
                   required
                 />
-                <Text size="xs" c="slate.4">Use the label scouts will recognize at a glance.</Text>
 
               </Stack>
             )}
 
-            {activeStep === 1 && (
+            {currentStep === 'event' && (
               <Stack gap="md">
                 <Card withBorder radius="md" p="lg" className="onboarding-info-card">
                   <Stack gap="sm">
@@ -383,18 +402,18 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                       <ThemeIcon size={28} variant="light" color="frc-blue">
                         <IconKey size={14} />
                       </ThemeIcon>
-                      <Text fw={600}>Event data is optional</Text>
+                      <Text fw={600}>You can skip this</Text>
                     </Group>
                     <Text size="sm" c="dimmed">
-                      {isHub
-                        ? 'Add a TBA key to import schedules and teams. If you are offline, finish setup now and add it later in Settings.'
-                        : 'Scouts do not need a TBA key to record matches. Add one only if this laptop will import event data.'}
+                      Matchbook can load the match schedule for you from The Blue Alliance (thebluealliance.com). That needs a
+                      free key from their website and an internet connection. No internet right now? Skip it, and add the key
+                      later in Settings.
                     </Text>
                   </Stack>
                 </Card>
 
                 <PasswordInput
-                  label="TBA API Key"
+                  label="The Blue Alliance key"
                   placeholder="Enter API key"
                   value={tbaApiKey}
                   onChange={(event) => {
@@ -424,7 +443,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
               </Stack>
             )}
 
-            {activeStep === 2 && (
+            {currentStep === 'ready' && (
               <Stack gap="md">
                 <Card withBorder radius="md" p="lg">
                   <Stack gap="sm">
@@ -444,9 +463,26 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                   </Stack>
                 </Card>
 
-                <Alert color="success" variant="light" icon={<IconCheck size={16} />}>
-                  Your local database is ready. Match scouting works without internet; network sync can be configured from Sync Data.
-                </Alert>
+                <Card withBorder radius="md" p="lg">
+                  <Stack gap="xs">
+                    <Text fw={600}>What happens next</Text>
+                    <Text size="sm" c="dimmed" component="div">
+                      {isHub ? (
+                        <ol style={{ margin: 0, paddingInlineStart: 18 }}>
+                          <li>Import your event, in Events.</li>
+                          <li>Build or check the scouting form, in Form Builder.</li>
+                          <li>In Sync Data, press Start receiving, so scouts can send you their entries.</li>
+                        </ol>
+                      ) : (
+                        <ol style={{ margin: 0, paddingInlineStart: 18 }}>
+                          <li>Get the scouting form from the lead scout, in Sync Data.</li>
+                          <li>Press Scout Match for each match you watch.</li>
+                          <li>Every few matches, send your entries to the lead scout.</li>
+                        </ol>
+                      )}
+                    </Text>
+                  </Stack>
+                </Card>
               </Stack>
             )}
           </>
@@ -459,26 +495,31 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
             Back
           </Button>
 
-          {activeStep < 2 ? (
+          {activeStep < lastStepIndex ? (
             <Button
               onClick={handleNextStep}
               disabled={
                 isLoadingDefaults ||
                 isSubmitting ||
-                (activeStep === 0 && !canContinueFromDeviceStep) ||
-                (activeStep === 1 && !canContinueFromApiStep)
+                (currentStep === 'role' && !canContinueFromDeviceStep) ||
+                (currentStep === 'event' && !canContinueFromApiStep)
               }
             >
               Continue
             </Button>
           ) : (
-            <Button
-              onClick={() => void completeWizard()}
-              loading={isSubmitting}
-              disabled={isLoadingDefaults}
-            >
-              Finish setup
-            </Button>
+            <Group gap="xs">
+              <Button
+                variant="default"
+                onClick={() => void completeWizard({ openGuide: true })}
+                disabled={isLoadingDefaults || isSubmitting}
+              >
+                Finish and show me how
+              </Button>
+              <Button onClick={() => void completeWizard()} loading={isSubmitting} disabled={isLoadingDefaults}>
+                Finish setup
+              </Button>
+            </Group>
           )}
         </Group>
       </Stack>

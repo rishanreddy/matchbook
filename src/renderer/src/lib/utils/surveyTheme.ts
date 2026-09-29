@@ -32,6 +32,9 @@ export const MATCHBOOK_SURVEY_THEME: SurveyThemeWithVariables = {
     '--sjs-shadow-small': '0 0 0 1px rgba(148, 163, 184, 0.16), 0 8px 16px rgba(0, 0, 0, 0.22), 0 2px 4px rgba(0, 0, 0, 0.18)',
     '--sjs-shadow-medium': 'inset 0 0 0 1px rgba(148, 163, 184, 0.12), 0 6px 18px rgba(0, 0, 0, 0.24)',
     '--sjs-corner-radius': '10px',
+    // Every SurveyJS padding is a multiple of this unit (default 8px). Scouts use small
+    // laptops, and the default spacing pushed the first question below the fold.
+    '--sjs-base-unit': '6px',
   },
 }
 
