@@ -59,6 +59,7 @@ export function SplashScreen({ visible, version, status = 'Preparing startup ser
 
   return (
     <Box
+      data-testid="startup-splash"
       pos="fixed"
       style={{
         inset: 0,

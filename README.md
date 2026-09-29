@@ -254,6 +254,7 @@ pnpm install
 pnpm dev                # run with hot reload
 pnpm test               # unit tests
 pnpm verify:production  # tests, typecheck, lint, build. The release gate.
+pnpm smoke:electron     # after build: launch the desktop window and check its preload bridge
 pnpm build:mac          # or build:win, build:linux
 pnpm docs:sync          # regenerate the tables in this README from the source
 ```
