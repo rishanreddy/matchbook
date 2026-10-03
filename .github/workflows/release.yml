@@ -117,6 +117,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD_SECRET: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          mac_signing_args=""
           if [ -n "$MAC_CERTIFICATE" ]; then
             for secret_name in \
               MAC_CERTIFICATE_PASSWORD APPLE_ID_SECRET APPLE_APP_SPECIFIC_PASSWORD_SECRET APPLE_TEAM_ID_SECRET; do
@@ -131,10 +132,15 @@ jobs:
             export APPLE_ID="$APPLE_ID_SECRET"
             export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD_SECRET"
             export APPLE_TEAM_ID="$APPLE_TEAM_ID_SECRET"
+          else
+            # electron-builder 26.15 no longer signs ad hoc by itself when it finds no certificate, and an
+            # unsigned app will not open on an Apple Silicon Mac. Ask for the ad-hoc signature that
+            # verify-mac-artifacts below expects. The entitlements already allow it.
+            mac_signing_args="--config.mac.identity=-"
           fi
 
           # Ship one universal bundle so both Intel and Apple Silicon Macs can install it.
-          pnpm build && pnpm exec electron-builder --mac --universal --publish always --config.publish.releaseType=draft
+          pnpm build && pnpm exec electron-builder --mac --universal --publish always --config.publish.releaseType=draft $mac_signing_args
 
       - name: verify-mac-artifacts
         if: matrix.os == 'macos-latest'
