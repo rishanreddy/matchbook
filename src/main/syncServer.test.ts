@@ -140,6 +140,24 @@ describe('uploads', () => {
     expect(await server.peekSyncPayloads()).toHaveLength(0)
   })
 
+  it('puts an upload that is retried from quarantine behind the ones waiting, so a pass in progress acknowledges the right one', async () => {
+    await post(payload([scoutingRow('a')]))
+    await server.quarantineHeadPayload('could not be read')
+    await post(payload([scoutingRow('b')]))
+
+    // A receiving pass has taken a copy of the queue and will acknowledge what it finishes, one at a time, from the head.
+    const taken = await server.peekSyncPayloads()
+    expect(taken).toHaveLength(1)
+    // Meanwhile the lead scout presses Try again on the upload that was set aside.
+    await server.retryFailedSyncPayloads()
+    await server.ackSyncPayloads(taken.length)
+
+    const waiting = await server.peekSyncPayloads()
+    expect(waiting).toHaveLength(1)
+    expect(waiting[0].data[0]).toMatchObject({ id: 'a' })
+    expect(await server.peekFailedSyncPayloads()).toHaveLength(0)
+  })
+
   it.each([
     ['a body that is not JSON', 'not json at all', true],
     ['a payload whose count disagrees with its rows', { ...payload([scoutingRow('a')]), count: 5 }, false],

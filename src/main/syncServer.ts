@@ -92,11 +92,22 @@ function schedulePersistence(options: { queue?: boolean; failed?: boolean }): Pr
   return persistenceChain
 }
 
-async function ensureQueueLoaded(): Promise<void> {
+let queueLoading: Promise<void> | null = null
+
+/** Loads the saved queues once. Callers that arrive while it is loading wait for the same load. */
+function ensureQueueLoaded(): Promise<void> {
   if (isQueueLoaded) {
-    return
+    return Promise.resolve()
   }
 
+  // A second load that finished after an upload had been accepted would replace the queue and drop it.
+  queueLoading ??= loadSavedQueues().finally(() => {
+    queueLoading = null
+  })
+  return queueLoading
+}
+
+async function loadSavedQueues(): Promise<void> {
   const parsedQueue = await readJsonFile(getQueueFilePath())
   payloadQueue.length = 0
   if (Array.isArray(parsedQueue)) {
@@ -633,7 +644,10 @@ export async function retryFailedSyncPayloads(): Promise<SyncServerStatus> {
   }
 
   const retriedPayloads = failedPayloadQueue.splice(0, failedPayloadQueue.length).map((entry) => entry.payload)
-  payloadQueue.unshift(...retriedPayloads)
+  // Behind what is already waiting, never in front. A receiving pass works from a copy of the queue and
+  // acknowledges the head as it finishes each upload, so putting these at the head made the pass drop one
+  // that had not been read yet and leave the one it had already added.
+  payloadQueue.push(...retriedPayloads)
   await schedulePersistence({ queue: true, failed: true })
   log.info('Quarantined sync payloads returned to the retry queue', {
     retriedPayloads: retriedPayloads.length,
