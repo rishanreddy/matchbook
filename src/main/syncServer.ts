@@ -5,7 +5,7 @@ import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import { app, BrowserWindow, ipcMain } from 'electron'
 import log from 'electron-log/main'
-import { isValidSyncPayload, isValidSyncToken, type SyncPayload } from '../shared/syncProtocol'
+import { NETWORK_UPLOAD_COLLECTIONS, isValidSyncPayload, isValidSyncToken, type SyncPayload } from '../shared/syncProtocol'
 import { HubBeacon, HubListener, type HubIdentity } from './discovery'
 
 type FailedSyncPayload = {
@@ -406,11 +406,11 @@ export async function startSyncServer(port?: number, authToken?: string, identit
             return
           }
 
-          if (body.collection !== 'scoutingData') {
+          if (!NETWORK_UPLOAD_COLLECTIONS.includes(body.collection)) {
             log.warn('Rejected network sync upload for a configuration collection', { collection: body.collection })
             sendJson(response, 422, {
               ok: false,
-              error: 'Network hub uploads accept scouting data only. Transfer forms and configuration with QR or database snapshots.',
+              error: 'Network hub uploads accept scouting entries and scout names only. Transfer forms and configuration with QR or database snapshots.',
             })
             return
           }

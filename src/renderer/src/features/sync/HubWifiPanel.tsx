@@ -316,7 +316,7 @@ export function HubWifiPanel({ db }: HubWifiPanelProps): ReactElement {
           {running ? (
             sharedSummary ? (
               <Text size="sm" c="slate.2">
-                Scouts who press Get form and schedule will receive: <strong>{sharedSummary}</strong>.
+                Scouts who press Get form, schedule and matches will receive: <strong>{sharedSummary}</strong>.
               </Text>
             ) : (
               <Text size="sm" c="slate.2">

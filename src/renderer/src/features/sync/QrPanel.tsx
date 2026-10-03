@@ -11,17 +11,27 @@ import {
 import { StepList } from '../../components/StepList'
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { logger } from '../../lib/utils/logger'
+import { useDeviceStore } from '../../stores/useDeviceStore'
+import { useEventStore } from '../../stores/useEventStore'
 import { QrReceivePanel } from './QrReceivePanel'
 import { QrSendOverlay } from './QrSendOverlay'
 import { SyncCard } from './SyncCard'
 import { recordLastSent } from './lastSent'
-import { buildPayload, buildSnapshot, countEntries, describeTransfer, parseTransferDocument } from './syncData'
+import {
+  ENTRIES_COLLECTIONS,
+  SETUP_COLLECTIONS,
+  buildPayload,
+  buildSnapshot,
+  countEntries,
+  describeTransfer,
+  parseTransferDocument,
+} from './syncData'
 
 type WhatToSend = 'entries' | 'setup' | 'form'
 
 const SEND_CHOICES: Array<{ value: WhatToSend; label: string }> = [
-  { value: 'entries', label: 'My scouting entries' },
-  { value: 'setup', label: 'Scouting form, event and match schedule' },
+  { value: 'entries', label: 'My scouting entries (and my name)' },
+  { value: 'setup', label: 'Scouting form, event, match schedule and scout assignments' },
   { value: 'form', label: 'Just the scouting form' },
 ]
 
@@ -35,13 +45,17 @@ type Prepared = {
   entries: number
 }
 
-async function prepareTransfer(db: ScoutingDatabase, what: WhatToSend): Promise<Prepared> {
+async function prepareTransfer(
+  db: ScoutingDatabase,
+  what: WhatToSend,
+  who: { deviceId: string | null; currentEventId: string | null },
+): Promise<Prepared> {
   const document =
     what === 'entries'
-      ? await buildPayload(db, 'scoutingData')
+      ? await buildSnapshot(db, ENTRIES_COLLECTIONS, { rosterDeviceId: who.deviceId })
       : what === 'form'
         ? await buildPayload(db, 'formSchemas')
-        : await buildSnapshot(db, ['formSchemas', 'events', 'matches', 'assignments'])
+        : await buildSnapshot(db, SETUP_COLLECTIONS, { currentEventId: who.currentEventId })
 
   const parsed = parseTransferDocument(document)
   const isEmpty = parsed.tasks.every((task) => task.rows.length === 0)
@@ -63,6 +77,8 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
   const [showing, setShowing] = useState(false)
   const [confirmSent, setConfirmSent] = useState(false)
   const latestRequest = useRef(0)
+  const deviceId = useDeviceStore((state) => state.deviceId)
+  const currentEventId = useEventStore((state) => state.currentEventId)
 
   useEffect(() => {
     if (!db) {
@@ -78,7 +94,7 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
       setProblem(null)
       logger.debug('QR transfer preparation started', { transferType: what, density }, 'sync.qr.send')
       try {
-        const next = await prepareTransfer(db, what)
+        const next = await prepareTransfer(db, what, { deviceId, currentEventId })
         const encoded = next.isEmpty ? null : await encodeQrTransfer(next.json, { density })
         if (cancelled || request !== latestRequest.current) {
           return
@@ -124,7 +140,7 @@ export function QrPanel({ db, isHub }: QrPanelProps): ReactElement {
     return () => {
       cancelled = true
     }
-  }, [db, what, density])
+  }, [db, what, density, deviceId, currentEventId])
 
   const frameCount = transfer?.frames.length ?? 0
   const passSeconds = Math.max(1, Math.round((frameCount * 400) / 1000))

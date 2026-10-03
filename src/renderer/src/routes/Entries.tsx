@@ -12,21 +12,32 @@ import {
   Select,
   Stack,
   Text,
+  TextInput,
   ThemeIcon,
   Title,
   Tooltip,
 } from '@mantine/core'
 import { notify } from '../lib/utils/notify'
-import { IconAlertTriangle, IconClipboardCheck, IconTrash } from '@tabler/icons-react'
+import { IconAlertTriangle, IconClipboardCheck, IconEyeOff, IconSearch, IconTrash } from '@tabler/icons-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import type { ScoutingDataDocType } from '../lib/db/schemas/scoutingData.schema'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
+import {
+  ALL_EVENTS,
+  chooseInitialEventFilter,
+  entriesWithNoEvent,
+  eventDisplayName,
+  summarizeHidden,
+  tallyByEvent,
+} from '../features/entries/entryVisibility'
+import { fileEntriesUnderEvent } from '../features/entries/entryService'
+import { useRoster } from '../features/roster/useRoster'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { useDeviceStore, useIsHub } from '../stores/useDeviceStore'
 import { useEventStore } from '../stores/useEventStore'
 import { handleError } from '../lib/utils/errorHandler'
 import { rememberScoutingDeletion } from '../lib/utils/scoutingDeletion'
 
-const ALL_EVENTS = 'all'
 const MAX_VISIBLE_ENTRIES = 250
 
 function formatRecordedAt(value: string): string {
@@ -44,15 +55,21 @@ function formatRecordedAt(value: string): string {
 }
 
 export function Entries(): ReactElement {
+  const [searchParams] = useSearchParams()
   const db = useDatabaseStore((state) => state.db)
   const isHub = useIsHub()
   const deviceId = useDeviceStore((state) => state.deviceId)
   const currentEventId = useEventStore((state) => state.currentEventId)
   const [entries, setEntries] = useState<ScoutingDataDocType[]>([])
   const [events, setEvents] = useState<EventDocType[]>([])
-  const [eventFilter, setEventFilter] = useState<string>(currentEventId ?? ALL_EVENTS)
+  // null means "choose for me": the event this laptop is on, or everything when that has no entries.
+  const [chosenEvent, setChosenEvent] = useState<string | null>(searchParams.get('event'))
+  const [teamFilter, setTeamFilter] = useState(searchParams.get('team') ?? '')
   const [entryPendingDeletion, setEntryPendingDeletion] = useState<ScoutingDataDocType | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [confirmingFiling, setConfirmingFiling] = useState(false)
+  const [isFiling, setIsFiling] = useState(false)
+  const { roster } = useRoster(db)
 
   useEffect(() => {
     if (!db) {
@@ -83,28 +100,62 @@ export function Entries(): ReactElement {
   }, [db])
 
   const eventNames = useMemo(() => new Map(events.map((event) => [event.id, event.name])), [events])
-  const availableEventIds = useMemo(
-    () => Array.from(new Set(entries.filter((entry) => isHub || entry.deviceId === deviceId).map((entry) => entry.eventId))),
-    [deviceId, entries, isHub],
+  const scoutByDevice = useMemo(
+    () => new Map(roster.filter((scout) => scout.deviceId !== '' && scout.status !== 'removed').map((scout) => [scout.deviceId, scout.name])),
+    [roster],
   )
 
-  const visibleEntries = useMemo(
-    () =>
-      entries
-        .filter((entry) => isHub || (deviceId !== null && entry.deviceId === deviceId))
-        .filter((entry) => eventFilter === ALL_EVENTS || entry.eventId === eventFilter)
-        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-        .slice(0, MAX_VISIBLE_ENTRIES),
-    [deviceId, entries, eventFilter, isHub],
+  // Everything this laptop is allowed to show: all of it on the lead scout's laptop, only its own on a scout's.
+  const reviewable = useMemo(
+    () => entries.filter((entry) => isHub || (deviceId !== null && entry.deviceId === deviceId)),
+    [deviceId, entries, isHub],
   )
+  const tally = useMemo(() => tallyByEvent(reviewable, eventNames, currentEventId), [currentEventId, eventNames, reviewable])
+  const eventFilter = chooseInitialEventFilter(chosenEvent, currentEventId, tally)
+
+  const filteredEntries = useMemo(
+    () =>
+      reviewable
+        .filter((entry) => eventFilter === ALL_EVENTS || entry.eventId === eventFilter)
+        .filter((entry) => teamFilter.trim() === '' || String(entry.teamNumber).includes(teamFilter.trim()))
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    [eventFilter, reviewable, teamFilter],
+  )
+  const visibleEntries = filteredEntries.slice(0, MAX_VISIBLE_ENTRIES)
+  const hidden = useMemo(() => summarizeHidden(reviewable, eventFilter, teamFilter, eventNames), [eventFilter, eventNames, reviewable, teamFilter])
+  const withNoEvent = useMemo(() => entriesWithNoEvent(reviewable), [reviewable])
+  const currentEventName = currentEventId ? eventNames.get(currentEventId) : undefined
 
   const eventOptions = [
     { value: ALL_EVENTS, label: isHub ? 'All events' : 'All of my events' },
-    ...availableEventIds.map((eventId) => ({
+    ...Array.from(new Set([...events.map((event) => event.id), ...tally.map((item) => item.eventId)])).map((eventId) => ({
       value: eventId,
-      label: eventNames.get(eventId) ?? (eventId === 'none' ? 'No event selected' : eventId),
+      label: eventDisplayName(eventId, eventNames),
     })),
   ]
+
+  const scoutLabel = (entryDeviceId: string): string => scoutByDevice.get(entryDeviceId) ?? entryDeviceId
+
+  const handleFileUnderCurrentEvent = async (): Promise<void> => {
+    if (!db || !currentEventId) {
+      return
+    }
+
+    setIsFiling(true)
+    try {
+      const moved = await fileEntriesUnderEvent(db, withNoEvent.map((entry) => entry.id), currentEventId)
+      notify({
+        color: 'green',
+        title: 'Entries filed',
+        message: `${moved} ${moved === 1 ? 'entry is' : 'entries are'} now under ${currentEventName ?? currentEventId} and will count in its Analysis.`,
+      })
+      setConfirmingFiling(false)
+    } catch (error: unknown) {
+      handleError(error, 'File entries under the current event')
+    } finally {
+      setIsFiling(false)
+    }
+  }
 
   const handleDelete = async (): Promise<void> => {
     if (!db || !entryPendingDeletion) {
@@ -163,13 +214,13 @@ export function Entries(): ReactElement {
             </Title>
             <Text c="slate.4" mt="xs" maw={620}>
               {isHub
-                ? 'Review every entry this laptop has received, and remove one that should not count in the analysis.'
+                ? 'Review every entry scouts have sent to this laptop, plus anything scouted on it, and remove one that should not count in the analysis.'
                 : 'Review entries saved on this laptop. Remove a mistake before or after you send it to the lead scout.'}
             </Text>
           </Box>
-          <ThemeIcon size={42} radius="md" variant="light" color="frc-blue">
+          {searchParams.get('team') ? <Button component={Link} to="/analysis" variant="default">Back to Analysis</Button> : <ThemeIcon size={42} radius="md" variant="light" color="frc-blue">
             <IconClipboardCheck size={21} />
-          </ThemeIcon>
+          </ThemeIcon>}
         </Group>
 
         <Alert color="blue" variant="light" title={isHub ? 'Hub corrections persist' : 'Corrections sync to the hub'}>
@@ -186,19 +237,64 @@ export function Entries(): ReactElement {
               </Text>
               <Text size="sm" c="slate.4" mt={2}>
                 {visibleEntries.length === 1 ? '1 entry shown' : `${visibleEntries.length} entries shown`}
-                {entries.length > MAX_VISIBLE_ENTRIES ? ` · newest ${MAX_VISIBLE_ENTRIES} only` : ''}
+                {filteredEntries.length > MAX_VISIBLE_ENTRIES ? ` of ${filteredEntries.length}, newest ${MAX_VISIBLE_ENTRIES} only` : ''}
+                {hidden.hidden > 0 ? ` of ${filteredEntries.length + hidden.hidden} in all` : ''}
               </Text>
+              {!isHub ? (
+                <Text size="xs" c="slate.4" mt={2}>
+                  This laptop shows the entries scouted on it. The lead scout’s laptop shows everyone’s.
+                </Text>
+              ) : null}
             </Box>
+            <Group align="end" gap="sm">
+            <TextInput label="Find a team" placeholder="Team number" leftSection={<IconSearch size={15} />} value={teamFilter} onChange={(event) => setTeamFilter(event.currentTarget.value)} w={180} />
             <Select
+              label="Event"
               aria-label="Filter observations by event"
               value={eventFilter}
-              onChange={(value) => setEventFilter(value ?? ALL_EVENTS)}
+              onChange={(value) => setChosenEvent(value ?? ALL_EVENTS)}
+              allowDeselect={false}
               data={eventOptions}
               w={280}
               searchable
             />
+            </Group>
           </Group>
         </Card>
+
+        {hidden.hidden > 0 ? (
+          <Alert
+            color="yellow"
+            variant="light"
+            icon={<IconEyeOff size={18} />}
+            title={`${filteredEntries.length} of ${filteredEntries.length + hidden.hidden} entries shown`}
+          >
+            <Group justify="space-between" align="center" gap="md">
+              <Text size="sm" maw={640}>
+                {hidden.hidden === 1 ? '1 more entry is' : `${hidden.hidden} more entries are`} filed under another event, so the filter is hiding{' '}
+                {hidden.hidden === 1 ? 'it' : 'them'}: {hidden.where.map((item) => `${item.label} (${item.count})`).join(', ')}.
+              </Text>
+              <Button size="xs" variant="default" onClick={() => setChosenEvent(ALL_EVENTS)}>
+                Show all events
+              </Button>
+            </Group>
+          </Alert>
+        ) : null}
+
+        {isHub && withNoEvent.length > 0 && currentEventId && currentEventName ? (
+          <Alert color="blue" variant="light" title={`${withNoEvent.length} ${withNoEvent.length === 1 ? 'entry was' : 'entries were'} saved with no event`}>
+            <Group justify="space-between" align="center" gap="md">
+              <Text size="sm" maw={640}>
+                A scout laptop that has no event selected files its entries under “No event selected”, so {withNoEvent.length === 1 ? 'it does' : 'they do'} not count
+                in Analysis for {currentEventName}. If {withNoEvent.length === 1 ? 'this was' : 'these were'} scouted at {currentEventName}, file{' '}
+                {withNoEvent.length === 1 ? 'it' : 'them'} there.
+              </Text>
+              <Button size="xs" onClick={() => setConfirmingFiling(true)}>
+                File under {currentEventName}
+              </Button>
+            </Group>
+          </Alert>
+        ) : null}
 
         {visibleEntries.length === 0 ? (
           <Card p="xl" radius="lg" className="surface-card">
@@ -212,6 +308,11 @@ export function Entries(): ReactElement {
               <Text size="sm" c="slate.4" ta="center">
                 {isHub ? 'Received scout data will appear here.' : 'Entries you save on this laptop will appear here.'}
               </Text>
+              {hidden.hidden > 0 ? (
+                <Button size="xs" variant="default" onClick={() => setChosenEvent(ALL_EVENTS)}>
+                  Show the {hidden.hidden} {hidden.hidden === 1 ? 'entry' : 'entries'} under other events
+                </Button>
+              ) : null}
             </Stack>
           </Card>
         ) : (
@@ -229,12 +330,12 @@ export function Entries(): ReactElement {
                           Match {entry.matchNumber} · Team {entry.teamNumber}
                         </Text>
                         <Badge size="sm" variant="light" color="frc-blue">
-                          {eventNames.get(entry.eventId) ?? (entry.eventId === 'none' ? 'No event' : entry.eventId)}
+                          {entry.eventId === 'none' ? 'No event' : eventDisplayName(entry.eventId, eventNames)}
                         </Badge>
                       </Group>
                       <Text size="xs" c="slate.4" mt={3}>
                         {formatRecordedAt(entry.createdAt)}
-                        {isHub ? ` · ${entry.deviceId}` : ''}
+                        {isHub ? ` · ${scoutLabel(entry.deviceId)}` : ''}
                       </Text>
                     </Box>
                   </Group>
@@ -281,6 +382,27 @@ export function Entries(): ReactElement {
             </Button>
             <Button color="red" loading={isDeleting} onClick={() => void handleDelete()} leftSection={<IconTrash size={16} />}>
               Remove entry
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={confirmingFiling} onClose={() => (isFiling ? undefined : setConfirmingFiling(false))} title="File these entries under your event?" centered>
+        <Stack gap="md">
+          <Text size="sm">
+            {withNoEvent.length} {withNoEvent.length === 1 ? 'entry' : 'entries'} will be filed under {currentEventName ?? 'this event'}. They will then show in Review
+            Entries and count in Analysis for it.
+          </Text>
+          <Text size="sm" c="slate.3">
+            Only do this if they were scouted at {currentEventName ?? 'this event'}. To avoid it next time, have scouts press Get form, schedule and matches in Sync Data so their laptops
+            start on your event.
+          </Text>
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setConfirmingFiling(false)} disabled={isFiling}>
+              Cancel
+            </Button>
+            <Button loading={isFiling} onClick={() => void handleFileUnderCurrentEvent()}>
+              File them
             </Button>
           </Group>
         </Stack>

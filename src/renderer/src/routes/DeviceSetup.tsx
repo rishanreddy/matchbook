@@ -6,6 +6,7 @@ import { notify } from '../lib/utils/notify'
 import { IconDeviceLaptop, IconServer, IconUser, IconUsers } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
 import { RouteHelpModal } from '../components/RouteHelpModal'
+import { listRoster, saveMyScoutName, scoutsForDevice } from '../features/roster/rosterService'
 import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { useDeviceStore } from '../stores/useDeviceStore'
@@ -63,14 +64,16 @@ export function DeviceSetup(): ReactElement {
         }
 
         const existingDevice = await db.collections.devices.findOne(resolvedDeviceId).exec()
-        const existingScout = await db.collections.scouts.findOne({ selector: { deviceId: resolvedDeviceId } }).exec()
+        const existingScout = scoutsForDevice(await listRoster(db), resolvedDeviceId)[0]
 
         setHasExistingRegistration(Boolean(existingDevice))
 
         formRef.current.setValues({
           deviceName: existingDevice?.name ?? '',
           isPrimary: existingDevice?.isPrimary ?? fallbackPrimary,
-          scoutName: existingScout?.name ?? '',
+          // A scout who never typed a name appears on the roster under the laptop's name; showing
+          // that here would pretend they chose it, so the field stays empty in that case.
+          scoutName: existingScout && existingScout.name !== existingDevice?.name ? existingScout.name : '',
         })
 
         setDevice({
@@ -124,23 +127,13 @@ export function DeviceSetup(): ReactElement {
         isPrimary: values.isPrimary,
       })
 
-      const existingScout = await db.collections.scouts.findOne({ selector: { deviceId: resolvedDeviceId } }).exec()
-      const scoutName = values.scoutName.trim()
-
-      if (scoutName) {
-        if (existingScout) {
-          await existingScout.incrementalPatch({ name: scoutName })
-        } else {
-          await db.collections.scouts.insert({
-            id: `scout_${crypto.randomUUID()}`,
-            name: scoutName,
-            deviceId: resolvedDeviceId,
-            createdAt: now,
-          })
-        }
-      } else if (existingScout) {
-        await existingScout.remove()
-      }
+      await saveMyScoutName(
+        db,
+        { id: resolvedDeviceId, name: values.deviceName },
+        // A scout who gives no name of their own is listed under their laptop's name, so the lead
+        // scout still sees them. The lead scout's own laptop is only listed if they type a name.
+        values.scoutName.trim() || (values.isPrimary ? '' : values.deviceName),
+      )
 
       notify({
         color: 'green',
@@ -193,7 +186,7 @@ export function DeviceSetup(): ReactElement {
               ]}
               tips={[
                 { text: 'Only one laptop should be the lead scout.' },
-                { text: 'Scout name is optional but helps assignment visibility.' },
+                { text: 'Your name is how the lead scout sees you on the roster when assigning matches.' },
               ]}
               tooltipLabel="Device setup help"
               color="frc-blue"
@@ -269,7 +262,12 @@ export function DeviceSetup(): ReactElement {
               </Paper>
 
               <TextInput
-                label="Scout Name (optional)"
+                label={form.values.isPrimary ? 'Your name (only if you also scout)' : 'Your name'}
+                description={
+                  form.values.isPrimary
+                    ? 'Adds you to the roster so you can be assigned matches too.'
+                    : 'The lead scout sees this when they assign you matches. Leave it empty to use the laptop name.'
+                }
                 placeholder="Alex"
                 leftSection={<IconUser size={14} />}
                 {...form.getInputProps('scoutName')}

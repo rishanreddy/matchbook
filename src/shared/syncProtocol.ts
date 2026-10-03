@@ -5,7 +5,15 @@ export const NETWORK_SYNC_COLLECTIONS = [
   'events',
   'matches',
   'assignments',
+  'roster',
 ] as const
+
+/**
+ * What a scout's laptop may send to the lead scout's laptop over Wi-Fi: their scouting entries,
+ * and their own name so the lead scout can assign them matches. Everything else (forms, events,
+ * schedules, assignments) only ever flows the other way.
+ */
+export const NETWORK_UPLOAD_COLLECTIONS: readonly SyncCollection[] = ['scoutingData', 'roster']
 
 export type SyncCollection = (typeof NETWORK_SYNC_COLLECTIONS)[number]
 

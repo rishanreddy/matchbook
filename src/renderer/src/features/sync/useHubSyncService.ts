@@ -3,6 +3,7 @@ import { combineLatest, debounceTime } from 'rxjs'
 import { logger } from '../../lib/utils/logger'
 import { useDatabaseStore } from '../../stores/useDatabase'
 import { useDeviceStore, useIsHub } from '../../stores/useDeviceStore'
+import { useEventStore } from '../../stores/useEventStore'
 import { useWifiHub, wasReceivingWhenClosed } from '../../stores/useWifiHub'
 import { addReceivedScouting, buildSetupDocument } from './hubService'
 
@@ -14,13 +15,14 @@ const PUBLISH_DEBOUNCE_MS = 800
  * - Starts receiving again on launch if it was on when the app last closed, so a
  *   restart mid-event does not silently stop collecting.
  * - Adds scouts' uploads as they arrive, when the lead scout has left that switched on.
- * - Keeps the form, event and schedule scouts can fetch up to date as they are edited.
+ * - Keeps the form, event, schedule, roster and assignments scouts can fetch up to date as they are edited.
  */
 export function useHubSyncService(): void {
   const db = useDatabaseStore((state) => state.db)
   const isHub = useIsHub()
   const deviceId = useDeviceStore((state) => state.deviceId)
   const deviceName = useDeviceStore((state) => state.deviceName)
+  const currentEventId = useEventStore((state) => state.currentEventId)
   const isRunning = useWifiHub((state) => state.status?.running ?? false)
   const autoAdd = useWifiHub((state) => state.autoAdd)
   const attemptedRestart = useRef(false)
@@ -105,10 +107,11 @@ export function useHubSyncService(): void {
       db.collections.events.find().$,
       db.collections.matches.find().$,
       db.collections.assignments.find().$,
+      db.collections.roster.find().$,
     ])
       .pipe(debounceTime(PUBLISH_DEBOUNCE_MS))
       .subscribe(() => void publish())
 
     return () => subscription.unsubscribe()
-  }, [active, db, isRunning])
+  }, [active, currentEventId, db, isRunning])
 }

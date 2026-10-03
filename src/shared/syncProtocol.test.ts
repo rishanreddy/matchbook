@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   NETWORK_SYNC_COLLECTIONS,
+  NETWORK_UPLOAD_COLLECTIONS,
   isPrivateLanHost,
   isValidSyncToken,
   normalizeHubUrl,
@@ -16,7 +17,15 @@ describe('network sync protocol', () => {
       'events',
       'matches',
       'assignments',
+      'roster',
     ])
+  })
+
+  it('lets a scout send only their entries and their own name, never setup', () => {
+    expect(NETWORK_UPLOAD_COLLECTIONS).toEqual(['scoutingData', 'roster'])
+    for (const collection of NETWORK_UPLOAD_COLLECTIONS) {
+      expect(NETWORK_SYNC_COLLECTIONS).toContain(collection)
+    }
   })
 
   it('uses the match key as the primary field for schedule payloads', () => {

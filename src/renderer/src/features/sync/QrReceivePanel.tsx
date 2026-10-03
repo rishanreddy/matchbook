@@ -8,14 +8,9 @@ import { handleError } from '../../lib/utils/errorHandler'
 import { logger } from '../../lib/utils/logger'
 import { notify } from '../../lib/utils/notify'
 import { useWakeLock } from '../../lib/hooks/useWakeLock'
+import { finishImport } from './afterImport'
 import { SyncCard } from './SyncCard'
-import {
-  describeTransfer,
-  importTransfer,
-  parseTransferText,
-  summarizeImport,
-  type TransferDocument,
-} from './syncData'
+import { describeTransfer, importTransfer, parseTransferText, type TransferDocument } from './syncData'
 import { useQrScanner } from './useQrScanner'
 
 const STALL_AFTER_MS = 12_000
@@ -208,7 +203,7 @@ export function QrReceivePanel({ db }: QrReceivePanelProps): ReactElement {
     }, 'sync.qr.receive')
     try {
       const result = await importTransfer(db, ready.document)
-      const summary = summarizeImport(result)
+      const summary = await finishImport(db, result, ready.document)
       notify({
         color: result.errors > 0 ? 'yellow' : 'green',
         title: result.errors > 0 ? 'Added, with some problems' : 'Added to this laptop',

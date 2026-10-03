@@ -1,419 +1,154 @@
 import type { ReactElement } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Accordion,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Group,
-  Loader,
-  Paper,
-  Select,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-  Tooltip,
-} from '@mantine/core'
-import { notify } from '../lib/utils/notify'
-import {
-  IconCalendarEvent,
-  IconClipboardCheck,
-  IconSparkles,
-  IconUser,
-  IconUsers,
-} from '@tabler/icons-react'
+import { useCallback, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Alert, Badge, Box, Button, Card, Group, Loader, Select, Stack, Tabs, Text, ThemeIcon, Title } from '@mantine/core'
+import { IconCalendarEvent, IconClipboardCheck, IconInfoCircle, IconUser, IconUsers } from '@tabler/icons-react'
 import { RouteHelpModal } from '../components/RouteHelpModal'
-import type { AssignmentDocType } from '../lib/db/schemas/assignments.schema'
-import type { EventDocType } from '../lib/db/schemas/events.schema'
+import { ByScoutView } from '../features/assignments/ByScoutView'
+import { PlanPanel } from '../features/assignments/PlanPanel'
+import { RosterPanel } from '../features/assignments/RosterPanel'
+import { ScheduleGrid } from '../features/assignments/ScheduleGrid'
+import { countLoads, findDoubleBookings, planAssignments, type CurrentAssignment, type Plan, type PlanOptions, type Position } from '../features/assignments/assign'
+import { releaseAll, setSlot, writeAssignments } from '../features/assignments/assignmentService'
+import { buildRows, toCsvRows } from '../features/assignments/rows'
+import { useAssignmentsData, useEvents } from '../features/assignments/useAssignmentsData'
+import { addScout, isAvailable, isListed, renameScout, setScoutStatus } from '../features/roster/rosterService'
+import { toCsv } from '../features/sync/csv'
 import type { MatchDocType } from '../lib/db/schemas/matches.schema'
-import type { ScoutDocType } from '../lib/db/schemas/scouts.schema'
-import { getOrCreateDeviceId } from '../lib/db/utils/deviceId'
-import { getAlliancePositionLabel, getTeamFromMatch } from '../lib/utils/assignments'
+import type { RosterStatus } from '../lib/db/schemas/roster.schema'
+import { downloadTextFile } from '../lib/utils/download'
+import { handleError } from '../lib/utils/errorHandler'
+import { notify } from '../lib/utils/notify'
 import { useDatabaseStore } from '../stores/useDatabase'
-import type { TBAMatch } from '../types/tba'
-
-const ALLIANCE_POSITIONS: AssignmentDocType['alliancePosition'][] = [
-  'red1',
-  'red2',
-  'red3',
-  'blue1',
-  'blue2',
-  'blue3',
-]
-
-function toTBAMatch(match: MatchDocType): TBAMatch {
-  return {
-    key: match.key,
-    comp_level: match.compLevel,
-    set_number: 1,
-    match_number: match.matchNumber,
-    alliances: {
-      red: { team_keys: match.redAlliance, score: 0 },
-      blue: { team_keys: match.blueAlliance, score: 0 },
-    },
-  }
-}
-
-function formatTeamLabel(teamKey: string): string {
-  return teamKey.replace('frc', 'Team ')
-}
-
-function getAssignmentId(matchKey: string, position: AssignmentDocType['alliancePosition']): string {
-  return `${matchKey}:${position}`
-}
-
-function isConflictError(error: unknown): boolean {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    return String((error as { code?: unknown }).code ?? '').toUpperCase() === 'CONFLICT'
-  }
-
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase()
-    return message.includes('conflict') || message.includes('duplicate') || message.includes('already exists')
-  }
-
-  return false
-}
+import { useEventStore } from '../stores/useEventStore'
+import { useWifiHub } from '../stores/useWifiHub'
 
 export function Assignments(): ReactElement {
   const db = useDatabaseStore((state) => state.db)
-  const [events, setEvents] = useState<EventDocType[]>([])
-  const [scouts, setScouts] = useState<ScoutDocType[]>([])
-  const [selectedEvent, setSelectedEvent] = useState<string | null>(null)
-  const [matches, setMatches] = useState<MatchDocType[]>([])
-  const [assignments, setAssignments] = useState<AssignmentDocType[]>([])
-  const [slotSelections, setSlotSelections] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isAssigning, setIsAssigning] = useState<boolean>(false)
-  const [isAutoAssigning, setIsAutoAssigning] = useState<boolean>(false)
+  const currentEventId = useEventStore((state) => state.currentEventId)
+  const hubReceiving = useWifiHub((state) => state.status?.running ?? false)
+  const [chosenEvent, setChosenEvent] = useState<string | null>(null)
 
-  const normalizeAssignmentsForEvent = useCallback(
-    async (eventKey: string): Promise<AssignmentDocType[]> => {
-      if (!db) {
-        return []
+  const { events, loaded: eventsLoaded } = useEvents(db)
+  // Start on the event this laptop is on, or the newest one, until the lead scout picks another.
+  const eventKey = events.some((event) => event.id === chosenEvent)
+    ? chosenEvent
+    : (events.find((event) => event.id === currentEventId)?.id ?? events[0]?.id ?? null)
+
+  const { matches, planMatches, assignments, scoutBySlot, coverage, roster, loaded } = useAssignmentsData(db, eventKey)
+  const eventName = events.find((event) => event.id === eventKey)?.name ?? eventKey ?? ''
+  const listed = useMemo(() => roster.filter(isListed), [roster])
+  const availableScouts = useMemo(() => listed.filter(isAvailable), [listed])
+
+  const current = useMemo<CurrentAssignment[]>(
+    () => assignments.map((assignment) => ({ matchKey: assignment.matchKey, position: assignment.alliancePosition, scoutId: assignment.scoutId })),
+    [assignments],
+  )
+  const loads = useMemo(() => countLoads(listed, current), [current, listed])
+  const doubles = useMemo(() => findDoubleBookings(current), [current])
+  const rows = useMemo(() => buildRows(planMatches, scoutBySlot, roster, coverage.statuses), [coverage.statuses, planMatches, roster, scoutBySlot])
+
+  const buildPlan = useCallback(
+    (mode: 'fill' | 'rebuild'): Plan => {
+      const options: PlanOptions = {
+        mode,
+        isScouted: (match, position) => coverage.statuses.get(`${match.key}:${position}`) === 'received',
       }
-
-      const assignmentDocs = await db.collections.assignments.find({ selector: { eventKey } }).exec()
-      const grouped = new Map<string, typeof assignmentDocs>()
-      assignmentDocs.forEach((doc) => {
-        const json = doc.toJSON()
-        const slotKey = getAssignmentId(json.matchKey, json.alliancePosition)
-        const group = grouped.get(slotKey)
-        if (group) {
-          group.push(doc)
-        } else {
-          grouped.set(slotKey, [doc])
-        }
-      })
-
-      let mutated = false
-      for (const [slotKey, docs] of grouped.entries()) {
-        const preferred = docs
-          .slice()
-          .sort((a, b) => {
-            const aAssigned = Date.parse(a.toJSON().assignedAt)
-            const bAssigned = Date.parse(b.toJSON().assignedAt)
-            if (aAssigned === bAssigned) {
-              return b.primary.localeCompare(a.primary)
-            }
-            return bAssigned - aAssigned
-          })[0]
-
-        const preferredJson = preferred.toJSON()
-        await db.collections.assignments.upsert({
-          ...preferredJson,
-          id: slotKey,
-        })
-
-        await Promise.all(
-          docs
-            .filter((doc) => doc.primary !== slotKey)
-            .map(async (doc) => {
-              mutated = true
-              await doc.remove()
-            }),
-        )
-
-        if (preferred.primary !== slotKey) {
-          mutated = true
-        }
-      }
-
-      const refreshedDocs = await db.collections.assignments.find({ selector: { eventKey } }).exec()
-      const refreshed = refreshedDocs.map((doc) => doc.toJSON())
-
-      if (mutated) {
-        notify({
-          color: 'yellow',
-          title: 'Assignments normalized',
-          message: 'Duplicate assignment slots were merged using the latest assignment.',
-        })
-      }
-
-      return refreshed
+      return planAssignments(planMatches, roster, current, options)
     },
-    [db],
+    [coverage.statuses, current, planMatches, roster],
   )
 
-  const assignmentMap = useMemo(() => {
-    const map = new Map<string, AssignmentDocType>()
-    assignments.forEach((assignment) => {
-      map.set(`${assignment.matchKey}:${assignment.alliancePosition}`, assignment)
-    })
-    return map
-  }, [assignments])
-
-  useEffect(() => {
-    const loadInitialData = async (): Promise<void> => {
-      if (!db) {
-        setIsLoading(false)
-        return
-      }
-
-      setIsLoading(true)
-      try {
-        const [eventDocs, scoutDocs] = await Promise.all([
-          db.collections.events.find().sort({ startDate: 'desc' }).exec(),
-          db.collections.scouts.find().sort({ name: 'asc' }).exec(),
-        ])
-
-        const loadedEvents = eventDocs.map((doc) => doc.toJSON())
-        setEvents(loadedEvents)
-        setScouts(scoutDocs.map((doc) => doc.toJSON()))
-        if (loadedEvents.length > 0) {
-          setSelectedEvent((current) => current ?? loadedEvents[0].id)
-        }
-      } catch (error: unknown) {
-        notify({
-          color: 'red',
-          title: 'Failed to load assignments page',
-          message: error instanceof Error ? error.message : 'Could not load events/scouts from local database.',
-        })
-      } finally {
-        setIsLoading(false)
-      }
+  const guard = async (action: () => Promise<void>, context: string): Promise<void> => {
+    try {
+      await action()
+    } catch (error: unknown) {
+      handleError(error, context)
     }
+  }
 
-    void loadInitialData()
-  }, [db])
-
-  useEffect(() => {
-    const loadEventData = async (): Promise<void> => {
-      if (!db || !selectedEvent) {
-        setMatches([])
-        setAssignments([])
-        return
-      }
-
-      setIsLoading(true)
-      try {
-        const [matchDocs, assignmentDocs] = await Promise.all([
-          db.collections.matches
-            .find({ selector: { eventId: selectedEvent, compLevel: 'qm' } })
-            .sort({ matchNumber: 'asc' })
-            .exec(),
-          normalizeAssignmentsForEvent(selectedEvent),
-        ])
-
-        setMatches(
-          matchDocs.map((doc) => {
-            const value = doc.toJSON()
-            return {
-              ...value,
-              redAlliance: [...value.redAlliance],
-              blueAlliance: [...value.blueAlliance],
-            }
-          }),
-        )
-        setAssignments(assignmentDocs)
-      } catch (error: unknown) {
-        notify({
-          color: 'red',
-          title: 'Failed to load matches/assignments',
-          message: error instanceof Error ? error.message : 'Could not load event matches and assignments.',
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    void loadEventData()
-  }, [db, normalizeAssignmentsForEvent, selectedEvent])
-
-  const refreshAssignments = useCallback(async (): Promise<void> => {
-    if (!db || !selectedEvent) {
-      return
-    }
-
-    const assignmentDocs = await normalizeAssignmentsForEvent(selectedEvent)
-    setAssignments(assignmentDocs)
-  }, [db, normalizeAssignmentsForEvent, selectedEvent])
-
-  const handleAssignSlot = async (
-    eventKey: string,
-    match: MatchDocType,
-    position: AssignmentDocType['alliancePosition'],
-    selectedScoutId: string,
-  ): Promise<void> => {
+  const handleAdd = async (name: string): Promise<void> => {
     if (!db) {
       return
     }
 
-    setIsAssigning(true)
-    try {
-      const existing = await db.collections.assignments
-        .findOne({ selector: { matchKey: match.key, alliancePosition: position } })
-        .exec()
+    const scout = await addScout(db, name)
+    notify({ color: 'green', title: 'Scout added', message: `${scout.name} is on the roster.` })
+  }
 
-      if (existing) {
-        notify({
-          color: 'yellow',
-          title: 'Already assigned',
-          message: `${getAlliancePositionLabel(position)} for Match ${match.matchNumber} is already assigned.`,
-        })
-        return
-      }
-
-      const teamKey = getTeamFromMatch(toTBAMatch(match), position)
-      if (!teamKey) {
-        notify({
-          color: 'red',
-          title: 'Missing team data',
-          message: `Could not resolve team for ${getAlliancePositionLabel(position)} in Match ${match.matchNumber}.`,
-        })
-        return
-      }
-
-      const scout = scouts.find((item) => item.id === selectedScoutId)
-      const deviceId = scout?.deviceId ?? (await getOrCreateDeviceId())
-
-      const assignmentId = getAssignmentId(match.key, position)
-      await db.collections.assignments.insert({
-        id: assignmentId,
-        eventKey,
-        matchKey: match.key,
-        alliancePosition: position,
-        teamKey,
-        scoutId: selectedScoutId,
-        deviceId,
-        assignedAt: new Date().toISOString(),
-      })
-
-      await refreshAssignments()
-      notify({
-        color: 'green',
-        title: 'Assignment created',
-        message: `Assigned ${scout?.name ?? selectedScoutId} to Match ${match.matchNumber} ${getAlliancePositionLabel(position)}.`,
-      })
-    } catch (error: unknown) {
-      if (isConflictError(error)) {
-        notify({
-          color: 'yellow',
-          title: 'Already assigned',
-          message: `${getAlliancePositionLabel(position)} for Match ${match.matchNumber} was assigned by another update.`,
-        })
-        await refreshAssignments()
-        return
-      }
-
-      notify({
-        color: 'red',
-        title: 'Assignment failed',
-        message: error instanceof Error ? error.message : 'Could not create assignment.',
-      })
-    } finally {
-      setIsAssigning(false)
+  const handleRename = async (id: string, name: string): Promise<void> => {
+    if (db) {
+      await renameScout(db, id, name)
     }
   }
 
-  const handleAutoAssign = async (): Promise<void> => {
-    if (!db || !selectedEvent || scouts.length === 0) {
+  const handleStatus = async (id: string, status: RosterStatus): Promise<void> => {
+    if (!db) {
       return
     }
 
-    const unassignedSlots = matches.flatMap((match) =>
-      ALLIANCE_POSITIONS.filter((position) => !assignmentMap.has(`${match.key}:${position}`)).map((position) => ({
-        match,
-        position,
-      })),
-    )
-
-    if (unassignedSlots.length === 0) {
-      notify({
-        color: 'blue',
-        title: 'No open slots',
-        message: 'All qualification positions are already assigned.',
-      })
-      return
-    }
-
-    setIsAutoAssigning(true)
-    try {
-      let insertedCount = 0
-      let skippedCount = 0
-      let failedCount = 0
-
-      for (let index = 0; index < unassignedSlots.length; index += 1) {
-        const { match, position } = unassignedSlots[index]
-        const scout = scouts[index % scouts.length]
-        const teamKey = getTeamFromMatch(toTBAMatch(match), position)
-        if (!teamKey) {
-          skippedCount += 1
-          continue
-        }
-
-        const assignmentId = getAssignmentId(match.key, position)
-        try {
-          await db.collections.assignments.insert({
-            id: assignmentId,
-            eventKey: selectedEvent,
-            matchKey: match.key,
-            alliancePosition: position,
-            teamKey,
-            scoutId: scout.id,
-            deviceId: scout.deviceId,
-            assignedAt: new Date().toISOString(),
-          })
-          insertedCount += 1
-        } catch (error: unknown) {
-          if (isConflictError(error)) {
-            skippedCount += 1
-          } else {
-            failedCount += 1
-          }
-        }
+    await guard(async () => {
+      await setScoutStatus(db, id, status)
+      const name = roster.find((scout) => scout.id === id)?.name ?? 'The scout'
+      if (status === 'away') {
+        notify({ color: 'blue', title: `${name} is away`, message: 'Press Fill open stations to give their matches to someone else.' })
+      } else if (status === 'removed') {
+        notify({ color: 'blue', title: `${name} was removed`, message: 'Press Fill open stations to give their matches to someone else.' })
       }
+    }, 'Update the roster')
+  }
 
-      await refreshAssignments()
-      notify({
-        color: failedCount > 0 ? 'yellow' : 'green',
-        title: failedCount > 0 ? 'Auto-assign finished with issues' : 'Auto-assign complete',
-        message: `${insertedCount} assigned, ${skippedCount} skipped, ${failedCount} failed.`,
-      })
-    } catch (error: unknown) {
-      notify({
-        color: 'red',
-        title: 'Auto-assign failed',
-        message: error instanceof Error ? error.message : 'Could not auto-assign open slots.',
-      })
-    } finally {
-      setIsAutoAssigning(false)
+  const handleApply = async (plan: Plan, label: string): Promise<void> => {
+    if (!db || !eventKey) {
+      return
     }
+
+    await guard(async () => {
+      const written = await writeAssignments(db, eventKey, plan.changes, roster, assignments)
+      notify({
+        color: 'green',
+        title: label,
+        message: `${written.toLocaleString()} ${written === 1 ? 'station' : 'stations'} updated. Scouts get their matches the next time they press Get form, schedule and matches in Sync Data.`,
+      })
+    }, 'Assign scouts')
+  }
+
+  const handleClearAll = async (): Promise<void> => {
+    if (!db || !eventKey) {
+      return
+    }
+
+    await guard(async () => {
+      const cleared = await releaseAll(db, eventKey)
+      notify({ color: 'blue', title: 'Assignments cleared', message: `${cleared.toLocaleString()} ${cleared === 1 ? 'station is' : 'stations are'} open again.` })
+    }, 'Clear assignments')
+  }
+
+  const handleAssign = (match: MatchDocType, position: Position, scoutId: string | null): void => {
+    if (!db || !eventKey) {
+      return
+    }
+
+    const scout = scoutId ? (roster.find((candidate) => candidate.id === scoutId) ?? null) : null
+    void guard(() => setSlot(db, { eventKey, match, position, scout }), 'Assign a scout')
+  }
+
+  const handleDownload = (): void => {
+    if (!eventKey) {
+      return
+    }
+
+    downloadTextFile(toCsv(toCsvRows(rows)), `scout-assignments-${eventKey}.csv`, 'text/csv')
+    notify({ color: 'green', title: 'Spreadsheet saved', message: 'Choose where to keep it in the window that opened.' })
   }
 
   return (
     <Box className="container-wide">
-      <Stack gap={24}>
+      <Stack gap="lg">
         <Card
           p="lg"
           radius="lg"
-          style={{
-            background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))',
-            border: '1px solid rgba(154, 166, 182, 0.2)',
-          }}
-          className="animate-fadeInUp"
+          style={{ background: 'linear-gradient(135deg, rgba(154, 166, 182, 0.08), rgba(154, 166, 182, 0.03))', border: '1px solid rgba(154, 166, 182, 0.2)' }}
         >
           <Group justify="space-between" align="flex-start" gap="md" wrap="wrap">
             <Group gap="md" align="center" wrap="nowrap">
@@ -425,223 +160,136 @@ export function Assignments(): ReactElement {
                   Scout Assignments
                 </Title>
                 <Text size="sm" c="slate.4">
-                  Assign scouts to alliance stations with event-aware scheduling
+                  Decide who watches which robot in every match
                 </Text>
               </Box>
             </Group>
-
-            <Group gap="sm" wrap="nowrap">
-              <RouteHelpModal
-                title="Assignment Workflow"
-                description="Build assignments before matches begin so scouts can focus on data capture."
-                steps={[
-                  { title: 'Pick Event', description: 'Select an imported event to load qualification matches.' },
-                  { title: 'Assign Slots', description: 'Choose a scout for each alliance position in each match.' },
-                  { title: 'Auto-fill Gaps', description: 'Use Auto-assign to fill open positions in round-robin order.' },
-                ]}
-                tips={[
-                  { text: 'Import events first from Event Management to unlock schedules.' },
-                  { text: 'Assigned slots are locked to avoid accidental overwrites.' },
-                ]}
-                tooltipLabel="How assignments work"
-                color="frc-blue"
-              />
-              <Tooltip label="Automatically fill open slots in round-robin order">
-                <Button
-                  onClick={() => void handleAutoAssign()}
-                  disabled={!selectedEvent || scouts.length === 0}
-                  loading={isAutoAssigning}
-                  leftSection={<IconSparkles size={16} />}
-                  fw={700}
-                  className="active:scale-[0.98]"
-                >
-                  Auto-assign
-                </Button>
-              </Tooltip>
-            </Group>
+            <RouteHelpModal
+              title="Assignment Workflow"
+              description="Add your scouts, let Matchbook share the matches fairly, then adjust anything by hand."
+              steps={[
+                { title: 'Add your scouts', description: 'Type their names, or let scouts appear when they send their entries or press Get form, schedule and matches.' },
+                { title: 'Fill open stations', description: 'Matchbook gives every match six scouts, taking turns so nobody works much more than anyone else.' },
+                { title: 'Share it', description: 'Scouts press Get form, schedule and matches in Sync Data and see their next match on the Scout screen.' },
+              ]}
+              tips={[
+                { text: 'Mark a scout away and fill again to hand their matches that nobody has scouted yet to someone else.' },
+                { text: 'With fewer than six scouts, the robots watched least are covered first.' },
+                { text: 'A dot beside each station shows whether its entry has arrived.' },
+              ]}
+              tooltipLabel="How assignments work"
+              color="frc-blue"
+            />
           </Group>
         </Card>
 
-        <Card
-          p="lg"
-          radius="lg"
-          style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-          className="animate-fadeInUp stagger-1"
-        >
-          <Stack gap="md">
-            <Select
-              label="Event"
-              description="Assignments are created for the selected event"
-              placeholder="Select an event"
-              value={selectedEvent}
-              onChange={setSelectedEvent}
-              data={events.map((event) => ({ value: event.id, label: `${event.name} (${event.id})` }))}
-              searchable
-              size="md"
-            />
-
-            <Group gap="xs" wrap="wrap">
-              <Badge color="frc-blue" variant="light" radius="md" leftSection={<IconCalendarEvent size={12} />}>
-                {matches.length} Matches
-              </Badge>
-              <Badge color="frc-orange" variant="light" radius="md" leftSection={<IconUsers size={12} />}>
-                {scouts.length} Scouts
-              </Badge>
-              <Badge color="success" variant="light" radius="md" leftSection={<IconUser size={12} />}>
-                {assignments.length} Assigned Slots
-              </Badge>
-            </Group>
-          </Stack>
-        </Card>
-
-        {isLoading ? (
-          <Card
-            p="xl"
-            radius="lg"
-            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-          >
+        {!eventsLoaded ? (
+          <Card p="xl" radius="lg" className="surface-card">
             <Group justify="center" py="xl" gap="sm">
               <Loader size="sm" color="frc-blue" />
-              <Text c="slate.4" size="sm">Loading event schedule and assignments...</Text>
+              <Text c="slate.4" size="sm">
+                Loading…
+              </Text>
             </Group>
           </Card>
-        ) : !selectedEvent ? (
-          <Card
-            p="xl"
-            radius="lg"
-            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-          >
-            <Group gap="md" align="center" wrap="nowrap">
+        ) : events.length === 0 ? (
+          <Card p="xl" radius="lg" className="surface-card">
+            <Group gap="md" align="center" wrap="wrap">
               <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
                 <IconCalendarEvent size={18} />
               </ThemeIcon>
-              <Text c="slate.3">No events available. Import an event first on the Event Management page.</Text>
-            </Group>
-          </Card>
-        ) : matches.length === 0 ? (
-          <Card
-            p="xl"
-            radius="lg"
-            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-          >
-            <Group gap="md" align="center" wrap="nowrap">
-              <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
-                <IconCalendarEvent size={18} />
-              </ThemeIcon>
-              <Text c="slate.3">No qualification matches found for this event.</Text>
-            </Group>
-          </Card>
-        ) : scouts.length === 0 ? (
-          <Card
-            p="xl"
-            radius="lg"
-            style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}
-          >
-            <Group gap="md" align="center" wrap="nowrap">
-              <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
-                <IconUsers size={18} />
-              </ThemeIcon>
-              <Text c="slate.3">No scouts found. Register scouts in Device Setup before assigning positions.</Text>
+              <Text c="slate.3" style={{ flex: '1 1 260px' }}>
+                No events yet. Import your event first so Matchbook knows the match schedule.
+              </Text>
+              <Button component={Link} to="/events" variant="default">
+                Open Events
+              </Button>
             </Group>
           </Card>
         ) : (
-          <Accordion
-            variant="separated"
-            radius="md"
-            className="animate-fadeInUp stagger-2"
-            styles={{
-              item: {
-                backgroundColor: 'var(--surface-raised)',
-                border: '1px solid var(--border-default)',
-              },
-              control: {
-                paddingBlock: '12px',
-              },
-            }}
-          >
-            {matches.map((match) => (
-              <Accordion.Item key={match.key} value={match.key}>
-                <Accordion.Control>
-                  <Group justify="space-between" wrap="nowrap">
-                    <Text fw={700} c="slate.1">Qualification Match {match.matchNumber}</Text>
-                    <Text size="sm" c="slate.4">
-                      {new Date(match.predictedTime).getTime() > 0
-                        ? new Date(match.predictedTime).toLocaleString()
-                        : 'Time unavailable'}
+          <>
+            <Card p="lg" radius="lg" className="surface-card">
+              <Stack gap="md">
+                <Select
+                  label="Event"
+                  description="Assignments are made for this event’s qualification matches"
+                  value={eventKey}
+                  onChange={setChosenEvent}
+                  data={events.map((event) => ({ value: event.id, label: `${event.name} (${event.id})` }))}
+                  searchable
+                  allowDeselect={false}
+                />
+                <Group gap="xs" wrap="wrap">
+                  <Badge color="frc-blue" variant="light" radius="md" leftSection={<IconCalendarEvent size={12} />}>
+                    {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+                  </Badge>
+                  <Badge color="frc-orange" variant="light" radius="md" leftSection={<IconUsers size={12} />}>
+                    {availableScouts.length} {availableScouts.length === 1 ? 'scout' : 'scouts'} available
+                  </Badge>
+                  <Badge color="green" variant="light" radius="md" leftSection={<IconUser size={12} />}>
+                    {coverage.covered} of {coverage.total} stations covered
+                  </Badge>
+                </Group>
+              </Stack>
+            </Card>
+
+            <RosterPanel roster={roster} loads={loads} onAdd={handleAdd} onRename={handleRename} onSetStatus={handleStatus} />
+
+            {matches.length > 0 ? (
+              <>
+                <PlanPanel
+                  matchCount={matches.length}
+                  coverage={coverage}
+                  availableScouts={availableScouts.length}
+                  roster={roster}
+                  buildPlan={buildPlan}
+                  onApply={handleApply}
+                  onClearAll={handleClearAll}
+                  onDownload={handleDownload}
+                />
+
+                <Alert color="blue" variant="light" icon={<IconInfoCircle size={18} />} title="How scouts get their matches">
+                  <Group justify="space-between" align="center" gap="md">
+                    <Text size="sm" maw={680}>
+                      Scouts open Scout Match on their own laptop and press Get latest. A scout you added by name picks their name there the first time, and after that their next match
+                      shows at the top. With QR codes or a file, scouts use Get form, schedule and matches in Sync Data instead.
+                      {coverage.assigned > 0 && !hubReceiving ? ' Wi-Fi receiving is off on this laptop, so scouts cannot fetch it over Wi-Fi yet.' : ''}
                     </Text>
+                    <Button component={Link} to="/sync?tab=wifi" size="xs" variant="default">
+                      Open Sync Data
+                    </Button>
                   </Group>
-                </Accordion.Control>
-                <Accordion.Panel>
-                  <Stack gap="sm">
-                    {ALLIANCE_POSITIONS.map((position) => {
-                      const teamKey = getTeamFromMatch(toTBAMatch(match), position)
-                      const assignment = assignmentMap.get(`${match.key}:${position}`)
-                      const assignedScout = scouts.find((scout) => scout.id === assignment?.scoutId)
-                      const slotKey = `${match.key}:${position}`
+                </Alert>
 
-                      return (
-                        <Paper
-                          key={slotKey}
-                          p="md"
-                          radius="md"
-                          style={{ backgroundColor: 'var(--surface-base)', border: '1px solid var(--border-subtle)' }}
-                        >
-                          <Group align="flex-end" wrap="wrap" gap="sm">
-                            <Stack gap={2} style={{ minWidth: 170 }}>
-                              <Text fw={600} c="slate.1">{getAlliancePositionLabel(position)}</Text>
-                              <Text size="sm" c="slate.4">
-                                {teamKey ? formatTeamLabel(teamKey) : 'Team unavailable'}
-                              </Text>
-                            </Stack>
-
-                            <Select
-                              placeholder="Select scout"
-                              data={scouts.map((scout) => ({ value: scout.id, label: scout.name }))}
-                              value={slotSelections[slotKey] ?? assignment?.scoutId ?? null}
-                              onChange={(value) => {
-                                if (!value) {
-                                  return
-                                }
-
-                                setSlotSelections((prev) => ({ ...prev, [slotKey]: value }))
-                              }}
-                              disabled={Boolean(assignment)}
-                              searchable
-                              style={{ flex: 1, minWidth: 220 }}
-                              size="sm"
-                            />
-
-                            <Button
-                              onClick={() =>
-                                void handleAssignSlot(
-                                  selectedEvent,
-                                  match,
-                                  position,
-                                  slotSelections[slotKey] ?? assignment?.scoutId ?? '',
-                                )
-                              }
-                              disabled={Boolean(assignment) || !(slotSelections[slotKey] ?? assignment?.scoutId)}
-                              loading={isAssigning}
-                              variant={assignment ? 'light' : 'gradient'}
-                              size="sm"
-                            >
-                              Assign
-                            </Button>
-
-                            {assignment && (
-                              <Badge color="success" variant="light" radius="md">
-                                Assigned: {assignedScout?.name ?? assignment.scoutId}
-                              </Badge>
-                            )}
-                          </Group>
-                        </Paper>
-                      )
-                    })}
-                  </Stack>
-                </Accordion.Panel>
-              </Accordion.Item>
-            ))}
-          </Accordion>
+                <Tabs defaultValue="schedule" keepMounted={false}>
+                  <Tabs.List>
+                    <Tabs.Tab value="schedule">Schedule</Tabs.Tab>
+                    <Tabs.Tab value="scouts">By scout</Tabs.Tab>
+                  </Tabs.List>
+                  <Tabs.Panel value="schedule" pt="md">
+                    <ScheduleGrid matches={matches} scoutBySlot={scoutBySlot} roster={roster} statuses={coverage.statuses} doubles={doubles} onAssign={handleAssign} />
+                  </Tabs.Panel>
+                  <Tabs.Panel value="scouts" pt="md">
+                    <ByScoutView rows={rows} roster={roster} />
+                  </Tabs.Panel>
+                </Tabs>
+              </>
+            ) : loaded ? (
+              <Card p="xl" radius="lg" className="surface-card">
+                <Group gap="md" align="center" wrap="wrap">
+                  <ThemeIcon size={38} radius="md" variant="light" color="frc-orange">
+                    <IconCalendarEvent size={18} />
+                  </ThemeIcon>
+                  <Text c="slate.3" style={{ flex: '1 1 260px' }}>
+                    {eventName} has no qualification matches on this laptop yet. Import its schedule on the Events page, then come back to assign scouts.
+                  </Text>
+                  <Button component={Link} to="/events" variant="default">
+                    Open Events
+                  </Button>
+                </Group>
+              </Card>
+            ) : null}
+          </>
         )}
       </Stack>
     </Box>

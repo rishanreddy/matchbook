@@ -1,16 +1,18 @@
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { validateSyncPayload } from '../../../../shared/syncProtocol'
 import { logger } from '../../lib/utils/logger'
-import { notify } from '../../lib/utils/notify'
+import { useEventStore } from '../../stores/useEventStore'
 import { useWifiHub } from '../../stores/useWifiHub'
+import { notifyReceived } from './receiveNotices'
 import {
+  SETUP_COLLECTIONS,
   buildSnapshot,
-  countLabel,
+  countInsertedEntries,
   describeTransfer,
+  emptyImportResult,
   importPayload,
   mergeImportResults,
   parseTransferDocument,
-  summarizeImport,
   type ImportResult,
 } from './syncData'
 
@@ -22,9 +24,14 @@ export type DrainResult = {
   result: ImportResult
 }
 
-const EMPTY_RESULT: ImportResult = { inserted: 0, updated: 0, duplicates: 0, errors: 0, errorMessages: [] }
+const EMPTY_RESULT: ImportResult = emptyImportResult()
 
-let draining: Promise<DrainResult> | null = null
+/** The pass in progress, shared by everyone who asks while it runs. */
+let receiving: Promise<DrainResult> | null = null
+/** Something arrived, or a person pressed the button, since the pass in progress last looked at the queue. */
+let lookAgain = false
+/** A person pressed the button during the pass in progress. */
+let personAsked = false
 
 async function drainOnce(db: ScoutingDatabase): Promise<DrainResult> {
   const api = window.electronAPI
@@ -58,7 +65,7 @@ async function drainOnce(db: ScoutingDatabase): Promise<DrainResult> {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown upload problem.'
       logger.warn('Set aside an upload that could not be added', { message })
-      results.push({ inserted: 0, updated: 0, duplicates: 0, errors: 1, errorMessages: [message] })
+      results.push({ ...emptyImportResult(), errors: 1, errorMessages: [message] })
       await api.quarantineHeadSyncPayload(message)
       quarantined += 1
     }
@@ -73,6 +80,8 @@ async function drainOnce(db: ScoutingDatabase): Promise<DrainResult> {
       inserted: combinedResult.inserted,
       updated: combinedResult.updated,
       duplicates: combinedResult.duplicates,
+      removedEarlier: combinedResult.removedEarlier,
+      entriesByEvent: combinedResult.entriesByEvent,
       errors: combinedResult.errors,
       elapsedMs: Date.now() - startedAt,
     }, 'sync.wifi.hub')
@@ -81,69 +90,95 @@ async function drainOnce(db: ScoutingDatabase): Promise<DrainResult> {
   return { payloads, quarantined, result: combinedResult }
 }
 
-/**
- * Adds everything scouts have uploaded to this laptop's database.
- *
- * A scout's upload can arrive while the previous one is still being added, or while the
- * lead scout presses the button by hand. Only one pass runs at a time, and a caller that
- * arrives mid-pass simply waits for it and gets its result.
- */
-export function drainIncoming(db: ScoutingDatabase): Promise<DrainResult> {
-  if (draining) {
-    return draining
+function combinePasses(passes: DrainResult[]): DrainResult {
+  if (passes.length === 1) {
+    return passes[0]
   }
 
-  draining = drainOnce(db).finally(() => {
-    draining = null
-  })
-  return draining
+  return {
+    payloads: passes.reduce((sum, pass) => sum + pass.payloads, 0),
+    quarantined: passes.reduce((sum, pass) => sum + pass.quarantined, 0),
+    result: mergeImportResults(passes.map((pass) => pass.result)),
+  }
 }
 
-const SETUP_COLLECTIONS = ['formSchemas', 'events', 'matches', 'assignments'] as const
+/** Looks at the queue until a look finds nothing new, so nothing a scout sent is left waiting. */
+async function receiveUntilQuiet(db: ScoutingDatabase): Promise<{ outcome: DrainResult; manual: boolean }> {
+  const passes: DrainResult[] = []
+  let manual = false
 
-/** What scouts fetch: the form, the event and the schedule as this hub has them right now. */
+  try {
+    do {
+      lookAgain = false
+      passes.push(await drainOnce(db))
+    } while (lookAgain)
+  } finally {
+    // Done in the same breath as the last look, so a caller that arrives after this starts a pass of its own.
+    manual = personAsked
+    personAsked = false
+    receiving = null
+  }
+
+  return { outcome: combinePasses(passes), manual }
+}
+
+async function receive(db: ScoutingDatabase): Promise<DrainResult> {
+  const { outcome, manual } = await receiveUntilQuiet(db)
+  const { result, quarantined } = outcome
+  const hub = useWifiHub.getState()
+  hub.countReceived(countInsertedEntries(result))
+  await hub.refresh()
+
+  const events = await db.collections.events.find().exec()
+  notifyReceived(result, {
+    manual,
+    payloads: outcome.payloads,
+    quarantined,
+    currentEventId: useEventStore.getState().currentEventId,
+    eventNames: new Map(events.map((event) => [event.id, event.name])),
+  })
+
+  return outcome
+}
+
+/**
+ * Adds everything scouts have uploaded to this laptop's database and tells the lead scout what
+ * happened.
+ *
+ * `manual` is a person pressing the button: they get an answer even when nothing was waiting.
+ * Automatic passes stay quiet unless something actually changed.
+ *
+ * Only one pass runs at a time. A scout's name is sent right behind its entries, and a pass only
+ * sees what was queued when it began, so a caller that arrives mid-pass makes it look again before
+ * it finishes instead of waiting on a result that cannot include what just arrived. Everyone who
+ * asked gets the same combined result, and the lead scout hears about it once.
+ */
+export function addReceivedScouting(db: ScoutingDatabase, options: { manual?: boolean } = {}): Promise<DrainResult> {
+  if (options.manual === true) {
+    personAsked = true
+  }
+
+  if (receiving) {
+    lookAgain = true
+    return receiving
+  }
+
+  receiving = receive(db)
+  return receiving
+}
+
+/**
+ * What scouts fetch: the form, the event, the schedule, the roster and who is assigned what, as
+ * this hub has them right now, plus the event the lead scout is on so a scout laptop that has not
+ * picked one can start on the same event.
+ */
 export async function buildSetupDocument(db: ScoutingDatabase): Promise<{ json: string; summary: string; isEmpty: boolean }> {
-  const snapshot = await buildSnapshot(db, SETUP_COLLECTIONS)
+  const currentEventId = useEventStore.getState().currentEventId
+  const snapshot = await buildSnapshot(db, SETUP_COLLECTIONS, { currentEventId })
   const parsed = parseTransferDocument(snapshot)
   return {
     json: JSON.stringify(snapshot),
     summary: describeTransfer(parsed),
     isEmpty: parsed.tasks.every((task) => task.rows.length === 0),
   }
-}
-
-/**
- * Adds waiting uploads and tells the lead scout what happened.
- *
- * `manual` is a person pressing the button: they get an answer even when nothing was
- * waiting. Automatic passes stay quiet unless something actually changed.
- */
-export async function addReceivedScouting(db: ScoutingDatabase, options: { manual?: boolean } = {}): Promise<DrainResult> {
-  const outcome = await drainIncoming(db)
-  const { result, quarantined } = outcome
-  const hub = useWifiHub.getState()
-  hub.countReceived(result.inserted)
-  await hub.refresh()
-
-  if (result.inserted + result.updated > 0) {
-    notify({
-      color: 'green',
-      title: 'Scouting received',
-      message: result.inserted > 0 ? `${countLabel('scoutingData', result.inserted)} added from a scout.` : summarizeImport(result),
-    })
-  } else if (options.manual && outcome.payloads === 0 && quarantined === 0) {
-    notify({ color: 'blue', title: 'Nothing waiting', message: 'No scouts have sent anything new.' })
-  } else if (options.manual && quarantined === 0) {
-    notify({ color: 'blue', title: 'Already up to date', message: 'Everything a scout sent was already here.' })
-  }
-
-  if (quarantined > 0) {
-    notify({
-      color: 'yellow',
-      title: 'Some data was set aside',
-      message: 'Part of an upload could not be read. Open Sync Data, then Wi-Fi, to see why.',
-    })
-  }
-
-  return outcome
 }

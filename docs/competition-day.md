@@ -7,7 +7,7 @@ New scouts can open **Help** in the app for step-by-step pictures and two short 
 ## Before leaving for the event
 
 1. Install the same Matchbook release on every hub and scout laptop.
-2. On the hub, import the event schedule, create or select the scouting form, assign scouts, and run one sample entry through Analysis.
+2. On the hub, import the event schedule, create or select the scouting form, and run one sample entry through Analysis. Scout names and matches can wait until the scouts connect.
 3. On every scout, complete first-run setup and confirm the device name is recognizable.
 4. Rehearse one Wi-Fi transfer and one QR transfer. Confirm the hub gets each record exactly once.
 5. On the hub, open **Sync Data, File**, save **Everything on this laptop**, and keep the file somewhere separate from that laptop.
@@ -18,10 +18,11 @@ New scouts can open **Help** in the app for step-by-step pictures and two short 
 1. Designate one laptop as the hub. Keep it plugged in when possible.
 2. Connect only the team laptops to a private hotspot or router. Do not use the venue's public Wi-Fi for data transfer: it often stops laptops from seeing each other.
 3. On the hub, open **Sync Data, Wi-Fi** and press **Start receiving**. Read the code on the screen to the scouts, or let them scan the small square code. Windows may ask about the firewall the first time: allow it on private networks.
-4. On each scout, open **Sync Data, Wi-Fi**, click the hub in the list, and type the code. Press **Get form and schedule** once.
-5. During matches, scouts keep recording even when the network is unavailable. Do not reset the local cache to solve a sync problem.
-6. Every few matches each scout presses **Send my entries**. The hub adds them on its own, and its Home screen counts them. A scout's Home screen shows how many entries the hub does not have yet.
-7. Every few matches, save a backup file from the hub (**Sync Data, File**) to a USB stick or another team-controlled device.
+4. On each scout, open **Sync Data, Wi-Fi**, click the hub in the list, and type the code. Press **Get form, schedule and matches** once.
+5. On the hub, open **Scout Assignments**. Scouts who typed their name in **Device Setup** are on the list already; type the names of the others. Press **Fill open stations** and then **Assign**. Each scout opens **Scout Match** and presses **Get latest** to see their matches. A scout you added by name picks their name there the first time.
+6. During matches, scouts keep recording even when the network is unavailable. Do not reset the local cache to solve a sync problem.
+7. Every few matches each scout presses **Send my entries**. The hub adds them on its own, and its Home screen counts them. A scout's Home screen shows how many entries the hub does not have yet. If a notice says entries are for a different event, open **Review Entries** and press **Show all events**.
+8. Every few matches, save a backup file from the hub (**Sync Data, File**) to a USB stick or another team-controlled device.
 
 The hub starts receiving again by itself if the app or the laptop restarts, with the same code, so scouts do not need to pair again.
 

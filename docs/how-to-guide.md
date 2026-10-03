@@ -21,12 +21,30 @@ The lead scout gives you the questions you will answer.
    Its name is whatever the lead scout called it, like “Lead Laptop”. Not there? See “I can’t find the lead scout’s laptop” further down.
 4. Type the 8-letter code from the lead scout’s screen.
    You only need to do this once.
-5. Press **Get form and schedule**.
-   You will see “Got 1 scouting form…”. You are ready to scout.
+5. Press **Get form, schedule and matches**.
+   You will see “Got 1 scouting form…”. You are ready to scout. If you had not picked an event, your laptop starts on the lead scout’s.
 
 > **Tip:** No Wi-Fi at all? Use **QR codes** or **File** instead. They are in the same Sync Data screen.
 
-### 2. Scout a match
+### 2. See which matches are yours
+
+The lead scout can give you a list of matches to watch.
+
+![The Scout Match screen with a Your matches card. It lists the matches the lead scout gave this scout, the next one highlighted, each with a Scout this match button.](../src/renderer/src/assets/guide/my-matches.webp)
+*Your matches shows what the lead scout gave you, with the next one first.*
+
+1. Open **Scout Match** in the left menu.
+   If it asks you to pick your event, choose it and press **Use this event**.
+2. Press **Get latest** on the **Your matches** card.
+   You need the same Wi-Fi as the lead scout, just like when you got the form. With QR codes or a file, use **Get form, schedule and matches** in Sync Data instead.
+3. If it asks **Which scout are you?**, press your name.
+   These are the names the lead scout added. Not on the list? Type your name in **Device Setup**, then press **Send my entries** so the lead scout sees it.
+4. Press **Scout this match** on the match you are about to watch.
+   It fills in the match and the team for you. The next match is highlighted.
+
+> **Tip:** Matches you have already scouted show **Done**. If the lead scout changes the plan, press **Get latest** again.
+
+### 3. Scout a match
 
 Pick the match and the team, then answer the questions as it happens.
 
@@ -40,19 +58,21 @@ Pick the match and the team, then answer the questions as it happens.
 *On the last page, press Complete.*
 
 1. Press **Scout Match** in the left menu, or press **Scout a match** on the Home screen.
-2. Pick the **Match**, then the **Team** you are watching.
+2. If it says **Pick your event before you scout**, choose your event and press **Use this event**.
+   Entries saved with no event are filed under “No event selected”, and the lead scout will not see them for your event.
+3. Pick the **Match**, then the **Team** you are watching.
    The match is not on the list? Open **Manual Entry** and type the numbers instead.
-3. Press **Start Scouting**.
-4. Answer the questions while you watch.
+4. Press **Start Scouting**.
+5. Answer the questions while you watch.
    Tap **Yes** or **No**, or type a number. There is no rush. Your answers are saved as you go.
-5. Press **Next** to go to the next page.
+6. Press **Next** to go to the next page.
    The **Next** button always stays at the bottom of the window.
-6. On the last page, press **Complete**.
+7. On the last page, press **Complete**.
    You will see “Saved!”. That entry is now safe on this laptop, even with no Wi-Fi.
 
 > **Tip:** Closed the form by accident? Pick the same match and team again. Your answers are still there.
 
-### 3. Send your scouting to the lead scout
+### 4. Send your scouting to the lead scout
 
 Do this every few matches so nothing piles up.
 
@@ -63,11 +83,11 @@ Do this every few matches so nothing piles up.
    Or press **Send to the lead scout** on the Home screen.
 2. Click the lead scout’s laptop, and type the code if it is not already filled in.
 3. Press **Send my entries**.
-   You will see “Sent 12 entries to the lead scout”. Sending the same entries again is safe. The lead scout keeps one copy of each.
+   You will see “Sent 12 entries to the lead scout”. Sending the same entries again is safe. The lead scout keeps one copy of each. Your name goes with them, so the lead scout can give you matches.
 
 > **Tip:** No Wi-Fi? Use **QR codes** (next section) or **File**. They move exactly the same data.
 
-### 4. Send with QR codes (no Wi-Fi needed)
+### 5. Send with QR codes (no Wi-Fi needed)
 
 One laptop shows codes on its screen. The other reads them with its camera.
 
@@ -88,7 +108,7 @@ One laptop shows codes on its screen. The other reads them with its camera.
 
 > **Tip:** If it will not read, choose **Bigger squares** on the sending screen, move a little closer, and check that neither screen has glare on it.
 
-### 5. Send with a file (USB stick, AirDrop, email)
+### 6. Send with a file (USB stick, AirDrop, email)
 
 Save a file, carry it to the other laptop, and open it there.
 
@@ -103,7 +123,7 @@ Save a file, carry it to the other laptop, and open it there.
 
 > **Tip:** A saved file is also the best backup. Save one every few matches and keep it somewhere other than this laptop.
 
-### 6. Fix a mistake
+### 7. Fix a mistake
 
 Scouted the wrong team? Remove the entry and scout it again.
 
@@ -163,13 +183,34 @@ Scouts send their entries straight to your laptop over Wi-Fi.
 2. Open **Sync Data**, then **Wi-Fi**, and press **Start receiving**.
 3. Tell the scouts the **code** on your screen.
    Or let them scan the small square code instead of typing.
-4. Each scout presses **Get form and schedule** once, and later **Send my entries** every few matches.
+4. Each scout presses **Get form, schedule and matches** once, and later **Send my entries** every few matches.
 5. Their entries appear on your laptop by themselves.
-   The **Home** screen keeps count.
+   The **Home** screen keeps count. If a yellow notice says some entries are for a different event, open **Review Entries** and press **Show all events**.
 
 > **Tip:** If Windows asks about the firewall the first time, choose **Allow** for private networks. Without it, scouts cannot reach your laptop.
 
-### 4. Compare teams
+### 4. Plan who watches which match
+
+Give every robot in every match a scout, fairly, in a few clicks.
+
+![The Scout Assignments screen with a list of scouts, a box to type a new name, and a Plan card with a Fill open stations button.](../src/renderer/src/assets/guide/assignments.webp)
+*1. Add your scouts. 2. Press Fill open stations.*
+
+1. Open **Scout Assignments**, under Lead Scout Tools, and check the **Event** at the top.
+2. Under **Scouts**, type each scout’s name and press Enter.
+   A scout who types their name in **Device Setup** and connects to your laptop is added by themselves. Switch someone to away when they step out. Their matches that nobody has scouted yet can then go to other scouts.
+3. Press **Fill open stations**, read the summary, then press **Assign**.
+   Every match gets up to six scouts, spread evenly. A scout keeps the same robot position when they can. With fewer than six scouts, the robots watched least so far come first.
+4. Watch the bar fill as scouts send their entries.
+   Green is data that has arrived. Amber is waiting for data. A station is late when later matches have arrived without it.
+5. Change a station with the name list beside it, or see one scout’s whole day under **By scout**.
+   **More** has **Download as a spreadsheet** if you want to print the plan.
+6. Tell the scouts to open **Scout Match** and press **Get latest**.
+   A scout you added by name picks their name the first time. After that, their next match is at the top.
+
+> **Tip:** Added a scout late, or someone went away? Press **Fill open stations** again. It never changes a match that already has an entry.
+
+### 5. Compare teams
 
 See which teams are strongest, and build your pick list.
 
@@ -182,7 +223,7 @@ See which teams are strongest, and build your pick list.
 
 > **Tip:** Rankings only mean something once scouts have covered most teams. The Home screen shows how many teams are covered.
 
-### 5. Back up your data
+### 6. Back up your data
 
 A saved copy, kept somewhere other than this laptop.
 
@@ -202,6 +243,20 @@ A saved copy, kept somewhere other than this laptop.
 The form comes from the lead scout. Follow **Get the scouting form** in the scouts’ guide.
 
 The lead scout must have pressed **Save Form** in **Form Builder** first.
+
+### My matches are not showing.
+
+On the **Scout Match** screen, press **Get latest** on the **Your matches** card. You need to be on the same Wi-Fi as the lead scout, and they need to have pressed **Start receiving**.
+
+If it asks **Which scout are you?**, press your name. If your name is not there, type it in **Device Setup** and press **Send my entries**.
+
+The lead scout also has to have pressed **Fill open stations** in **Scout Assignments**.
+
+### A scout sent entries, but I do not see all of them in Review Entries.
+
+Review Entries starts on the event you are on, and hides entries saved under another event. A yellow notice at the top says how many are hidden. Press **Show all events** to see them.
+
+Entries saved with no event happen when a scout had not picked their event. Press **File under** your event to move them there, and ask that scout to pick their event on the **Scout Match** screen.
 
 ### I can’t find the lead scout’s laptop in the list.
 
@@ -278,3 +333,5 @@ Update between events, when you have internet, and make sure every laptop ends u
 - **Hotspot**: Wi-Fi shared from a phone. Good for a team that wants its own network at an event.
 - **Backup**: A saved copy of your data, kept somewhere other than this laptop.
 - **Event**: One competition, like the San Diego Regional.
+- **Roster**: The list of scouts the lead scout can give matches to.
+- **Station**: One robot in a match: Red 1, 2 or 3, or Blue 1, 2 or 3.

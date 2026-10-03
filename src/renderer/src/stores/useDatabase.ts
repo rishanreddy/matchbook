@@ -1,5 +1,6 @@
 import { createStoreHook } from './createStoreHook'
 import { initializeDatabase } from '../lib/db/database'
+import { migrateLegacyScouts } from '../features/roster/rosterService'
 import type { ScoutingDatabase } from '../lib/db/collections'
 import { handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
@@ -30,6 +31,15 @@ export const useDatabaseStore = createStoreHook<DatabaseState>((set, get) => ({
     const startedAt = Date.now()
     try {
       const db = await initializeDatabase()
+      try {
+        const moved = await migrateLegacyScouts(db)
+        if (moved > 0) {
+          logger.info('Scouts from an earlier version were added to the roster', { moved }, 'database')
+        }
+      } catch (error: unknown) {
+        // The roster is rebuilt from scouts' laptops on the next sync, so this must never block startup.
+        logger.warn('Could not move earlier scouts into the roster', error, 'database')
+      }
       logger.info('Database initialization completed', {
         elapsedMs: Date.now() - startedAt,
         collectionCount: Object.keys(db.collections).length,

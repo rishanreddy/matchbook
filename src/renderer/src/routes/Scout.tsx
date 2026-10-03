@@ -32,6 +32,9 @@ import { useDatabaseStore } from '../stores/useDatabase'
 import { useDeviceStore } from '../stores/useDeviceStore'
 import { useEventStore } from '../stores/useEventStore'
 import { RouteHelpModal } from '../components/RouteHelpModal'
+import { MyAssignmentsCard } from '../features/assignments/MyAssignmentsCard'
+import type { MyAssignment } from '../features/assignments/mine'
+import { NoEventNotice } from '../features/events/NoEventNotice'
 import 'survey-core/survey-core.min.css'
 
 const META_FIELDS = [
@@ -112,6 +115,16 @@ export function Scout(): ReactElement {
   const [eventMatchDocs, setEventMatchDocs] = useState<MatchDocType[]>([])
   const [isLoadingEventMatches, setIsLoadingEventMatches] = useState(false)
   const [selectedEventName, setSelectedEventName] = useState<string | null>(null)
+  const [localEventCount, setLocalEventCount] = useState(0)
+
+  useEffect(() => {
+    if (!db) {
+      return
+    }
+
+    const subscription = db.collections.events.count().$.subscribe((count) => setLocalEventCount(count))
+    return () => subscription.unsubscribe()
+  }, [db])
 
   const loadFormSchema = useCallback(async (): Promise<void> => {
     if (!db) {
@@ -299,7 +312,31 @@ export function Scout(): ReactElement {
     setTeamNumber(parsed)
   }
 
+  const startAssignment = (assignment: MyAssignment): void => {
+    if (!hasActiveForm) {
+      notify({
+        color: 'yellow',
+        title: 'No scouting form yet',
+        message: 'This laptop does not have a scouting form yet. Get the form from the lead scout first (Sync Data).',
+      })
+      return
+    }
+
+    setMatchNumber(assignment.matchNumber)
+    setTeamNumber(assignment.teamNumber)
+    setShowForm(true)
+  }
+
   const handleStartScouting = (): void => {
+    if (!currentEventId && localEventCount > 0) {
+      notify({
+        color: 'yellow',
+        title: 'Pick your event first',
+        message: 'Choose the event you are scouting at the top of this page, so the lead scout can find your entries.',
+      })
+      return
+    }
+
     if (!hasActiveForm) {
       notify({
         color: 'yellow',
@@ -678,6 +715,10 @@ export function Scout(): ReactElement {
             </Stack>
           </Card>
         )}
+
+        {!currentEventId && hasActiveForm ? <NoEventNotice db={db} /> : null}
+
+        {currentEventId ? <MyAssignmentsCard db={db} eventId={currentEventId} deviceId={deviceId} isHub={isHub} onScout={startAssignment} /> : null}
 
         {/* Match/Team Selection Card */}
         <Card

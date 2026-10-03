@@ -1,5 +1,8 @@
 import type { ScoutingDatabase } from '../../lib/db/collections'
+import { ROSTER_STATUSES } from '../../lib/db/schemas/roster.schema'
+import { MAX_SCOUT_NAME_LENGTH, cleanScoutName, linkHandAddedScouts } from '../roster/rosterService'
 import { getScoutingDeletionId } from '../../../../shared/scoutingDeletion'
+import { logger } from '../../lib/utils/logger'
 import { NETWORK_SYNC_COLLECTIONS, isSyncCollection, type SyncCollection, type SyncPayload } from '../../../../shared/syncProtocol'
 import {
   getPendingScoutingDeletionRows,
@@ -11,12 +14,32 @@ export const ALL_COLLECTIONS: readonly SyncCollection[] = NETWORK_SYNC_COLLECTIO
 export const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024
 export const MAX_IMPORT_ROWS = 10_000
 
+/** What the lead scout shares with scouts: the form, the event, the schedule, who is scouting what. */
+export const SETUP_COLLECTIONS: readonly SyncCollection[] = ['formSchemas', 'events', 'matches', 'assignments', 'roster']
+
+/** What a scout sends the lead scout: their entries, and their own name for the roster. */
+export const ENTRIES_COLLECTIONS: readonly SyncCollection[] = ['scoutingData', 'roster']
+
 export type ImportResult = {
   inserted: number
   updated: number
+  /** Rows this laptop already had, or already had a newer version of. */
   duplicates: number
   errors: number
   errorMessages: string[]
+  /** Entries skipped because they were removed on this laptop earlier, so an old copy cannot bring them back. */
+  removedEarlier: number
+  /** Scouting entries that were new, by the event they belong to. */
+  entriesByEvent: Record<string, number>
+}
+
+export function emptyImportResult(): ImportResult {
+  return { inserted: 0, updated: 0, duplicates: 0, errors: 0, errorMessages: [], removedEarlier: 0, entriesByEvent: {} }
+}
+
+/** How many scouting entries a result added, across every event. */
+export function countInsertedEntries(result: ImportResult): number {
+  return Object.values(result.entriesByEvent).reduce((total, count) => total + count, 0)
 }
 
 export type TransferTask = {
@@ -26,12 +49,22 @@ export type TransferTask = {
 
 export type TransferDocument = {
   tasks: TransferTask[]
+  /** The event the lead scout is on, so a scout laptop that has none can start on the same one. */
+  currentEventId?: string
 }
 
 export type SnapshotFile = {
   exportedAt: string
   version: 2
+  currentEventId?: string
   collections: Partial<Record<SyncCollection, Record<string, unknown>[]>>
+}
+
+export type SnapshotOptions = {
+  /** Shared with a scout laptop so it can start on the same event. */
+  currentEventId?: string | null
+  /** Send only the scouts at this laptop (a scout sends their own name, never the whole roster). */
+  rosterDeviceId?: string | null
 }
 
 const NOUNS: Record<SyncCollection, readonly [string, string]> = {
@@ -41,6 +74,7 @@ const NOUNS: Record<SyncCollection, readonly [string, string]> = {
   events: ['event', 'events'],
   matches: ['match', 'matches'],
   assignments: ['scout assignment', 'scout assignments'],
+  roster: ['scout on the roster', 'scouts on the roster'],
 }
 
 export const COLLECTION_LABELS: Record<SyncCollection, string> = {
@@ -50,6 +84,7 @@ export const COLLECTION_LABELS: Record<SyncCollection, string> = {
   events: 'Events',
   matches: 'Match schedule',
   assignments: 'Scout assignments',
+  roster: 'Scout roster',
 }
 
 export function countLabel(collection: SyncCollection, count: number): string {
@@ -87,16 +122,22 @@ export function describeTransfer(document: TransferDocument): string {
 }
 
 export function mergeImportResults(results: ImportResult[]): ImportResult {
-  return results.reduce<ImportResult>(
-    (acc, result) => ({
+  return results.reduce<ImportResult>((acc, result) => {
+    const entriesByEvent = { ...acc.entriesByEvent }
+    for (const [eventId, count] of Object.entries(result.entriesByEvent)) {
+      entriesByEvent[eventId] = (entriesByEvent[eventId] ?? 0) + count
+    }
+
+    return {
       inserted: acc.inserted + result.inserted,
       updated: acc.updated + result.updated,
       duplicates: acc.duplicates + result.duplicates,
       errors: acc.errors + result.errors,
       errorMessages: [...acc.errorMessages, ...result.errorMessages],
-    }),
-    { inserted: 0, updated: 0, duplicates: 0, errors: 0, errorMessages: [] },
-  )
+      removedEarlier: acc.removedEarlier + result.removedEarlier,
+      entriesByEvent,
+    }
+  }, emptyImportResult())
 }
 
 export function summarizeImport(result: ImportResult): string {
@@ -104,6 +145,9 @@ export function summarizeImport(result: ImportResult): string {
   if (result.inserted > 0) parts.push(`${result.inserted.toLocaleString()} added`)
   if (result.updated > 0) parts.push(`${result.updated.toLocaleString()} updated`)
   if (result.duplicates > 0) parts.push(`${result.duplicates.toLocaleString()} already here`)
+  if (result.removedEarlier > 0) {
+    parts.push(`${result.removedEarlier.toLocaleString()} skipped because you removed ${result.removedEarlier === 1 ? 'it' : 'them'} earlier`)
+  }
   if (result.errors > 0) parts.push(`${result.errors.toLocaleString()} could not be read`)
   return parts.length > 0 ? parts.join(', ') + '.' : 'Nothing new to add.'
 }
@@ -122,7 +166,7 @@ export function parseTransferDocument(value: unknown): TransferDocument {
     throw new Error('That does not look like a Matchbook file.')
   }
 
-  const parsed = value as { collection?: unknown; data?: unknown; collections?: Record<string, unknown> }
+  const parsed = value as { collection?: unknown; data?: unknown; collections?: Record<string, unknown>; currentEventId?: unknown }
   const tasks = new Map<SyncCollection, Record<string, unknown>[]>()
 
   if (parsed.collection !== undefined || parsed.data !== undefined) {
@@ -162,7 +206,8 @@ export function parseTransferDocument(value: unknown): TransferDocument {
     throw new Error('That does not look like a Matchbook file.')
   }
 
-  return { tasks: Array.from(tasks, ([collection, rows]) => ({ collection, rows })) }
+  const currentEventId = typeof parsed.currentEventId === 'string' && parsed.currentEventId.trim() !== '' ? parsed.currentEventId.trim() : undefined
+  return { tasks: Array.from(tasks, ([collection, rows]) => ({ collection, rows })), ...(currentEventId ? { currentEventId } : {}) }
 }
 
 export function parseTransferText(text: string): TransferDocument {
@@ -190,13 +235,24 @@ export async function getCollectionDocs(db: ScoutingDatabase, collection: SyncCo
       return (await db.collections.matches.find().exec()).map((doc) => doc.toJSON())
     case 'assignments':
       return (await db.collections.assignments.find().exec()).map((doc) => doc.toJSON())
+    case 'roster':
+      return (await db.collections.roster.find().exec()).map((doc) => doc.toJSON())
     default:
       throw new Error(`Unsupported collection: ${String(collection)}`)
   }
 }
 
-export async function buildPayload(db: ScoutingDatabase, collection: SyncCollection): Promise<SyncPayload> {
-  const data = await getCollectionDocs(db, collection)
+async function getExportRows(db: ScoutingDatabase, collection: SyncCollection, options: SnapshotOptions): Promise<Record<string, unknown>[]> {
+  const rows = await getCollectionDocs(db, collection)
+  if (collection === 'roster' && options.rosterDeviceId) {
+    return rows.filter((row) => row.deviceId === options.rosterDeviceId)
+  }
+
+  return rows
+}
+
+export async function buildPayload(db: ScoutingDatabase, collection: SyncCollection, options: SnapshotOptions = {}): Promise<SyncPayload> {
+  const data = await getExportRows(db, collection, options)
   const deletionRows = collection === 'scoutingData' ? getPendingScoutingDeletionRows() : []
   const rows = [...data, ...deletionRows]
   return {
@@ -207,15 +263,24 @@ export async function buildPayload(db: ScoutingDatabase, collection: SyncCollect
   }
 }
 
-export async function buildSnapshot(db: ScoutingDatabase, collections: readonly SyncCollection[]): Promise<SnapshotFile> {
+export async function buildSnapshot(
+  db: ScoutingDatabase,
+  collections: readonly SyncCollection[],
+  options: SnapshotOptions = {},
+): Promise<SnapshotFile> {
   const included: SnapshotFile['collections'] = {}
   for (const collection of collections) {
-    const rows = await getCollectionDocs(db, collection)
+    const rows = await getExportRows(db, collection, options)
     // Corrections ride along so a file cannot bring back an entry that was deleted.
     included[collection] = collection === 'scoutingData' ? [...rows, ...getPendingScoutingDeletionRows()] : rows
   }
 
-  return { exportedAt: new Date().toISOString(), version: 2, collections: included }
+  return {
+    exportedAt: new Date().toISOString(),
+    version: 2,
+    ...(options.currentEventId ? { currentEventId: options.currentEventId } : {}),
+    collections: included,
+  }
 }
 
 export function snapshotRowCount(snapshot: SnapshotFile): number {
@@ -353,6 +418,47 @@ function normalizeEventRow(row: Record<string, unknown>): Record<string, unknown
   }
 }
 
+function textOf(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function normalizeRosterRow(row: Record<string, unknown>): Record<string, unknown> | null {
+  const id = textOf(row.id).trim()
+  const name = cleanScoutName(textOf(row.name)).slice(0, MAX_SCOUT_NAME_LENGTH)
+  if (!id || !name) {
+    return null
+  }
+
+  const now = new Date().toISOString()
+  const createdAt = textOf(row.createdAt) || now
+  return {
+    id,
+    name,
+    deviceId: textOf(row.deviceId).slice(0, 128),
+    deviceName: textOf(row.deviceName).trim().slice(0, 128),
+    status: (ROSTER_STATUSES as readonly unknown[]).includes(row.status) ? row.status : 'active',
+    createdAt,
+    updatedAt: textOf(row.updatedAt) || createdAt,
+  }
+}
+
+/**
+ * Scouts and assignments change after they are first created, and the lead scout's changes must
+ * not be undone by an older copy that arrives later, so for those the newest version wins. Other
+ * collections are replaced by whatever arrives, as before.
+ */
+function isNewerThanStored(collection: SyncCollection, stored: Record<string, unknown>, incoming: Record<string, unknown>): boolean {
+  if (collection === 'roster') {
+    return textOf(incoming.updatedAt) > textOf(stored.updatedAt)
+  }
+
+  if (collection === 'assignments') {
+    return textOf(incoming.assignedAt) > textOf(stored.assignedAt)
+  }
+
+  return true
+}
+
 /**
  * Adds a payload's rows to this laptop's database.
  *
@@ -367,7 +473,7 @@ export async function importPayload(
   forcedCollection?: SyncCollection,
 ): Promise<ImportResult> {
   const collection = forcedCollection ?? payload.collection
-  const result: ImportResult = { inserted: 0, updated: 0, duplicates: 0, errors: 0, errorMessages: [] }
+  const result: ImportResult = emptyImportResult()
   const primaryField = getPrimaryFieldName(collection)
 
   const enforceSingleActiveFormSchema = async (row: Record<string, unknown>): Promise<void> => {
@@ -410,6 +516,8 @@ export async function importPayload(
         return db.collections.matches.findOne(id).exec()
       case 'assignments':
         return db.collections.assignments.findOne(id).exec()
+      case 'roster':
+        return db.collections.roster.findOne(id).exec()
       default:
         throw new Error(`Unsupported collection: ${String(collection)}`)
     }
@@ -434,6 +542,9 @@ export async function importPayload(
         return
       case 'assignments':
         await db.collections.assignments.insert(row as never)
+        return
+      case 'roster':
+        await db.collections.roster.insert(row as never)
         return
       default:
         throw new Error(`Unsupported collection: ${String(collection)}`)
@@ -461,6 +572,9 @@ export async function importPayload(
           return 'updated'
         case 'assignments':
           await db.collections.assignments.upsert(row as never)
+          return 'updated'
+        case 'roster':
+          await db.collections.roster.upsert(row as never)
           return 'updated'
         default:
           return 'not-supported'
@@ -509,6 +623,16 @@ export async function importPayload(
       row = normalizedEventRow
     }
 
+    if (collection === 'roster') {
+      const normalizedRosterRow = normalizeRosterRow(sourceRow)
+      if (!normalizedRosterRow) {
+        result.errors += 1
+        result.errorMessages.push('A scout on the roster is missing a name or an identifier.')
+        continue
+      }
+      row = normalizedRosterRow
+    }
+
     const primaryValue = row[primaryField]
     const primaryId = typeof primaryValue === 'string' ? primaryValue : ''
     if (!primaryId) {
@@ -518,13 +642,18 @@ export async function importPayload(
     }
 
     if (collection === 'scoutingData' && isScoutingDeletionRemembered(primaryId)) {
-      result.duplicates += 1
+      result.removedEarlier += 1
       continue
     }
 
     const existing = await findExisting(primaryId)
 
     if (existing) {
+      if (!isNewerThanStored(collection, existing.toJSON() as Record<string, unknown>, row)) {
+        result.duplicates += 1
+        continue
+      }
+
       const updateOutcome = await updateExistingRow(row)
       if (updateOutcome === 'updated') {
         await enforceSingleActiveFormSchema(row)
@@ -544,6 +673,10 @@ export async function importPayload(
       await insertRow(row)
       await enforceSingleActiveFormSchema(row)
       result.inserted += 1
+      if (collection === 'scoutingData') {
+        const eventId = typeof row.eventId === 'string' && row.eventId !== '' ? row.eventId : 'none'
+        result.entriesByEvent[eventId] = (result.entriesByEvent[eventId] ?? 0) + 1
+      }
     } catch (error: unknown) {
       if (isDuplicateInsertError(error)) {
         result.duplicates += 1
@@ -551,6 +684,15 @@ export async function importPayload(
         result.errors += 1
         result.errorMessages.push(error instanceof Error ? error.message : 'Unknown import error.')
       }
+    }
+  }
+
+  if (collection === 'roster' && result.inserted + result.updated > 0) {
+    // A scout the lead scout added by name and that same person's laptop are one scout.
+    try {
+      await linkHandAddedScouts(db)
+    } catch (error: unknown) {
+      logger.warn('Could not link a scout to their laptop', error, 'sync.roster')
     }
   }
 

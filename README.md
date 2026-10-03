@@ -179,7 +179,7 @@ their own. Open Analysis to compare teams.
 | Screen | Shown on | What it does |
 |---|---|---|
 | Analysis | Hub | Compare teams and build a picklist |
-| Assignments | Hub | Decide which scout covers which match |
+| Assignments | Hub | Keep a roster of scouts and plan who watches which match |
 | Developer Tools | Developer | Database inspection, hidden unless developer mode is on |
 | Device Setup | Both | Name this laptop and set it as hub or scout |
 | Entries | Both |  |
@@ -200,7 +200,7 @@ their own. Open Analysis to compare teams.
 
 | Method | Use it when | Notes |
 |---|---|---|
-| Wi-Fi | You brought your own router or a phone hotspot | Fastest. The hub shows a code, scouts pick the hub from a list that appears on its own, type the code once, and press Send. The hub adds what arrives without a button press, and starts receiving again by itself if it restarts. Scouts can also fetch the form and schedule this way. |
+| Wi-Fi | You brought your own router or a phone hotspot | Fastest. The hub shows a code, scouts pick the hub from a list that appears on its own, type the code once, and press Send. The hub adds what arrives without a button press, and starts receiving again by itself if it restarts. Scouts can also fetch the form, the schedule and their own matches this way. |
 | QR codes | There is no network at all | One laptop shows a loop of codes, the other reads them with its camera, in any order, and finishes even if it misses some. About 100 entries take a few dozen codes and roughly ten seconds. |
 | File | A USB stick, AirDrop or email is easier | A saved copy of everything, or just the entries, or just the form. Also the backup. |
 | Spreadsheet | You want the raw rows | CSV export and import, under Advanced. |
@@ -210,7 +210,7 @@ address and code. Sending the same entries twice is always safe: the hub keeps o
 each, and a correction a scout makes travels with their next send.
 
 Sync covers <!-- generated:collections -->
-`scouting data`, `form schemas`, `analysis configs`, `events`, `matches`, `assignments`
+`scouting data`, `form schemas`, `analysis configs`, `events`, `matches`, `assignments`, `roster`
 <!-- /generated:collections --> so a scout laptop that has never seen the internet still
 ends up with the right form and schedule.
 

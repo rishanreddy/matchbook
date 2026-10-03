@@ -11,18 +11,21 @@ import { handleError } from '../../lib/utils/errorHandler'
 import { logger } from '../../lib/utils/logger'
 import { notify } from '../../lib/utils/notify'
 import { useDeviceStore } from '../../stores/useDeviceStore'
+import { useEventStore } from '../../stores/useEventStore'
+import { finishImport } from './afterImport'
 import { recordLastSent } from './lastSent'
 import { SyncCard } from './SyncCard'
 import {
   ALL_COLLECTIONS,
   COLLECTION_LABELS,
+  ENTRIES_COLLECTIONS,
+  SETUP_COLLECTIONS,
   MAX_IMPORT_FILE_BYTES,
   buildSnapshot,
   describeTransfer,
   importTransfer,
   parseTransferText,
   snapshotRowCount,
-  summarizeImport,
   type TransferDocument,
 } from './syncData'
 
@@ -30,15 +33,15 @@ type WhatToSave = 'everything' | 'entries' | 'setup' | 'custom'
 
 const SAVE_CHOICES: Array<{ value: WhatToSave; label: string }> = [
   { value: 'everything', label: 'Everything on this laptop (a backup)' },
-  { value: 'entries', label: 'My scouting entries' },
-  { value: 'setup', label: 'Scouting form, event and match schedule' },
+  { value: 'entries', label: 'My scouting entries (and my name)' },
+  { value: 'setup', label: 'Scouting form, event, match schedule and scout assignments' },
   { value: 'custom', label: 'Let me choose…' },
 ]
 
 const PRESETS: Record<Exclude<WhatToSave, 'custom'>, readonly SyncCollection[]> = {
   everything: ALL_COLLECTIONS,
-  entries: ['scoutingData'],
-  setup: ['formSchemas', 'events', 'matches', 'assignments'],
+  entries: ENTRIES_COLLECTIONS,
+  setup: SETUP_COLLECTIONS,
 }
 
 type FilePanelProps = {
@@ -47,6 +50,8 @@ type FilePanelProps = {
 
 export function FilePanel({ db }: FilePanelProps): ReactElement {
   const deviceName = useDeviceStore((state) => state.deviceName)
+  const deviceId = useDeviceStore((state) => state.deviceId)
+  const currentEventId = useEventStore((state) => state.currentEventId)
   const [what, setWhat] = useState<WhatToSave>('everything')
   const [chosen, setChosen] = useState<Record<SyncCollection, boolean>>({
     scoutingData: true,
@@ -55,6 +60,7 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
     events: true,
     matches: true,
     assignments: true,
+    roster: true,
   })
   const [saved, setSaved] = useState<string | null>(null)
   const [savedEntries, setSavedEntries] = useState(0)
@@ -75,7 +81,11 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
     const startedAt = Date.now()
     logger.info('Matchbook file export started', { collections: collectionsToSave }, 'sync.file')
     try {
-      const snapshot = await buildSnapshot(db, collectionsToSave)
+      const snapshot = await buildSnapshot(db, collectionsToSave, {
+        // A scout sends their own name, never the whole roster; the lead scout shares the event they are on.
+        rosterDeviceId: what === 'entries' ? deviceId : null,
+        currentEventId: collectionsToSave.includes('events') ? currentEventId : null,
+      })
       const json = JSON.stringify(snapshot, null, 2)
       const stem = timestampedFileStem(deviceName)
       downloadTextFile(json, `matchbook-${stem}.json`)
@@ -143,7 +153,7 @@ export function FilePanel({ db }: FilePanelProps): ReactElement {
     }, 'sync.file')
     try {
       const result = await importTransfer(db, opened.document, (fraction) => setProgress(Math.round(fraction * 100)))
-      const summary = summarizeImport(result)
+      const summary = await finishImport(db, result, opened.document)
       notify({
         color: result.errors > 0 ? 'yellow' : 'green',
         title: result.errors > 0 ? 'Added, with some problems' : 'Added to this laptop',

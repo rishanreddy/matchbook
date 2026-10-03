@@ -26,7 +26,7 @@ const SCREEN_BLURBS = {
   Home: 'Event selection and what to do next',
   Scout: 'Record one robot for one match',
   EventManagement: 'Import events and schedules from The Blue Alliance',
-  Assignments: 'Decide which scout covers which match',
+  Assignments: 'Keep a roster of scouts and plan who watches which match',
   FormBuilder: 'Build the questions your scouts answer',
   Analysis: 'Compare teams and build a picklist',
   Sync: 'Move data between laptops',

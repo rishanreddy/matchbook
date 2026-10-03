@@ -66,7 +66,7 @@
       "id": "assignments",
       "target": "[data-tour=\"assignments-overview\"]",
       "title": "Plan scout coverage",
-      "content": "Plan which scouts cover each match and team. Add coverage manually or use Auto-assign to help distribute the workload.",
+      "content": "Add your scouts, press Fill open stations, and every match gets a scout for each robot, spread fairly. Scouts see their own matches on the Scout Match screen with Get latest. Change any station by hand, or download the plan as a spreadsheet.",
       "placement": "bottom",
       "route": "/assignments",
       "condition": "hub"

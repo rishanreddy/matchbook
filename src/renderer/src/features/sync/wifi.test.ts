@@ -9,6 +9,7 @@ import {
   encodePairing,
   fetchHubSetup,
   parsePairing,
+  shareScoutName,
   splitIntoBatches,
   uploadScoutingData,
   validateTarget,
@@ -122,11 +123,62 @@ describe('talking to the hub', () => {
 
     const outcome = await uploadScoutingData(db, TARGET)
 
-    expect(outcome).toEqual({ entries: 2, batches: 1 })
+    expect(outcome).toEqual({ entries: 2, batches: 1, nameShared: false })
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('http://192.168.1.20:41735/upload')
     expect((init.headers as Record<string, string>)['x-sync-token']).toBe('ABCD2345')
     expect(JSON.parse(init.body as string).data).toHaveLength(2)
+  })
+
+  it('shares this scout’s name after the entries, and only theirs', async () => {
+    await importPayload(db, { exportedAt: 'x', collection: 'scoutingData', count: 1, data: [entry('a')] })
+    await db.collections.roster.bulkInsert([
+      { id: 'scout_me', name: 'Riley', deviceId: 'device_me', deviceName: 'Scout Laptop 1', status: 'active', createdAt: '2026-03-14T10:00:00.000Z', updatedAt: '2026-03-14T10:00:00.000Z' },
+      { id: 'scout_other', name: 'Sam', deviceId: 'device_other', deviceName: '', status: 'active', createdAt: '2026-03-14T10:00:00.000Z', updatedAt: '2026-03-14T10:00:00.000Z' },
+    ])
+    fetchMock.mockResolvedValue(respond(200, { ok: true, queueLength: 1 }))
+
+    const outcome = await uploadScoutingData(db, TARGET, { deviceId: 'device_me' })
+
+    expect(outcome).toEqual({ entries: 1, batches: 1, nameShared: true })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const roster = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
+    expect(roster.collection).toBe('roster')
+    expect(roster.data.map((row: { id: string }) => row.id)).toEqual(['scout_me'])
+  })
+
+  it('does not fail a send because an older lead scout app refuses the name', async () => {
+    await importPayload(db, { exportedAt: 'x', collection: 'scoutingData', count: 1, data: [entry('a')] })
+    await db.collections.roster.insert({ id: 'scout_me', name: 'Riley', deviceId: 'device_me', deviceName: '', status: 'active', createdAt: '2026-03-14T10:00:00.000Z', updatedAt: '2026-03-14T10:00:00.000Z' })
+    fetchMock.mockResolvedValueOnce(respond(200, { ok: true, queueLength: 1 }))
+    fetchMock.mockResolvedValueOnce(respond(422, { ok: false, error: 'Network hub uploads accept scouting data only.' }))
+
+    const outcome = await uploadScoutingData(db, TARGET, { deviceId: 'device_me' })
+
+    expect(outcome).toEqual({ entries: 1, batches: 1, nameShared: false })
+  })
+
+  it('sends no name when this laptop has no scout', async () => {
+    await importPayload(db, { exportedAt: 'x', collection: 'scoutingData', count: 1, data: [entry('a')] })
+    fetchMock.mockResolvedValue(respond(200, { ok: true, queueLength: 1 }))
+
+    const outcome = await uploadScoutingData(db, TARGET, { deviceId: 'device_me' })
+
+    expect(outcome.nameShared).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shares just this scout’s name when asked, and says whether it got there', async () => {
+    await db.collections.roster.insert({ id: 'scout_me', name: 'Riley', deviceId: 'device_me', deviceName: '', status: 'active', createdAt: '2026-03-14T10:00:00.000Z', updatedAt: '2026-03-14T10:00:00.000Z' })
+    fetchMock.mockResolvedValueOnce(respond(200, { ok: true, queueLength: 1 }))
+    expect(await shareScoutName(db, TARGET, 'device_me')).toBe(true)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string).collection).toBe('roster')
+
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    expect(await shareScoutName(db, TARGET, 'device_me')).toBe(false)
+    expect(await shareScoutName(db, TARGET, 'device_with_no_name')).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('confirms a hub is reachable without sending anything', async () => {

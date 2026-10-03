@@ -133,11 +133,20 @@ describe('uploads', () => {
     expect(await server.consumeSyncPayloads()).toHaveLength(0)
   })
 
-  it('accepts scouting entries only; forms and setup go by QR or file', async () => {
-    const response = await post(payload([{ id: 'form-1' }], 'formSchemas'))
+  it('accepts scouting entries and a scout’s name only; forms, schedules and assignments go the other way', async () => {
+    for (const collection of ['formSchemas', 'events', 'matches', 'assignments', 'analysisConfigs']) {
+      const response = await post(payload([{ id: 'x', key: 'x' }], collection))
+      expect(response.status, collection).toBe(422)
+    }
 
-    expect(response.status).toBe(422)
     expect(await server.peekSyncPayloads()).toHaveLength(0)
+  })
+
+  it('queues a scout’s name so the lead scout can assign them matches', async () => {
+    const response = await post(payload([{ id: 'scout_1', name: 'Riley', deviceId: 'device_a' }], 'roster'))
+
+    expect(response.status).toBe(200)
+    expect(await server.peekSyncPayloads()).toMatchObject([{ collection: 'roster' }])
   })
 
   it('puts an upload that is retried from quarantine behind the ones waiting, so a pass in progress acknowledges the right one', async () => {

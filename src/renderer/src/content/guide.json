@@ -26,11 +26,42 @@
           "detail": "You only need to do this once."
         },
         {
-          "text": "Press **Get form and schedule**.",
-          "detail": "You will see “Got 1 scouting form…”. You are ready to scout."
+          "text": "Press **Get form, schedule and matches**.",
+          "detail": "You will see “Got 1 scouting form…”. You are ready to scout. If you had not picked an event, your laptop starts on the lead scout’s."
         }
       ],
       "tip": "No Wi-Fi at all? Use **QR codes** or **File** instead. They are in the same Sync Data screen."
+    },
+    {
+      "id": "my-matches",
+      "title": "See which matches are yours",
+      "summary": "The lead scout can give you a list of matches to watch.",
+      "images": [
+        {
+          "key": "myMatches",
+          "alt": "The Scout Match screen with a Your matches card. It lists the matches the lead scout gave this scout, the next one highlighted, each with a Scout this match button.",
+          "caption": "Your matches shows what the lead scout gave you, with the next one first."
+        }
+      ],
+      "steps": [
+        {
+          "text": "Open **Scout Match** in the left menu.",
+          "detail": "If it asks you to pick your event, choose it and press **Use this event**."
+        },
+        {
+          "text": "Press **Get latest** on the **Your matches** card.",
+          "detail": "You need the same Wi-Fi as the lead scout, just like when you got the form. With QR codes or a file, use **Get form, schedule and matches** in Sync Data instead."
+        },
+        {
+          "text": "If it asks **Which scout are you?**, press your name.",
+          "detail": "These are the names the lead scout added. Not on the list? Type your name in **Device Setup**, then press **Send my entries** so the lead scout sees it."
+        },
+        {
+          "text": "Press **Scout this match** on the match you are about to watch.",
+          "detail": "It fills in the match and the team for you. The next match is highlighted."
+        }
+      ],
+      "tip": "Matches you have already scouted show **Done**. If the lead scout changes the plan, press **Get latest** again."
     },
     {
       "id": "scout-match",
@@ -43,6 +74,10 @@
       ],
       "steps": [
         { "text": "Press **Scout Match** in the left menu, or press **Scout a match** on the Home screen." },
+        {
+          "text": "If it says **Pick your event before you scout**, choose your event and press **Use this event**.",
+          "detail": "Entries saved with no event are filed under “No event selected”, and the lead scout will not see them for your event."
+        },
         {
           "text": "Pick the **Match**, then the **Team** you are watching.",
           "detail": "The match is not on the list? Open **Manual Entry** and type the numbers instead."
@@ -78,7 +113,7 @@
         { "text": "Click the lead scout’s laptop, and type the code if it is not already filled in." },
         {
           "text": "Press **Send my entries**.",
-          "detail": "You will see “Sent 12 entries to the lead scout”. Sending the same entries again is safe. The lead scout keeps one copy of each."
+          "detail": "You will see “Sent 12 entries to the lead scout”. Sending the same entries again is safe. The lead scout keeps one copy of each. Your name goes with them, so the lead scout can give you matches."
         }
       ],
       "tip": "No Wi-Fi? Use **QR codes** (next section) or **File**. They move exactly the same data."
@@ -208,14 +243,52 @@
           "detail": "Or let them scan the small square code instead of typing."
         },
         {
-          "text": "Each scout presses **Get form and schedule** once, and later **Send my entries** every few matches."
+          "text": "Each scout presses **Get form, schedule and matches** once, and later **Send my entries** every few matches."
         },
         {
           "text": "Their entries appear on your laptop by themselves.",
-          "detail": "The **Home** screen keeps count."
+          "detail": "The **Home** screen keeps count. If a yellow notice says some entries are for a different event, open **Review Entries** and press **Show all events**."
         }
       ],
       "tip": "If Windows asks about the firewall the first time, choose **Allow** for private networks. Without it, scouts cannot reach your laptop."
+    },
+    {
+      "id": "lead-assign",
+      "title": "Plan who watches which match",
+      "summary": "Give every robot in every match a scout, fairly, in a few clicks.",
+      "images": [
+        {
+          "key": "assignments",
+          "alt": "The Scout Assignments screen with a list of scouts, a box to type a new name, and a Plan card with a Fill open stations button.",
+          "caption": "1. Add your scouts. 2. Press Fill open stations."
+        }
+      ],
+      "steps": [
+        {
+          "text": "Open **Scout Assignments**, under Lead Scout Tools, and check the **Event** at the top."
+        },
+        {
+          "text": "Under **Scouts**, type each scout’s name and press Enter.",
+          "detail": "A scout who types their name in **Device Setup** and connects to your laptop is added by themselves. Switch someone to away when they step out. Their matches that nobody has scouted yet can then go to other scouts."
+        },
+        {
+          "text": "Press **Fill open stations**, read the summary, then press **Assign**.",
+          "detail": "Every match gets up to six scouts, spread evenly. A scout keeps the same robot position when they can. With fewer than six scouts, the robots watched least so far come first."
+        },
+        {
+          "text": "Watch the bar fill as scouts send their entries.",
+          "detail": "Green is data that has arrived. Amber is waiting for data. A station is late when later matches have arrived without it."
+        },
+        {
+          "text": "Change a station with the name list beside it, or see one scout’s whole day under **By scout**.",
+          "detail": "**More** has **Download as a spreadsheet** if you want to print the plan."
+        },
+        {
+          "text": "Tell the scouts to open **Scout Match** and press **Get latest**.",
+          "detail": "A scout you added by name picks their name the first time. After that, their next match is at the top."
+        }
+      ],
+      "tip": "Added a scout late, or someone went away? Press **Fill open stations** again. It never changes a match that already has an entry."
     },
     {
       "id": "lead-analysis",
@@ -253,6 +326,23 @@
       "answer": [
         "The form comes from the lead scout. Follow **Get the scouting form** in the scouts’ guide.",
         "The lead scout must have pressed **Save Form** in **Form Builder** first."
+      ]
+    },
+    {
+      "id": "no-matches",
+      "question": "My matches are not showing.",
+      "answer": [
+        "On the **Scout Match** screen, press **Get latest** on the **Your matches** card. You need to be on the same Wi-Fi as the lead scout, and they need to have pressed **Start receiving**.",
+        "If it asks **Which scout are you?**, press your name. If your name is not there, type it in **Device Setup** and press **Send my entries**.",
+        "The lead scout also has to have pressed **Fill open stations** in **Scout Assignments**."
+      ]
+    },
+    {
+      "id": "missing-entries",
+      "question": "A scout sent entries, but I do not see all of them in Review Entries.",
+      "answer": [
+        "Review Entries starts on the event you are on, and hides entries saved under another event. A yellow notice at the top says how many are hidden. Press **Show all events** to see them.",
+        "Entries saved with no event happen when a scout had not picked their event. Press **File under** your event to move them there, and ask that scout to pick their event on the **Scout Match** screen."
       ]
     },
     {
@@ -342,6 +432,8 @@
     { "term": "QR code", "meaning": "A square picture that holds data. One laptop shows it and another reads it with its camera." },
     { "term": "Hotspot", "meaning": "Wi-Fi shared from a phone. Good for a team that wants its own network at an event." },
     { "term": "Backup", "meaning": "A saved copy of your data, kept somewhere other than this laptop." },
-    { "term": "Event", "meaning": "One competition, like the San Diego Regional." }
+    { "term": "Event", "meaning": "One competition, like the San Diego Regional." },
+    { "term": "Roster", "meaning": "The list of scouts the lead scout can give matches to." },
+    { "term": "Station", "meaning": "One robot in a match: Red 1, 2 or 3, or Blue 1, 2 or 3." }
   ]
 }

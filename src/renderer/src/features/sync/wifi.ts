@@ -2,6 +2,7 @@ import type { ScoutingDatabase } from '../../lib/db/collections'
 import { getScoutingDeletionId } from '../../../../shared/scoutingDeletion'
 import { normalizeHubUrl, isValidSyncToken, type SyncPayload } from '../../../../shared/syncProtocol'
 import { acknowledgeScoutingDeletionRows } from '../../lib/utils/scoutingDeletion'
+import { logger } from '../../lib/utils/logger'
 import { buildPayload, parseTransferDocument, type TransferDocument } from './syncData'
 
 export const NETWORK_UPLOAD_MAX_BYTES = 4 * 1024 * 1024
@@ -139,13 +140,44 @@ export async function checkHub(target: HubTarget): Promise<void> {
 export type UploadOutcome = {
   entries: number
   batches: number
+  /** Whether this laptop's scout name reached the lead scout's roster. */
+  nameShared: boolean
 }
 
 /**
- * Sends everything scouted on this laptop to the hub. The hub keeps the first copy of an
- * entry it sees, so sending the same entries again is always safe.
+ * Sends this laptop's scout name to the lead scout so they can assign it matches. Best effort: an
+ * older lead scout app does not accept it, and that must never make a send look like a failure.
  */
-export async function uploadScoutingData(db: ScoutingDatabase, rawTarget: HubTarget): Promise<UploadOutcome> {
+export async function shareScoutName(db: ScoutingDatabase, rawTarget: HubTarget, deviceId: string): Promise<boolean> {
+  try {
+    const target = validateTarget(rawTarget)
+    const roster = await buildPayload(db, 'roster', { rosterDeviceId: deviceId })
+    if (roster.count === 0) {
+      return false
+    }
+
+    await request(target, '/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(roster),
+    })
+    return true
+  } catch (error: unknown) {
+    logger.warn('Could not share this scout’s name with the lead scout', error, 'sync.wifi.scout')
+    return false
+  }
+}
+
+/**
+ * Sends everything scouted on this laptop to the hub, and this laptop's scout name so the lead
+ * scout can assign matches to it. The hub keeps the first copy of an entry it sees, so sending
+ * the same entries again is always safe. The name goes after the entries.
+ */
+export async function uploadScoutingData(
+  db: ScoutingDatabase,
+  rawTarget: HubTarget,
+  options: { deviceId?: string | null } = {},
+): Promise<UploadOutcome> {
   const target = validateTarget(rawTarget)
   const payload = await buildPayload(db, 'scoutingData')
   const deletionIds = payload.data.map(getScoutingDeletionId).filter((id): id is string => id !== null)
@@ -160,7 +192,9 @@ export async function uploadScoutingData(db: ScoutingDatabase, rawTarget: HubTar
   }
 
   acknowledgeScoutingDeletionRows(deletionIds)
-  return { entries: payload.count - deletionIds.length, batches: batches.length }
+
+  const nameShared = options.deviceId ? await shareScoutName(db, target, options.deviceId) : false
+  return { entries: payload.count - deletionIds.length, batches: batches.length, nameShared }
 }
 
 /** Downloads the form, event and schedule the hub is sharing. */

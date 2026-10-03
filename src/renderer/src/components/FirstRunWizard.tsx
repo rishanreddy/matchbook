@@ -27,6 +27,7 @@ import {
   IconServer,
   IconUsers,
 } from '@tabler/icons-react'
+import { listRoster, saveMyScoutName, scoutsForDevice } from '../features/roster/rosterService'
 import { getTbaStatus } from '../lib/api/tba'
 import { getDeviceTag, getOrCreateDeviceId } from '../lib/db/utils/deviceId'
 import { getFriendlyErrorMessage, handleError } from '../lib/utils/errorHandler'
@@ -107,7 +108,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
         }
 
         const existingDevice = await db.collections.devices.findOne(resolvedDeviceId).exec()
-        const existingScout = await db.collections.scouts.findOne({ selector: { deviceId: resolvedDeviceId } }).exec()
+        const existingScout = scoutsForDevice(await listRoster(db), resolvedDeviceId)[0]
 
         if (isCancelled) {
           return
@@ -118,7 +119,7 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
           setRole(existingDevice.isPrimary ? 'hub' : 'scout')
         }
 
-        if (existingScout) {
+        if (existingScout && existingScout.name !== existingDevice?.name) {
           setScoutName(existingScout.name)
         }
       } catch (error: unknown) {
@@ -221,22 +222,9 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
 
       await db.collections.devices.upsert(devicePayload)
 
-      const existingScout = await db.collections.scouts.findOne({ selector: { deviceId: resolvedDeviceId } }).exec()
-      const cleanedScoutName = scoutName.trim()
-      if (cleanedScoutName) {
-        if (existingScout) {
-          await existingScout.incrementalPatch({ name: cleanedScoutName })
-        } else {
-          await db.collections.scouts.insert({
-            id: `scout_${crypto.randomUUID()}`,
-            name: cleanedScoutName,
-            deviceId: resolvedDeviceId,
-            createdAt: now,
-          })
-        }
-      } else if (existingScout) {
-        await existingScout.remove()
-      }
+      // A scout who gives no name of their own is listed under their laptop's name, so the lead
+      // scout still sees them. The lead scout's own laptop is only listed if they type a name.
+      await saveMyScoutName(db, { id: resolvedDeviceId, name: deviceName }, scoutName.trim() || (isHub ? '' : deviceName))
 
       setDevice({
         deviceId: resolvedDeviceId,
@@ -389,6 +377,19 @@ export function FirstRunWizard({ opened, onComplete }: FirstRunWizardProps): Rea
                   onChange={(event) => setDeviceName(event.currentTarget.value)}
                   description="Something your team will recognize, like “Scout 3” or “Red Alliance”."
                   required
+                />
+
+                <TextInput
+                  label={isHub ? 'Your name (only if you also scout)' : 'Your name (optional)'}
+                  placeholder="Alex"
+                  value={scoutName}
+                  onChange={(event) => setScoutName(event.currentTarget.value)}
+                  description={
+                    isHub
+                      ? 'Adds you to the roster so you can be assigned matches too.'
+                      : 'The lead scout sees this when they assign you matches. Leave it empty to use the laptop name.'
+                  }
+                  maxLength={60}
                 />
 
               </Stack>

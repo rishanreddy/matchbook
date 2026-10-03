@@ -7,32 +7,17 @@ import { StepList } from '../../components/StepList'
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { handleError } from '../../lib/utils/errorHandler'
 import { logger } from '../../lib/utils/logger'
+import { useDeviceStore } from '../../stores/useDeviceStore'
 import { PairingScanner } from './PairingScanner'
 import { SyncCard } from './SyncCard'
-import { describeTransfer, importTransfer, summarizeImport } from './syncData'
+import { finishImport } from './afterImport'
+import { describeTransfer, importTransfer } from './syncData'
+import { readSavedHubToken, readSavedHubUrl, saveHubToken, saveHubUrl } from './hubSettings'
 import { normalizeSyncToken } from './token'
 import { recordLastSent } from './lastSent'
-import { WifiError, fetchHubSetup, uploadScoutingData } from './wifi'
+import { WifiError, fetchHubSetup, shareScoutName, uploadScoutingData } from './wifi'
 
-const URL_KEY = 'sync_server_url_input'
-const TOKEN_KEY = 'sync_client_auth_token'
 const DISCOVERY_POLL_MS = 2000
-
-function readSaved(key: string): string {
-  try {
-    return localStorage.getItem(key) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function saveValue(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Remembering the lead scout is a convenience only.
-  }
-}
 
 type Outcome = { kind: 'success' | 'error'; message: string }
 
@@ -42,8 +27,8 @@ type ScoutWifiPanelProps = {
 
 export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
   const [hubs, setHubs] = useState<DiscoveredHub[]>([])
-  const [url, setUrl] = useState<string>(() => readSaved(URL_KEY))
-  const [token, setToken] = useState<string>(() => normalizeSyncToken(readSaved(TOKEN_KEY)))
+  const [url, setUrl] = useState<string>(() => readSavedHubUrl())
+  const [token, setToken] = useState<string>(() => readSavedHubToken())
   const [showManual, setShowManual] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [busy, setBusy] = useState<'send' | 'setup' | null>(null)
@@ -51,6 +36,7 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
   const [entryCount, setEntryCount] = useState(0)
 
   const desktop = Boolean(window.electronAPI)
+  const deviceId = useDeviceStore((state) => state.deviceId)
 
   useEffect(() => {
     const api = window.electronAPI
@@ -91,26 +77,26 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
 
   const chooseHub = (hub: DiscoveredHub): void => {
     setUrl(hub.url)
-    saveValue(URL_KEY, hub.url)
+    saveHubUrl(hub.url)
     setOutcome(null)
   }
 
   const updateUrl = (value: string): void => {
     setUrl(value)
-    saveValue(URL_KEY, value)
+    saveHubUrl(value)
   }
 
   const updateToken = (value: string): void => {
     const normalized = normalizeSyncToken(value)
     setToken(normalized)
-    saveValue(TOKEN_KEY, normalized)
+    saveHubToken(normalized)
   }
 
   const applyPairing = useCallback((pairing: { url: string; token: string; name: string }): void => {
     setUrl(pairing.url)
-    saveValue(URL_KEY, pairing.url)
+    saveHubUrl(pairing.url)
     setToken(pairing.token)
-    saveValue(TOKEN_KEY, pairing.token)
+    saveHubToken(pairing.token)
     setScanning(false)
     setShowManual(false)
     setOutcome({
@@ -144,7 +130,7 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
       entryCount,
     }, 'sync.wifi.scout')
     try {
-      const sent = await uploadScoutingData(db, { url, token })
+      const sent = await uploadScoutingData(db, { url, token }, { deviceId })
       recordLastSent({ at: new Date().toISOString(), entries: sent.entries, method: 'wifi' })
       logger.info('Wi-Fi scouting upload completed', {
         host: safeHost(url),
@@ -153,10 +139,11 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
       }, 'sync.wifi.scout')
       setOutcome({
         kind: 'success',
-        message:
+        message: `${
           sent.entries === 0
             ? 'Connected to the lead scout, but you have no entries to send yet.'
-            : `Sent ${sent.entries.toLocaleString()} ${sent.entries === 1 ? 'entry' : 'entries'} to the lead scout at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`,
+            : `Sent ${sent.entries.toLocaleString()} ${sent.entries === 1 ? 'entry' : 'entries'} to the lead scout at ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`
+        }${sent.nameShared ? ' Your name is on their roster, so they can assign you matches.' : ''}`,
       })
     } catch (error: unknown) {
       logger.error('Wi-Fi scouting upload failed', {
@@ -198,7 +185,10 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
         errors: result.errors,
         elapsedMs: Date.now() - startedAt,
       }, 'sync.wifi.scout')
-      setOutcome({ kind: 'success', message: `Got ${description} from the lead scout. ${summarizeImport(result)}` })
+      const summary = await finishImport(db, result, document)
+      // Pairing is when a scout turns up on the lead scout's roster, before they have scouted anything.
+      const nameShared = deviceId ? await shareScoutName(db, { url, token }, deviceId) : false
+      setOutcome({ kind: 'success', message: `Got ${description} from the lead scout. ${summary}${nameShared ? ' Your name is on their roster.' : ''}` })
     } catch (error: unknown) {
       logger.error('Wi-Fi scouting setup request failed', {
         host: safeHost(url),
@@ -283,7 +273,7 @@ export function ScoutWifiPanel({ db }: ScoutWifiPanelProps): ReactElement {
             {entryCount > 0 ? `Send my ${entryCount.toLocaleString()} ${entryCount === 1 ? 'entry' : 'entries'}` : 'Send my entries'}
           </Button>
           <Button variant="default" onClick={() => void getSetup()} loading={busy === 'setup'} disabled={!ready || !db || busy !== null}>
-            Get form and schedule
+            Get form, schedule and matches
           </Button>
         </Group>
 

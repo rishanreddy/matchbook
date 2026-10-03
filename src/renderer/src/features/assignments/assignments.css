@@ -1,0 +1,142 @@
+/* Scout assignments: the roster, the plan and the schedule grid. Kept with the feature. */
+
+.roster-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-row {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-base);
+}
+
+.roster-row[data-away] {
+  opacity: 0.72;
+}
+
+.plan-chip {
+  padding: 3px 9px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--surface-base);
+}
+
+/* One card per match. Cards that are off screen are not laid out, so a long schedule stays quick. */
+.assignment-match {
+  container-type: inline-size;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  scroll-margin-top: 12px;
+}
+
+.assignment-stations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+}
+
+@container (max-width: 560px) {
+  .assignment-stations {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.assignment-alliance {
+  display: grid;
+  gap: 6px;
+}
+
+/* Red and blue mean alliance, here and everywhere else in the app. */
+.assignment-slot {
+  display: grid;
+  grid-template-columns: 52px 46px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 3px solid var(--border-strong);
+}
+
+.assignment-slot[data-alliance='red'] {
+  border-left-color: var(--mantine-color-red-6);
+}
+
+.assignment-slot[data-alliance='blue'] {
+  border-left-color: var(--mantine-color-blue-6);
+}
+
+.assignment-slot__station {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.assignment-slot__team {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.assignment-slot select {
+  min-width: 0;
+}
+
+.assignment-slot[data-double] select {
+  border-color: var(--mantine-color-yellow-5);
+}
+
+.assignment-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.assignment-dot[data-status='received'] {
+  background: var(--mantine-color-green-5);
+}
+
+.assignment-dot[data-status='waiting'] {
+  background: var(--mantine-color-yellow-5);
+}
+
+.assignment-dot[data-status='late'] {
+  background: var(--mantine-color-red-5);
+}
+
+.my-assignment-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-base);
+}
+
+.my-assignment-row[data-status='next'] {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.07);
+}
+
+.my-assignment-row[data-status='done'] {
+  opacity: 0.6;
+}
+
+@media (max-width: 560px) {
+  .my-assignment-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .my-assignment-row > :last-child {
+    grid-column: 1 / -1;
+  }
+}

@@ -37,6 +37,7 @@
     "test": "vitest run",
     "smoke:electron": "node scripts/smoke-electron.mjs",
     "test:e2e": "node scripts/e2e-electron.mjs",
+    "test:assignments": "node scripts/e2e-assignments.mjs",
     "electron:dist": "pnpm build:unpack",
     "electron:dist:win": "pnpm build:win",
     "electron:dist:mac": "pnpm build:mac",
