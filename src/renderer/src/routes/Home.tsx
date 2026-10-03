@@ -26,7 +26,6 @@ import {
 import { useIsHub } from '../stores/useDeviceStore'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { useEventStore } from '../stores/useEventStore'
-import type { ScoutingDataDocument } from '../lib/db/collections'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
 import { formatDateRange } from '../lib/utils/dates'
 import { RouteHelpModal } from '../components/RouteHelpModal'
@@ -53,20 +52,11 @@ export function Home(): ReactElement {
       return
     }
 
-    const fetchEvents = async (): Promise<void> => {
-      try {
-        const eventDocs = await db.collections.events
-          .find({
-            sort: [{ startDate: 'desc' }],
-          })
-          .exec()
-        setEvents(eventDocs.map((doc) => doc.toJSON()))
-      } catch (error: unknown) {
-        handleError(error, 'Load events')
-      }
-    }
-
-    void fetchEvents()
+    const subscription = db.collections.events.find({ sort: [{ startDate: 'desc' }] }).$.subscribe({
+      next: (docs) => setEvents(docs.map((doc) => doc.toJSON())),
+      error: (error: unknown) => handleError(error, 'Watch events on Home'),
+    })
+    return () => subscription.unsubscribe()
   }, [db])
 
   useEffect(() => {
@@ -91,15 +81,16 @@ export function Home(): ReactElement {
     if (!db) return
 
     const subscription = db.collections.scoutingData.find().$.subscribe((docs) => {
-      const observations = docs as ScoutingDataDocument[]
+      const allObservations = docs.map((doc) => doc.toJSON())
+      const observations = isHub && currentEventId ? allObservations.filter((observation) => observation.eventId === currentEventId) : allObservations
       setObservationCount(observations.length)
-      setEntryTimes(observations.map((d) => String(d.get('createdAt') ?? '')))
-      const uniqueTeams = new Set(observations.map((d) => d.get('teamNumber')))
+      setEntryTimes(allObservations.map((observation) => observation.createdAt))
+      const uniqueTeams = new Set(observations.map((observation) => observation.teamNumber))
       setTeamCount(uniqueTeams.size)
     })
 
     return () => subscription.unsubscribe()
-  }, [db])
+  }, [currentEventId, db, isHub])
 
   const currentEvent = events.find((e) => e.id === currentEventId)
   // Entries made after the last successful send are the ones the lead scout does not have.
@@ -248,8 +239,8 @@ export function Home(): ReactElement {
                   </Text>
                   <Text size="xs" c="slate.4" mt={6}>
                     {observationCount === 0
-                      ? 'Nothing recorded yet. Scout data lands here once devices sync.'
-                      : 'Collected on this laptop.'}
+                      ? currentEventId ? 'No observations for this event yet. Receive scout data to begin.' : 'Nothing recorded yet. Receive scout data to begin.'
+                      : currentEventId ? 'Collected for the current event.' : 'Collected across all events on this laptop.'}
                   </Text>
                 </Box>
                 <ThemeIcon size={44} radius="md" variant="light" color="slate">
@@ -269,8 +260,8 @@ export function Home(): ReactElement {
                   </Text>
                   <Text size="xs" c="slate.4" mt={6}>
                     {teamCount === 0
-                      ? 'Alliance picks need at least a few teams scouted.'
-                      : 'Ready for alliance comparison.'}
+                      ? 'Receive scout data to see team coverage.'
+                      : currentEventId ? 'Teams scouted at the current event.' : 'Teams scouted across all events.'}
                   </Text>
                 </Box>
                 <ThemeIcon size={44} radius="md" variant="light" color="slate">

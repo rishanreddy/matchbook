@@ -385,7 +385,7 @@ export function EventManagement(): ReactElement {
   }
 
   return (
-    <Stack gap="xl">
+    <Stack gap="xl" className="container-wide">
       <Group justify="space-between" align="center" wrap="wrap" gap="sm">
         <Title order={2} c="slate.0" data-tour="event-management" style={{ letterSpacing: '-0.02em' }}>
           Event Management

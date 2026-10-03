@@ -68,6 +68,7 @@ export function RouteHelpModal({
           size="lg"
           radius="md"
           onClick={open}
+          aria-label={tooltipLabel}
           className="transition-all duration-200 hover:bg-[rgba(154, 166, 182, 0.12)]"
         >
           <IconHelp size={iconSize} />

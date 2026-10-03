@@ -219,11 +219,15 @@
           "detail": "It already has pages for Autonomous, Teleop, Endgame, and Problems and notes. You can change, add, or remove any question."
         },
         {
+          "text": "Or, to get questions written for this year’s game, press **Build with AI**.",
+          "detail": "Copy the prompt into your AI chat while you have internet. It includes SurveyJS references and Matchbook’s analysis rules. Answer the AI’s questions, paste its reply back, and try the questions, conditional logic and calculations in the preview. Preview answers are never saved. Then press **Use this form**."
+        },
+        {
           "text": "When you are happy, press **Save Form** at the top right.",
           "detail": "This is now the form your scouts will get."
         }
       ],
-      "tip": "Want Matchbook to rank teams? Start the name of each scored question with **auto**, **teleop**, or **endgame**. Questions that should not add to a score, like “dropped pieces”, should not start with those words."
+      "tip": "Analysis can compare any numeric or Yes/No answer. For phase totals, use result keys starting with **auto**, **teleop**, **endgame** or **climb**. Keep penalties and opinions neutral. Save calculated values with **includeIntoResult: true**, and avoid giving both a total and its inputs phase prefixes."
     },
     {
       "id": "lead-receive",
@@ -295,14 +299,17 @@
       "title": "Compare teams",
       "summary": "See which teams are strongest, and build your pick list.",
       "images": [
-        { "key": "analysis", "alt": "The Analysis screen with charts for each team.", "caption": "Analysis turns everyone’s entries into charts." }
+        { "key": "analysis", "alt": "Team rankings on the Analysis screen using practice data.", "caption": "Example practice data. Choose a metric, then select teams to compare." }
       ],
       "steps": [
         { "text": "Open **Analysis** in the left menu." },
-        { "text": "Choose **Overall**, **Auto**, **Teleop**, or **Endgame** to compare teams." },
-        { "text": "Type a team number in the search box to look at just that team." }
+        { "text": "Check the **Event**. Your current event is selected automatically." },
+        { "text": "Choose **Rank teams by** to compare a phase total or an answer from your scouting form. Numeric and yes/no answers are available automatically." },
+        { "text": "Check two to four teams, then press **Compare selected** to see their values together." },
+        { "text": "Open a team number to review its matches, full scout notes, and original form answers." },
+        { "text": "Use **Find a team** or **Only teams with 3+ matches** to narrow the list. **Reset filters** restores the full list for the event." }
       ],
-      "tip": "Rankings only mean something once scouts have covered most teams. The Home screen shows how many teams are covered."
+      "tip": "Check the Matches column before judging a team. Missing answers are excluded, and phase totals are recorded activity counts rather than official game points."
     },
     {
       "id": "lead-backup",

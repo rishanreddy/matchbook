@@ -8,6 +8,7 @@ import process from 'node:process'
 import updater from 'electron-updater'
 import log from 'electron-log/main'
 import type { ProgressInfo, UpdateInfo } from 'electron-updater'
+import { isPermissionCheckAllowed, isPermissionRequestAllowed } from './permissions'
 import { registerSyncServerIpcHandlers, stopSyncServer } from './syncServer'
 import { parseSavedWindowState, planMainWindow, type SavedWindowState } from './windowBounds'
 import { normalizeApplicationLogEntry } from '../shared/logging'
@@ -391,28 +392,16 @@ function createMainWindow(): BrowserWindow {
     },
   })
 
-  // Electron groups camera and microphone under `media`. Matchbook only uses a
-  // top-level camera request for QR scanning, so do not accidentally grant audio,
-  // display capture, or a request made from embedded content.
+  // Matchbook uses a top-level camera request for QR scanning and writes text to the
+  // clipboard for its Copy buttons. Nothing else is granted: not audio, display capture,
+  // reading the clipboard, or any request made from embedded content.
   window.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const isCameraRequest =
-      permission === 'media' &&
-      webContents === window.webContents &&
-      'mediaTypes' in details &&
-      details.mediaTypes?.includes('video') === true &&
-      details.mediaTypes.includes('audio') === false
-
-    callback(isCameraRequest)
+    callback(isPermissionRequestAllowed(permission, webContents === window.webContents, details))
   })
 
-  window.webContents.session.setPermissionCheckHandler((webContents, permission, _requestingOrigin, details) => {
-    return (
-      permission === 'media' &&
-      webContents === window.webContents &&
-      details.isMainFrame &&
-      details.mediaType === 'video'
-    )
-  })
+  window.webContents.session.setPermissionCheckHandler((webContents, permission, _requestingOrigin, details) =>
+    isPermissionCheckAllowed(permission, webContents === window.webContents, details),
+  )
 
   window.on('ready-to-show', () => {
     if (plan.maximize) {

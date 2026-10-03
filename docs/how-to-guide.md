@@ -166,10 +166,12 @@ The questions every scout will answer for every match.
 1. Open **Form Builder**, under Lead Scout Tools.
 2. For your first event, press **Use the starter form**.
    It already has pages for Autonomous, Teleop, Endgame, and Problems and notes. You can change, add, or remove any question.
-3. When you are happy, press **Save Form** at the top right.
+3. Or, to get questions written for this year’s game, press **Build with AI**.
+   Copy the prompt into your AI chat while you have internet. It includes SurveyJS references and Matchbook’s analysis rules. Answer the AI’s questions, paste its reply back, and try the questions, conditional logic and calculations in the preview. Preview answers are never saved. Then press **Use this form**.
+4. When you are happy, press **Save Form** at the top right.
    This is now the form your scouts will get.
 
-> **Tip:** Want Matchbook to rank teams? Start the name of each scored question with **auto**, **teleop**, or **endgame**. Questions that should not add to a score, like “dropped pieces”, should not start with those words.
+> **Tip:** Analysis can compare any numeric or Yes/No answer. For phase totals, use result keys starting with **auto**, **teleop**, **endgame** or **climb**. Keep penalties and opinions neutral. Save calculated values with **includeIntoResult: true**, and avoid giving both a total and its inputs phase prefixes.
 
 ### 3. Collect scouting from the scouts
 
@@ -214,14 +216,17 @@ Give every robot in every match a scout, fairly, in a few clicks.
 
 See which teams are strongest, and build your pick list.
 
-![The Analysis screen with charts for each team.](../src/renderer/src/assets/guide/analysis.webp)
-*Analysis turns everyone’s entries into charts.*
+![Team rankings on the Analysis screen using practice data.](../src/renderer/src/assets/guide/analysis.webp)
+*Example practice data. Choose a metric, then select teams to compare.*
 
 1. Open **Analysis** in the left menu.
-2. Choose **Overall**, **Auto**, **Teleop**, or **Endgame** to compare teams.
-3. Type a team number in the search box to look at just that team.
+2. Check the **Event**. Your current event is selected automatically.
+3. Choose **Rank teams by** to compare a phase total or an answer from your scouting form. Numeric and yes/no answers are available automatically.
+4. Check two to four teams, then press **Compare selected** to see their values together.
+5. Open a team number to review its matches, full scout notes, and original form answers.
+6. Use **Find a team** or **Only teams with 3+ matches** to narrow the list. **Reset filters** restores the full list for the event.
 
-> **Tip:** Rankings only mean something once scouts have covered most teams. The Home screen shows how many teams are covered.
+> **Tip:** Check the Matches column before judging a team. Missing answers are excluded, and phase totals are recorded activity counts rather than official game points.
 
 ### 6. Back up your data
 

@@ -22,6 +22,7 @@ import {
   IconHelp,
   IconPlayerPlay,
   IconServer,
+  IconWand,
   IconUsers,
 } from '@tabler/icons-react'
 import { formatForDisplay, useHotkey } from '@tanstack/react-hotkeys'
@@ -516,6 +517,19 @@ function App() {
               <Button
                 size="sm"
                 radius="xl"
+                variant="default"
+                leftSection={<IconWand size={14} />}
+                onClick={() => {
+                  window.dispatchEvent(new Event('matchbook:form-builder-ai'))
+                }}
+              >
+                Build with AI
+              </Button>
+            )}
+            {isFormBuilderRoute && (
+              <Button
+                size="sm"
+                radius="xl"
                 leftSection={<IconDeviceFloppy size={14} />}
                 fw={700}
                 onClick={() => {
@@ -584,13 +598,13 @@ function App() {
       </AppShell.Header>
 
       <AppShell.Navbar data-tour="primary-navigation">
-        <AppShell.Section grow p="lg" className="app-nav-scroll">
+        <AppShell.Section grow px="md" py="sm" className="app-nav-scroll">
           <Stack gap={4}>
             {navGroups.map(({ key, label }) => renderNavGroup(key, label))}
           </Stack>
         </AppShell.Section>
-        
-        <AppShell.Section p="sm">
+
+        <AppShell.Section className="app-nav-event">
           <Box
             component={Link}
             to="/"

@@ -58,6 +58,69 @@
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Analysis keeps the event, metric, and the evidence in one reading order. */
+.analysis-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.1fr) minmax(220px, 1fr) minmax(160px, .7fr);
+  gap: 18px;
+}
+
+.analysis-ranking-panel,
+.analysis-observations-panel {
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  overflow: hidden;
+}
+
+.analysis-ranking-heading { padding: 20px 22px 12px; }
+.analysis-metric-explanation {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 22px 16px;
+}
+.analysis-metric-explanation > p { max-width: 68ch; }
+.analysis-metric-explanation > div { flex-shrink: 0; }
+.analysis-ranking-options { padding: 12px 22px; border-top: 1px solid var(--border-default); }
+.analysis-rankings-scroll { max-height: 510px; overflow: auto; }
+.analysis-rankings-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.analysis-rankings-table { min-width: 680px; table-layout: fixed; }
+.analysis-rankings-table thead { position: sticky; top: 0; z-index: 1; background: var(--surface-overlay); }
+.analysis-rankings-table th { font-size: 12px; font-weight: 500; color: var(--text-secondary); padding: 12px; }
+.analysis-rankings-table td { padding: 10px 12px; }
+.analysis-rankings-table th:nth-child(1) { width: 82px; padding-left: 22px; }
+.analysis-rankings-table td:nth-child(1) { padding-left: 22px; }
+.analysis-rankings-table th:nth-child(2) { width: 60px; }
+.analysis-rankings-table th:nth-child(3) { width: 122px; }
+.analysis-rankings-table th:nth-child(5) { width: 90px; }
+.analysis-rankings-table th:nth-child(6) { width: 140px; }
+.analysis-rankings-table tr[data-selected] { background: rgba(var(--accent-rgb), .045); }
+.analysis-team-button { font-family: var(--mantine-font-family-monospace); font-size: 17px; padding-inline: 0; height: 32px; }
+.analysis-team-button:hover { text-decoration: underline; background: transparent; }
+.analysis-metric-cell { max-width: 260px; display: grid; gap: 5px; }
+.analysis-comparison-bar { padding: 16px 22px; border-top: 1px solid var(--border-default); background: var(--surface-base); }
+.analysis-ranking-footer { padding: 14px 22px; border-top: 1px solid var(--border-default); }
+.analysis-empty { min-height: 280px; padding: 36px; border: 1px solid var(--border-default); border-radius: 8px; }
+.analysis-empty > svg { color: var(--text-secondary); }
+.analysis-selected-metric { background: rgba(var(--accent-rgb), .055); }
+.analysis-team-summary { padding-bottom: 18px; border-bottom: 1px solid var(--border-default); }
+.analysis-scout-note { padding: 16px; border: 1px solid var(--border-default); border-radius: 6px; }
+
+@media (max-width: 1100px) {
+  .analysis-controls { grid-template-columns: 1fr 1fr; }
+  .analysis-controls > :last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .analysis-controls { grid-template-columns: 1fr; }
+  .analysis-metric-explanation { flex-direction: column; }
+  .analysis-ranking-heading,
+  .analysis-ranking-options,
+  .analysis-comparison-bar { padding-inline: 14px; }
+  .analysis-metric-explanation { padding-inline: 14px; }
+}
+
 @layer components {
   .surface-card {
     border: 1px solid var(--border-default);
@@ -86,9 +149,9 @@
 
   .app-nav-root {
     position: relative;
-    margin-bottom: 2px;
+    margin-bottom: var(--nav-row-gap, 2px);
     border-radius: 6px;
-    padding: 7px 10px;
+    padding: var(--nav-row-pad, 7px) 10px;
     background: transparent;
     transition: background-color 0.15s ease;
   }
@@ -129,9 +192,12 @@
   }
 
   .app-nav-label {
+    overflow: hidden;
     font-size: 13px;
     font-weight: 450;
     color: var(--text-secondary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
     transition: color 0.15s ease;
   }
 
@@ -157,14 +223,17 @@
   }
 
   .app-nav-group-title {
-    @apply mt-4 px-2 pb-1 pt-1 text-xs font-medium text-slate-400;
+    @apply px-2 text-xs font-medium text-slate-400;
+    margin-top: var(--nav-title-top, 16px);
+    padding-block: var(--nav-title-pad, 4px);
     letter-spacing: normal;
     text-transform: none;
     opacity: 0.95;
   }
 
   .app-sidebar-footer {
-    @apply border-t px-4 py-4 text-center;
+    @apply border-t px-4 text-center;
+    padding-block: var(--nav-footer-pad, 16px);
     border-color: rgba(148, 163, 184, 0.12);
     background: transparent;
   }
@@ -945,10 +1014,18 @@ body,
   margin-right: auto;
 }
 
+/* Pages fill the window up to a comfortable measure. The measure grows with the window so a
+   27-inch monitor is not left with a 1280px strip in the middle, and stops before lines of
+   text get too long to read. */
 .container-wide {
-  max-width: 1280px;
+  max-width: clamp(1280px, 78vw, 1680px);
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Mantine's smallest badge is 9px, which cannot be read from a seat away at a venue. */
+.mantine-Badge-root {
+  font-size: max(var(--badge-fz, 10px), 10px);
 }
 
 /* ============================================
@@ -1218,20 +1295,36 @@ body,
    Compact chrome for short or narrow windows
    ============================================ */
 /* Scouts run this on 1366x768 and 1080p laptops scaled to 125-150%, which leaves
-   roughly 600-700 CSS pixels of height. The chrome has to give way to the data. */
-@media (max-height: 760px) {
-  .app-shell-root .app-nav-root {
-    margin-bottom: 1px;
-    padding-block: 4px;
-  }
+   roughly 500-700 CSS pixels of height. The sidebar holds eleven destinations, three
+   group titles and the event card, and all of them must stay in view: a destination
+   that needs a scroll to find looks missing. Each step down in height trims the row
+   size, so the list only scrolls (under its own bar) on a window shorter than the
+   smallest the app normally opens at. */
+.app-shell-root {
+  --nav-row-pad: 7px;
+  --nav-row-gap: 2px;
+  --nav-icon-size: 26px;
+  --nav-title-top: 16px;
+  --nav-title-pad: 4px;
+  --nav-footer-pad: 16px;
+  --nav-event-pad: 12px;
+}
 
-  .app-shell-root .app-nav-group-title {
-    margin-top: 6px;
-    padding-bottom: 0;
-  }
+.app-shell-root .app-nav-icon {
+  --ti-size: var(--nav-icon-size) !important;
+}
 
-  .app-shell-root .app-sidebar-footer {
-    padding-block: 6px;
+.app-shell-root .app-nav-event {
+  padding: var(--nav-event-pad);
+}
+
+@media (max-height: 839px) {
+  .app-shell-root {
+    --nav-row-pad: 5px;
+    --nav-title-top: 10px;
+    --nav-title-pad: 3px;
+    --nav-footer-pad: 10px;
+    --nav-event-pad: 8px;
   }
 
   .app-shell-root .current-event-card {
@@ -1239,9 +1332,41 @@ body,
   }
 }
 
-@media (max-height: 640px) {
+@media (max-height: 719px) {
+  .app-shell-root {
+    --nav-row-pad: 3px;
+    --nav-row-gap: 1px;
+    --nav-icon-size: 22px;
+    --nav-title-top: 6px;
+    --nav-title-pad: 1px;
+    --nav-event-pad: 6px;
+  }
+
   .app-shell-root .app-sidebar-footer {
     display: none;
+  }
+
+  .app-shell-root .app-nav-group-title {
+    font-size: 11px;
+    line-height: 14px;
+  }
+}
+
+@media (max-height: 599px) {
+  .app-shell-root {
+    --nav-row-pad: 2px;
+    --nav-icon-size: 20px;
+    --nav-title-top: 4px;
+    --nav-title-pad: 0px;
+    --nav-event-pad: 4px;
+  }
+
+  .app-shell-root .app-nav-group-title {
+    line-height: 13px;
+  }
+
+  .app-shell-root .current-event-card {
+    padding: 4px 8px;
   }
 }
 
@@ -1400,15 +1525,6 @@ body,
 @media (min-width: 62em) {
   .app-nav-scrim {
     display: none;
-  }
-}
-
-@media (max-height: 640px) {
-  .app-shell-root .app-nav-group-title {
-    margin-top: 2px;
-    padding-block: 0;
-    font-size: 10px;
-    line-height: 14px;
   }
 }
 

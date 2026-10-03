@@ -1,5 +1,6 @@
 import type { ITheme, Model } from 'survey-core'
 import { LayeredDark } from 'survey-core/themes'
+import { protectSurveyHtml } from '../forms/surveyHtml'
 
 type SurveyThemeWithVariables = ITheme & {
   cssVariables?: Record<string, string>
@@ -39,5 +40,6 @@ export const MATCHBOOK_SURVEY_THEME: SurveyThemeWithVariables = {
 }
 
 export function applyMatchbookSurveyTheme(model: Model): void {
+  protectSurveyHtml(model)
   model.applyTheme(MATCHBOOK_SURVEY_THEME)
 }

@@ -2,15 +2,18 @@ import type { ReactElement } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Box, Button, Group, Loader, Stack, Text } from '@mantine/core'
 import { notify } from '../lib/utils/notify'
-import { IconCheck, IconInfoCircle, IconSparkles } from '@tabler/icons-react'
+import { IconCheck, IconInfoCircle, IconSparkles, IconWand } from '@tabler/icons-react'
 import { SurveyCreator, SurveyCreatorComponent } from 'survey-creator-react'
-import { ExpressionErrorType, Model } from 'survey-core'
+import { ExpressionErrorType, type Model } from 'survey-core'
 import { DefaultDark } from 'survey-creator-core/themes'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import { logger } from '../lib/utils/logger'
 import { applyMatchbookSurveyTheme } from '../lib/utils/surveyTheme'
 import { useDatabaseStore } from '../stores/useDatabase'
+import { useEventStore } from '../stores/useEventStore'
+import { AiFormDialog } from '../features/form-ai/AiFormDialog'
 import { DEFAULT_SCOUTING_FORM } from '../lib/forms/defaultScoutingForm'
+import { createScoutSurvey, setScoutContext, withMatchbookContext } from '../lib/forms/scoutSurvey'
 import 'survey-core/survey-core.min.css'
 import 'survey-creator-core/survey-creator-core.min.css'
 
@@ -43,6 +46,11 @@ export function FormBuilder(): ReactElement {
   const [loadedSchema, setLoadedSchema] = useState<FormSchemaDocType | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isFormEmpty, setIsFormEmpty] = useState<boolean>(true)
+  const currentEventId = useEventStore((state) => state.currentEventId)
+  const currentSeason = useEventStore((state) => state.currentSeason)
+  const [aiOpen, setAiOpen] = useState<boolean>(false)
+  const [aiCurrentForm, setAiCurrentForm] = useState<Record<string, unknown> | null>(null)
+  const [aiEventName, setAiEventName] = useState<string | null>(null)
 
   const creator = useMemo(() => {
     const model = new SurveyCreator({
@@ -58,6 +66,10 @@ export function FormBuilder(): ReactElement {
     model.showSaveButton = false
     model.JSON = EMPTY_TEMPLATE
     model.onSurveyInstanceCreated.add((_, options) => {
+      if (options.area === 'preview-tab') {
+        options.survey.fromJSON(withMatchbookContext(options.survey.toJSON()))
+        setScoutContext(options.survey, 1, 254)
+      }
       if (options.area === 'preview-tab' || options.area === 'designer-tab') {
         applyMatchbookSurveyTheme(options.survey)
       }
@@ -66,6 +78,7 @@ export function FormBuilder(): ReactElement {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
     const loadActiveSchema = async (): Promise<void> => {
       if (!db) {
         setIsLoading(false)
@@ -83,6 +96,7 @@ export function FormBuilder(): ReactElement {
           .exec()
 
         const existing = activeSchema[0]?.toJSON() ?? null
+        if (cancelled) return
         setLoadedSchema(existing)
 
         if (existing) {
@@ -95,17 +109,19 @@ export function FormBuilder(): ReactElement {
           logger.info('No active form schema found, starting with empty form')
         }
       } catch (error: unknown) {
+        if (cancelled) return
         notify({
           color: 'red',
           title: 'Failed to load form schema',
           message: error instanceof Error ? error.message : 'Could not load form.',
         })
       } finally {
-        setIsLoading(false)
+        if (!cancelled) setIsLoading(false)
       }
     }
 
     void loadActiveSchema()
+    return () => { cancelled = true }
   }, [creator, db])
 
   const handleSave = useCallback(async (): Promise<boolean> => {
@@ -116,7 +132,7 @@ export function FormBuilder(): ReactElement {
 
     let validationModel: Model
     try {
-      validationModel = new Model(creator.JSON)
+      validationModel = createScoutSurvey(creator.JSON)
     } catch (error: unknown) {
       notify({
         color: 'red',
@@ -126,7 +142,14 @@ export function FormBuilder(): ReactElement {
       return false
     }
 
+    const jsonIssue = validationModel.jsonErrors?.[0]
+    if (jsonIssue) {
+      validationModel.dispose()
+      notify({ color: 'red', title: 'Invalid form JSON', message: jsonIssue.message })
+      return false
+    }
     const expressionValidationResults = validationModel.validateExpressions()
+    validationModel.dispose()
     const expressionIssues = expressionValidationResults.filter((result) => result.errors.length > 0)
     if (expressionIssues.length > 0) {
       const issue = expressionIssues[0]
@@ -144,20 +167,8 @@ export function FormBuilder(): ReactElement {
       const nameForSave = loadedSchema?.name?.trim() || DEFAULT_FORM_NAME
 
       const activeSchemas = await db.collections.formSchemas.find({ selector: { isActive: true } }).exec()
-      const targetSchemaId = loadedSchema?.id ?? null
-      await Promise.all(
-        activeSchemas
-          .filter((doc) => doc.primary !== targetSchemaId)
-          .map(async (doc) => {
-            const json = doc.toJSON()
-            await db.collections.formSchemas.upsert({
-              ...json,
-              isActive: false,
-              updatedAt: now,
-            })
-          }),
-      )
-
+      const targetSchemaId = loadedSchema?.id ?? crypto.randomUUID()
+      // Write the replacement first. If that write fails, scouts retain their active form.
       if (loadedSchema) {
         await db.collections.formSchemas.upsert({
           ...loadedSchema,
@@ -169,7 +180,7 @@ export function FormBuilder(): ReactElement {
         logger.info('Updated existing form schema', { id: loadedSchema.id })
       } else {
         const newSchema = {
-          id: crypto.randomUUID(),
+          id: targetSchemaId,
           name: nameForSave,
           surveyJson: creator.JSON,
           isActive: true,
@@ -179,6 +190,14 @@ export function FormBuilder(): ReactElement {
         await db.collections.formSchemas.insert(newSchema)
         logger.info('Created new form schema', { id: newSchema.id })
       }
+
+      await Promise.all(
+        activeSchemas
+          .filter((doc) => doc.primary !== targetSchemaId)
+          .map(async (doc) => {
+            await db.collections.formSchemas.upsert({ ...doc.toJSON(), isActive: false, updatedAt: now })
+          }),
+      )
 
       const refreshed = await db.collections.formSchemas
         .find({
@@ -216,6 +235,46 @@ export function FormBuilder(): ReactElement {
     })
     logger.info('Loaded the default scouting form into the builder')
   }, [creator])
+
+  const openAiDialog = useCallback((): void => {
+    const current = creator.JSON as Record<string, unknown>
+    const pages = Array.isArray(current.pages) ? (current.pages as Array<Record<string, unknown>>) : []
+    const hasQuestions = pages.some((page) => Array.isArray(page.elements) && page.elements.length > 0)
+    setAiCurrentForm(hasQuestions ? current : null)
+    setAiEventName(null)
+    setAiOpen(true)
+
+    if (db && currentEventId) {
+      void db.collections.events
+        .findOne(currentEventId)
+        .exec()
+        .then((event) => setAiEventName(event?.name ?? null))
+        .catch(() => setAiEventName(null))
+    }
+  }, [creator, currentEventId, db])
+
+  const handleUseAiForm = useCallback(
+    (form: Record<string, unknown>): void => {
+      creator.JSON = form
+      creator.switchTab('designer')
+      setIsFormEmpty(false)
+      setAiOpen(false)
+      notify({
+        color: 'green',
+        title: 'AI form loaded',
+        message: 'Look it over in the Designer, then press Save Form to send it to your scouts.',
+      })
+      logger.info('Loaded an AI-written form into the builder')
+    },
+    [creator],
+  )
+
+  useEffect(() => {
+    window.addEventListener('matchbook:form-builder-ai', openAiDialog)
+    return () => {
+      window.removeEventListener('matchbook:form-builder-ai', openAiDialog)
+    }
+  }, [openAiDialog])
 
   useEffect(() => {
     creator.showSaveButton = false
@@ -279,12 +338,17 @@ export function FormBuilder(): ReactElement {
                   </Text>
                   <Text size="xs" c="dimmed">
                     Auto, teleop, endgame and a notes page that works for any season. Edit it
-                    once you know what your team wants to track.
+                    once you know what your team wants to track, or let an AI write one for your game.
                   </Text>
                 </Box>
-                <Button size="xs" onClick={handleUseDefaultForm}>
-                  Use the starter form
-                </Button>
+                <Group gap="xs">
+                  <Button size="xs" variant="default" leftSection={<IconWand size={14} />} onClick={openAiDialog}>
+                    Build with AI
+                  </Button>
+                  <Button size="xs" onClick={handleUseDefaultForm}>
+                    Use the starter form
+                  </Button>
+                </Group>
               </Group>
             </Alert>
           )}
@@ -300,11 +364,10 @@ export function FormBuilder(): ReactElement {
               onClose={dismissNamingHint}
               styles={{ root: { flexShrink: 0 } }}
             >
-              Analysis totals a question into a phase using the start of its name. Name
-              scoring questions <strong>auto…</strong>, <strong>teleop…</strong>, or{' '}
-              <strong>endgame…</strong> (or <strong>climb…</strong>) so teams can be
-              ranked for alliance selection. Other questions are still collected and
-              chartable, they just do not count toward a score.
+              Compare any numeric or Yes/No answer in Analysis. Phase totals use result
+              keys starting with <strong>auto…</strong>, <strong>teleop…</strong>,{' '}
+              <strong>endgame…</strong> or <strong>climb…</strong>. Keep penalties and
+              opinions neutral, and avoid giving both a total and its inputs phase prefixes.
             </Alert>
           )}
           <Box className="survey-creator-container" data-tour="form-builder" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -312,6 +375,15 @@ export function FormBuilder(): ReactElement {
           </Box>
         </Box>
       )}
+
+      <AiFormDialog
+        opened={aiOpen}
+        onClose={() => setAiOpen(false)}
+        currentForm={aiCurrentForm}
+        season={currentSeason}
+        eventName={aiEventName}
+        onUse={handleUseAiForm}
+      />
     </Box>
   )
 }

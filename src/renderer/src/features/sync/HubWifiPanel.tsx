@@ -5,7 +5,6 @@ import {
   Alert,
   Badge,
   Button,
-  CopyButton,
   Group,
   Modal,
   NumberInput,
@@ -15,9 +14,10 @@ import {
   Text,
   TextInput,
 } from '@mantine/core'
-import { IconAlertTriangle, IconCheck, IconCopy, IconWifi } from '@tabler/icons-react'
+import { IconAlertTriangle, IconWifi } from '@tabler/icons-react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { FailedSyncPayload } from '../../../../shared/electron'
+import { CopyTextButton } from '../../components/CopyTextButton'
 import { StepList } from '../../components/StepList'
 import type { ScoutingDatabase } from '../../lib/db/collections'
 import { handleError } from '../../lib/utils/errorHandler'
@@ -182,18 +182,15 @@ export function HubWifiPanel({ db }: HubWifiPanelProps): ReactElement {
               <div className="wifi-code" aria-label={`Code ${token.split('').join(' ')}`}>
                 {formatSyncToken(token)}
               </div>
-              <CopyButton value={token}>
-                {({ copied, copy }) => (
-                  <Button
-                    variant="default"
-                    size="compact-md"
-                    onClick={copy}
-                    leftSection={copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-                  >
-                    {copied ? 'Copied' : 'Copy'}
-                  </Button>
-                )}
-              </CopyButton>
+              <CopyTextButton
+                value={token}
+                label="Copy"
+                subject="Code"
+                next="Scouts type this code on their laptops to send you their entries."
+                variant="default"
+                size="compact-md"
+                iconSize={14}
+              />
             </Group>
 
             <Text size="sm" c="slate.2" aria-live="polite">

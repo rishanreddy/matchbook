@@ -19,12 +19,13 @@ import {
 } from '@mantine/core'
 import { notify } from '../lib/utils/notify'
 import { IconArrowLeft, IconCheck, IconClipboardCheck, IconInfoCircle, IconRefresh, IconAlertCircle, IconCircleCheck } from '@tabler/icons-react'
-import { Model } from 'survey-core'
+import type { Model } from 'survey-core'
 import { Survey } from 'survey-react-ui'
 import { useNavigate } from 'react-router-dom'
 import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import type { MatchDocType } from '../lib/db/schemas/matches.schema'
 import { calculateAutoScore, calculateEndgameScore, calculateTeleopScore } from '../lib/utils/scoring'
+import { createScoutSurvey, setScoutContext } from '../lib/forms/scoutSurvey'
 import { handleError } from '../lib/utils/errorHandler'
 import { logger } from '../lib/utils/logger'
 import { applyMatchbookSurveyTheme } from '../lib/utils/surveyTheme'
@@ -36,11 +37,6 @@ import { MyAssignmentsCard } from '../features/assignments/MyAssignmentsCard'
 import type { MyAssignment } from '../features/assignments/mine'
 import { NoEventNotice } from '../features/events/NoEventNotice'
 import 'survey-core/survey-core.min.css'
-
-const META_FIELDS = [
-  { type: 'text', name: '_matchNumber', visible: false },
-  { type: 'text', name: '_teamNumber', visible: false },
-]
 
 type ScoutSurveyDraft = {
   data: Record<string, unknown>
@@ -75,29 +71,6 @@ function parseTeamKey(teamKey: string): number | null {
   }
 
   return null
-}
-
-function buildSurveyJsonWithMeta(surveyJson: Record<string, unknown>): Record<string, unknown> {
-  const pagesRaw = Array.isArray(surveyJson.pages) ? surveyJson.pages : []
-  const pages = pagesRaw.map((page) => ({ ...page })) as Array<Record<string, unknown>>
-
-  if (pages.length === 0) {
-    pages.push({ name: 'scouting', title: 'Scouting', elements: [...META_FIELDS] })
-  } else {
-    const firstPage = { ...pages[0] }
-    const elements = Array.isArray(firstPage.elements) ? [...(firstPage.elements as Array<Record<string, unknown>>)] : []
-
-    META_FIELDS.forEach((field) => {
-      if (!elements.some((element) => element.name === field.name)) {
-        elements.unshift(field)
-      }
-    })
-
-    firstPage.elements = elements
-    pages[0] = firstPage
-  }
-
-  return { ...surveyJson, pages }
 }
 
 export function Scout(): ReactElement {
@@ -386,12 +359,11 @@ export function Scout(): ReactElement {
   }, [currentEventId, formSchema, showForm, matchNumber, teamNumber])
 
   const survey = useMemo(() => {
-    if (!showForm || !formSchema) {
+    if (!showForm || !formSchema || !isPositiveInteger(matchNumber) || !isPositiveInteger(teamNumber)) {
       return null
     }
 
-    const surveyJson = buildSurveyJsonWithMeta(formSchema.surveyJson)
-    const model = new Model(surveyJson)
+    const model = createScoutSurvey(formSchema.surveyJson)
     applyMatchbookSurveyTheme(model)
     model.checkErrorsMode = 'onValueChanged'
     model.textUpdateMode = 'onTyping'
@@ -429,14 +401,12 @@ export function Scout(): ReactElement {
       }
     }
 
-    model.data = {
-      ...model.data,
-      _matchNumber: String(matchNumber),
-      _teamNumber: String(teamNumber),
-    }
+    setScoutContext(model, matchNumber, teamNumber)
 
     return model
   }, [formSchema, showForm, surveyDraftKey, matchNumber, teamNumber])
+
+  useEffect(() => () => survey?.dispose(), [survey])
 
   useEffect(() => {
     if (!survey || !surveyDraftKey) {

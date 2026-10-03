@@ -39,6 +39,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run release gates
+        run: pnpm audit --audit-level high
+
+      - name: Verify production build
         run: pnpm verify:production
 
       - name: Test the built Electron app

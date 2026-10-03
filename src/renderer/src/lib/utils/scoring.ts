@@ -14,7 +14,7 @@
  *   teleop*            -> teleop
  *   endgame* | climb*  -> endgame
  *
- * A numeric answer contributes its value; a checked box contributes 1. Anything else
+ * A numeric answer contributes its rounded value; a Yes/No answer contributes 1 or 0. Anything else
  * (free text, unanswered, negative) contributes nothing.
  *
  * This is an activity count, not official FRC point values - Matchbook cannot know
@@ -31,13 +31,13 @@ export type PhaseScores = {
   scoredFieldCount: number
 }
 
-type Phase = 'auto' | 'teleop' | 'endgame'
+export type Phase = 'auto' | 'teleop' | 'endgame'
 
 /**
  * `endgame` and `climb` are checked before `teleop` so a question named
  * `teleopEndgameClimb` is not double-claimed; prefix order here is the tie-break.
  */
-function phaseForField(fieldName: string): Phase | null {
+export function phaseForField(fieldName: string): Phase | null {
   const normalized = fieldName.toLowerCase()
 
   if (normalized.startsWith('auto')) {

@@ -4,7 +4,7 @@ export type AnalysisValueKind = 'number' | 'boolean' | 'text'
 
 export type AnalysisChartType = 'bar' | 'line' | 'area'
 
-export type AnalysisAggregation = 'average' | 'sum' | 'min' | 'max' | 'trueCount' | 'responseCount'
+export type AnalysisAggregation = 'average' | 'sum' | 'min' | 'max' | 'truePercent' | 'trueCount' | 'responseCount'
 
 export type AnalysisFieldDefinition = {
   name: string
@@ -30,7 +30,7 @@ const ANALYSIS_CONFIG_DOC_ID = 'active'
 const SUPPORTED_CHART_TYPES: AnalysisChartType[] = ['bar', 'line', 'area']
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
 
 function asNonEmptyString(value: unknown): string | null {
@@ -44,11 +44,20 @@ function asNonEmptyString(value: unknown): string | null {
 
 function inferValueKind(questionType: string, element: Record<string, unknown>): AnalysisValueKind {
   if (questionType === 'boolean') {
-    return 'boolean'
+    return inferChoiceKind([element.valueTrue ?? true, element.valueFalse ?? false])
+  }
+
+  if (questionType === 'slider' || questionType === 'expression') {
+    return 'number'
   }
 
   if (questionType === 'rating') {
-    return 'number'
+    return Array.isArray(element.rateValues) && element.rateValues.length > 0 ? inferChoiceKind(element.rateValues) : 'number'
+  }
+
+  if (['radiogroup', 'dropdown', 'imagepicker'].includes(questionType)) {
+    if (Array.isArray(element.choices) && element.choices.length > 0) return inferChoiceKind(element.choices)
+    if (typeof element.choicesMin === 'number' && typeof element.choicesMax === 'number') return 'number'
   }
 
   if (questionType === 'text') {
@@ -58,6 +67,14 @@ function inferValueKind(questionType: string, element: Record<string, unknown>):
     }
   }
 
+  return 'text'
+}
+
+function inferChoiceKind(choices: unknown[]): AnalysisValueKind {
+  const values = choices.map((choice) => asRecord(choice)?.value ?? asRecord(choice)?.text ?? choice)
+  if (values.every((value) => typeof value === 'boolean')) return 'boolean'
+  if (values.every((value) => typeof value === 'number' && Number.isFinite(value)
+    || typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)))) return 'number'
   return 'text'
 }
 
@@ -73,7 +90,11 @@ function collectElementFields(elementsRaw: unknown, output: AnalysisFieldDefinit
     }
 
     const questionType = asNonEmptyString(element.type)?.toLowerCase() ?? 'text'
-    const name = asNonEmptyString(element.name)
+    if (questionType === 'panel') {
+      collectElementFields(element.elements, output, seen)
+      return
+    }
+    const name = asNonEmptyString(element.valueName) ?? asNonEmptyString(element.name)
 
     if (
       name &&
@@ -92,8 +113,8 @@ function collectElementFields(elementsRaw: unknown, output: AnalysisFieldDefinit
       }
     }
 
-    collectElementFields(element.elements, output, seen)
-    collectElementFields(element.templateElements, output, seen)
+    // Dynamic templates, matrix rows and multiple-text items save under their parent result.
+    // Only a saved top-level aggregate can become an individual numeric/boolean metric.
   })
 }
 
@@ -111,6 +132,21 @@ export function extractSurveyAnalysisFields(surveyJson: Record<string, unknown>)
     }
     collectElementFields(page.elements, output, seen)
   })
+
+  if (Array.isArray(surveyJson.calculatedValues)) {
+    for (const entry of surveyJson.calculatedValues) {
+      const calculation = asRecord(entry)
+      const name = asNonEmptyString(calculation?.name)
+      if (!name || name.startsWith('_') || calculation?.includeIntoResult !== true || seen.has(name)) continue
+      seen.add(name)
+      output.push({
+        name,
+        title: name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, (first) => first.toUpperCase()),
+        questionType: 'calculated',
+        valueKind: 'number',
+      })
+    }
+  }
 
   return output
 }
@@ -130,7 +166,7 @@ export function getAllowedAggregations(valueKind: AnalysisValueKind): AnalysisAg
   }
 
   if (valueKind === 'boolean') {
-    return ['trueCount', 'responseCount']
+    return ['truePercent', 'trueCount', 'responseCount']
   }
 
   return ['responseCount']

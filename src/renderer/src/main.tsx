@@ -36,7 +36,8 @@ const isElectronRuntime = typeof window !== "undefined" && window.electronAPI;
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <MantineProvider theme={appTheme} defaultColorScheme="dark">
-      <Notifications aria-live="polite" position="bottom-right" limit={3} autoClose={4500} containerWidth={380} />
+      {/* Keep copy/save feedback above the form builder, its popups and the AI dialog. */}
+      <Notifications aria-live="polite" position="bottom-right" limit={3} autoClose={4500} containerWidth={380} zIndex={5000} />
       {isElectronRuntime ? (
         <HashRouter>
           <TourlightRouterBridge>

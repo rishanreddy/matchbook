@@ -39,7 +39,6 @@ import {
   IconExternalLink,
   IconServer,
   IconUsers,
-  IconChartBar,
   IconAlertTriangle,
 } from '@tabler/icons-react'
 import { logger, LogLevel } from '../lib/utils/logger'
@@ -51,7 +50,6 @@ import { handleError } from '../lib/utils/errorHandler'
 import type { UpdaterActionResult } from '../types/electron'
 import { summarizeRelease } from '../lib/utils/updateInfo'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
-import type { FormSchemaDocType } from '../lib/db/schemas/formSchemas.schema'
 import {
   appShortcuts,
   getDefaultShortcutBindings,
@@ -61,16 +59,6 @@ import {
   type AppShortcutId,
   type ShortcutBindings,
 } from '../config/shortcuts'
-import {
-  type AnalysisAggregation,
-  type AnalysisChartType,
-  type AnalysisFieldConfig,
-  type AnalysisFieldDefinition,
-  extractSurveyAnalysisFields,
-  getAllowedAggregations,
-  loadAnalysisFieldConfigsFromDatabase,
-  saveAnalysisFieldConfigsToDatabase,
-} from '../lib/utils/analysisConfig'
 import { RouteHelpModal } from '../components/RouteHelpModal'
 import { useEventStore } from '../stores/useEventStore'
 
@@ -80,32 +68,6 @@ type SettingsProps = {
 }
 
 type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'up-to-date' | 'error'
-
-const CHART_TYPE_LABELS: Record<AnalysisChartType, string> = {
-  bar: 'Bar Chart',
-  line: 'Line Chart',
-  area: 'Area Chart',
-}
-
-const AGGREGATION_LABELS: Record<AnalysisAggregation, string> = {
-  average: 'Average per team',
-  sum: 'Total sum',
-  min: 'Minimum value',
-  max: 'Maximum value',
-  trueCount: 'Count of true values',
-  responseCount: 'Count of responses',
-}
-
-function getValueKindLabel(valueKind: AnalysisFieldDefinition['valueKind']): string {
-  switch (valueKind) {
-    case 'number':
-      return 'Numeric'
-    case 'boolean':
-      return 'Boolean'
-    default:
-      return 'Text'
-  }
-}
 
 function findShortcutConflict(
   candidateShortcut: string,
@@ -145,8 +107,6 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   const deviceId = useDeviceStore((state) => state.deviceId)
   const setDevice = useDeviceStore((state) => state.setDevice)
   const db = useDatabaseStore((state) => state.db)
-  const [activeFormSchema, setActiveFormSchema] = useState<FormSchemaDocType | null>(null)
-  const [analysisFieldConfigs, setAnalysisFieldConfigs] = useState<AnalysisFieldConfig[]>([])
   const [shortcutBindings, setShortcutBindings] = useState<ShortcutBindings>(() => loadShortcutBindings())
   const [recordingShortcutId, setRecordingShortcutId] = useState<AppShortcutId | null>(null)
   const [deleteScoutingDataConfirmText, setDeleteScoutingDataConfirmText] = useState('')
@@ -300,45 +260,6 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
 
   useEffect(() => {
     if (!db) {
-      return
-    }
-
-    let cancelled = false
-
-    const loadActiveSchema = async (): Promise<void> => {
-      try {
-        const docs = await db.collections.formSchemas
-          .find({
-            selector: { isActive: true },
-            sort: [
-              { updatedAt: 'desc' },
-              { createdAt: 'desc' },
-              { id: 'desc' },
-            ],
-            limit: 1,
-          })
-          .exec()
-
-        if (!cancelled) {
-          setActiveFormSchema(docs[0]?.toJSON() ?? null)
-        }
-      } catch (error: unknown) {
-        if (!cancelled) {
-          handleError(error, 'Load analysis fields from active form')
-          setActiveFormSchema(null)
-        }
-      }
-    }
-
-    void loadActiveSchema()
-
-    return () => {
-      cancelled = true
-    }
-  }, [db])
-
-  useEffect(() => {
-    if (!db) {
       setEvents([])
       return
     }
@@ -370,95 +291,6 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
       cancelled = true
     }
   }, [db])
-
-  const analysisFields = useMemo(() => {
-    if (!activeFormSchema) {
-      return []
-    }
-
-    return extractSurveyAnalysisFields(activeFormSchema.surveyJson)
-  }, [activeFormSchema])
-
-  const analysisConfigContext = useMemo(() => {
-    if (!activeFormSchema) {
-      return null
-    }
-
-    return {
-      formSchemaId: activeFormSchema.id,
-      formSchemaUpdatedAt: activeFormSchema.updatedAt,
-    }
-  }, [activeFormSchema])
-
-  useEffect(() => {
-    if (!db || !analysisConfigContext) {
-      return
-    }
-
-    let cancelled = false
-
-    const loadConfigs = async (): Promise<void> => {
-      try {
-        const configs = await loadAnalysisFieldConfigsFromDatabase(db, analysisConfigContext, analysisFields)
-        if (!cancelled) {
-          setAnalysisFieldConfigs(configs)
-        }
-      } catch (error: unknown) {
-        if (!cancelled) {
-          handleError(error, 'Load analysis field configuration')
-          setAnalysisFieldConfigs([])
-        }
-      }
-    }
-
-    void loadConfigs()
-
-    return () => {
-      cancelled = true
-    }
-  }, [analysisConfigContext, analysisFields, db])
-
-  const persistAnalysisFieldConfigs = useCallback(
-    async (configs: AnalysisFieldConfig[]): Promise<void> => {
-      if (!db || !analysisConfigContext) {
-        return
-      }
-
-      try {
-        await saveAnalysisFieldConfigsToDatabase(db, analysisConfigContext, configs)
-      } catch (error: unknown) {
-        handleError(error, 'Save analysis field configuration')
-      }
-    },
-    [analysisConfigContext, db],
-  )
-
-  const updateAnalysisFieldConfig = (fieldName: string, patch: Partial<AnalysisFieldConfig>): void => {
-    setAnalysisFieldConfigs((previous) => {
-      const next = previous.map((config) => {
-        if (config.fieldName !== fieldName) {
-          return config
-        }
-
-        const updated: AnalysisFieldConfig = {
-          ...config,
-          ...patch,
-        }
-
-        const allowedAggregations = getAllowedAggregations(updated.valueKind)
-        if (!allowedAggregations.includes(updated.aggregation)) {
-          updated.aggregation = allowedAggregations[0]
-        }
-
-        return updated
-      })
-
-      void persistAnalysisFieldConfigs(next)
-      return next
-    })
-
-    setFormMessage('Analysis field settings updated.')
-  }
 
   const handleShortcutToggle = (value: boolean): void => {
     setShortcutsEnabled(value)
@@ -784,7 +616,7 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               description="Configure runtime preferences, API credentials, shortcuts, and diagnostics."
               steps={[
                 { title: 'General', description: 'Control device behavior and developer tools visibility.' },
-                { title: 'Analysis', description: 'Choose which scouting fields appear in analysis charts.' },
+                { title: 'Current event', description: 'Choose the event used by your competition screens.' },
                 { title: 'Operations', description: 'Manage updates, logs, and maintenance actions.' },
               ]}
               tips={[
@@ -874,96 +706,6 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
               >
                 Extra diagnostics and detailed logs are available for troubleshooting.
               </Alert>
-            )}
-          </Stack>
-        </Card>
-
-        {/* Analysis Field Builder */}
-        <Card p="lg" radius="lg" style={{ backgroundColor: 'var(--surface-raised)', border: '1px solid var(--border-default)' }}>
-          <Stack gap="md">
-            <Group gap="sm">
-              <ThemeIcon size={32} radius="lg" variant="light" color="frc-blue">
-                <IconChartBar size={16} />
-              </ThemeIcon>
-              <Text fw={600} c="slate.0" size="lg">Analysis Builder</Text>
-            </Group>
-
-            <Text c="slate.4" size="sm">
-              For each SurveyJS field, choose how Matchbook analyzes it and which chart style to use on the Analysis page.
-            </Text>
-
-            {!activeFormSchema ? (
-              <Alert color="yellow" variant="light" title="No active form available" icon={<IconInfoCircle size={16} />} radius="md">
-                Sync or create an active scouting form first. Analysis settings are generated from the active SurveyJS form fields.
-              </Alert>
-            ) : analysisFieldConfigs.length === 0 ? (
-              <Alert color="yellow" variant="light" title="No analyzable fields found" icon={<IconInfoCircle size={16} />} radius="md">
-                The active form does not currently expose fields that can be analyzed.
-              </Alert>
-            ) : (
-              <Stack gap="sm">
-                {analysisFieldConfigs.map((config) => {
-                  const aggregationOptions = getAllowedAggregations(config.valueKind).map((aggregation) => ({
-                    value: aggregation,
-                    label: AGGREGATION_LABELS[aggregation],
-                  }))
-
-                  return (
-                    <Paper key={config.fieldName} p="md" radius="md" style={{ backgroundColor: 'var(--surface-base)' }}>
-                      <Stack gap="sm">
-                        <Group justify="space-between" align="center" wrap="wrap">
-                          <Box>
-                            <Group gap="xs" align="center" wrap="wrap">
-                              <Text fw={600} c="slate.1">{config.fieldLabel}</Text>
-                              <Badge size="xs" radius="sm" color="slate" variant="light">
-                                {getValueKindLabel(config.valueKind)}
-                              </Badge>
-                            </Group>
-                            <Text size="xs" c="slate.5" className="mono-number">{config.fieldName}</Text>
-                          </Box>
-
-                          <Switch
-                            label="Show in analysis"
-                            checked={config.enabled}
-                            onChange={(event) => {
-                              updateAnalysisFieldConfig(config.fieldName, { enabled: event.currentTarget.checked })
-                            }}
-                            styles={{ label: { color: 'var(--mantine-color-slate-2)' } }}
-                          />
-                        </Group>
-
-                        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-                          <Select
-                            label="Chart type"
-                            value={config.chartType}
-                            data={Object.entries(CHART_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-                            onChange={(value) => {
-                              if (!value) {
-                                return
-                              }
-                              updateAnalysisFieldConfig(config.fieldName, { chartType: value as AnalysisChartType })
-                            }}
-                            disabled={!config.enabled}
-                          />
-
-                          <Select
-                            label="Aggregation"
-                            value={config.aggregation}
-                            data={aggregationOptions}
-                            onChange={(value) => {
-                              if (!value) {
-                                return
-                              }
-                              updateAnalysisFieldConfig(config.fieldName, { aggregation: value as AnalysisAggregation })
-                            }}
-                            disabled={!config.enabled}
-                          />
-                        </SimpleGrid>
-                      </Stack>
-                    </Paper>
-                  )
-                })}
-              </Stack>
             )}
           </Stack>
         </Card>

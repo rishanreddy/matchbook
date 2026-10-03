@@ -140,12 +140,19 @@ Do all of this at home the night before, while you still have internet.
 and register the laptop as a hub. Open Events and import your competition.
 
 **Build your scouting form.** Open Form Builder and add the questions your team cares
-about. Question names decide how a match gets scored, so read the box below before you
-name anything.
+about, or press **Build with AI**. Matchbook writes a prompt for you to paste into
+ChatGPT, Claude, Gemini or any chat assistant. The assistant interviews you about the
+game and writes the form, you paste its reply back, and Matchbook checks its settings
+and logic against the bundled SurveyJS engine. Try conditional questions, calculations
+and page navigation in the interactive preview, then choose **Use this form** and
+**Save Form**. Preview answers are never saved. The prompt includes the
+[SurveyJS schema](https://unpkg.com/survey-core/surveyjs_definition.json), a reference
+for the installed version, and Matchbook's analysis rules. Matchbook never contacts
+an AI service itself; you take the prompt to your own chat assistant.
 
 > [!IMPORTANT]
-> Matchbook cannot know what a game awards points for, so it sorts each answer into a
-> phase by the start of the question's name.
+> Compare any top-level numeric or Yes/No answer in Analysis. Phase totals are an
+> additional activity count, grouped by the start of each saved result key:
 >
 > | Name starts with | Counts toward |
 > |---|---|
@@ -153,9 +160,12 @@ name anything.
 > | `teleop` | Teleop |
 > | `endgame` or `climb` | Endgame |
 >
-> Numbers count as their value and checkboxes count as 1. Free text is stored but never
-> scored. Name your questions `q1` and `q2` and every team will tie at zero, which
-> makes the picklist useless. Analysis warns you when that happens.
+> Phase totals round non-negative numbers to integers; Yes contributes 1 and No 0.
+> Other text and nested answers are saved but do not contribute. Keep penalties and
+> opinions outside these prefixes. To analyze nested answers, expose a top-level
+> expression or calculated value with `includeIntoResult: true`. Keep derived totals
+> neutral when their inputs already have phase prefixes, so actions are not counted
+> twice. Matchbook does not automatically apply official game scoring rules.
 
 <p align="center">
   <img src="docs/images/form-builder.png" alt="Form Builder" width="88%">
@@ -253,8 +263,11 @@ rather than reproducing the scoreboard.
 pnpm install
 pnpm dev                # run with hot reload
 pnpm test               # unit tests
-pnpm verify:production  # tests, typecheck, lint, build. The release gate.
-pnpm smoke:electron     # after build: launch the desktop window and check its preload bridge
+pnpm verify:production  # unit tests, typecheck, lint, docs and production build
+pnpm test:e2e          # after build: real Electron workflows, including AI forms and Analysis
+pnpm test:responsive   # after build: check every screen at desktop window sizes
+pnpm smoke:electron    # after build: launch the desktop window with a disposable profile
+pnpm audit             # check runtime and build dependencies for known vulnerabilities
 pnpm build:mac          # or build:win, build:linux
 pnpm docs:sync          # regenerate the tables in this README from the source
 ```

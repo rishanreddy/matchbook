@@ -50,7 +50,7 @@
       "id": "analysis",
       "target": "[data-tour=\"analysis-overview\"]",
       "title": "Compare teams with collected evidence",
-      "content": "Use collected scouting data to compare teams and explore performance trends. Analysis reflects the observations available for the selected event.",
+      "content": "The current event opens automatically. Choose a recorded total or form answer in Rank teams by, select two to four teams, then press Compare selected. Open a team number to review its matches, scout notes, and original answers.",
       "placement": "bottom",
       "route": "/analysis"
     },

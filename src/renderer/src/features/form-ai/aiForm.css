@@ -1,0 +1,29 @@
+/* The Build with AI dialog. Kept out of index.css so it stays with the feature. */
+
+/* The main buttons stay in view while a long result scrolls beneath them. */
+.ai-form-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: var(--mantine-spacing-md);
+  padding-top: var(--mantine-spacing-sm);
+  padding-bottom: var(--mantine-spacing-xs);
+  border-top: 1px solid var(--border-default);
+  background: var(--surface-raised, var(--mantine-color-body));
+}
+
+/* Capped by window height so that on a short window the check result under the box stays
+   in view instead of being pushed below a tall box of pasted text. */
+.ai-form-mono textarea {
+  max-height: max(8rem, 30dvh);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.ai-form-preview {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+}
