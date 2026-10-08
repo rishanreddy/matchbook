@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Alert, Badge, Box, Button, Card, Group, Loader, Select, Stack, Tabs, Text, ThemeIcon, Title } from '@mantine/core'
-import { IconCalendarEvent, IconClipboardCheck, IconInfoCircle, IconUser, IconUsers } from '@tabler/icons-react'
+import { IconAlertTriangle, IconCalendarEvent, IconClipboardCheck, IconInfoCircle, IconUser, IconUsers } from '@tabler/icons-react'
 import { RouteHelpModal } from '../components/RouteHelpModal'
 import { ByScoutView } from '../features/assignments/ByScoutView'
 import { PlanPanel } from '../features/assignments/PlanPanel'
@@ -22,21 +22,55 @@ import { notify } from '../lib/utils/notify'
 import { useDatabaseStore } from '../stores/useDatabase'
 import { useEventStore } from '../stores/useEventStore'
 import { useWifiHub } from '../stores/useWifiHub'
+import { useBetaFeaturesStore } from '../stores/useBetaFeaturesStore'
 
 export function Assignments(): ReactElement {
+  const assignmentsEnabled = useBetaFeaturesStore((state) => state.assignmentsEnabled)
+
+  if (!assignmentsEnabled) {
+    return (
+      <Box className="container-wide">
+        <Card p="xl" radius="lg" className="surface-card">
+          <Stack gap="md" align="flex-start">
+            <Badge color="frc-orange" variant="light">Coming soon</Badge>
+            <Title order={1} c="slate.0" data-tour="assignments-overview">Scout Assignments</Title>
+            <Text c="slate.4">Scout assignment planning is still in development. You can try the beta from Settings.</Text>
+            <Alert color="yellow" icon={<IconAlertTriangle size={18} />} title="Very buggy beta">
+              Assignments may be incorrect or fail to save. Check every assignment before using it at an event.
+            </Alert>
+            <Button component={Link} to="/settings">Open beta settings</Button>
+          </Stack>
+        </Card>
+      </Box>
+    )
+  }
+
+  return <AssignmentsContent />
+}
+
+function AssignmentsContent(): ReactElement {
   const db = useDatabaseStore((state) => state.db)
   const currentEventId = useEventStore((state) => state.currentEventId)
+  const setCurrentEvent = useEventStore((state) => state.setCurrentEvent)
+  const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
   const hubReceiving = useWifiHub((state) => state.status?.running ?? false)
-  const [chosenEvent, setChosenEvent] = useState<string | null>(null)
 
   const { events, loaded: eventsLoaded } = useEvents(db)
-  // Start on the event this laptop is on, or the newest one, until the lead scout picks another.
-  const eventKey = events.some((event) => event.id === chosenEvent)
-    ? chosenEvent
-    : (events.find((event) => event.id === currentEventId)?.id ?? events[0]?.id ?? null)
+  const eventKey = events.some((event) => event.id === currentEventId) ? currentEventId : null
 
   const { matches, planMatches, assignments, scoutBySlot, coverage, roster, loaded } = useAssignmentsData(db, eventKey)
   const eventName = events.find((event) => event.id === eventKey)?.name ?? eventKey ?? ''
+
+  const handleEventChange = (eventId: string | null): void => {
+    if (!eventId) {
+      clearCurrentEvent()
+      return
+    }
+    const event = events.find((item) => item.id === eventId)
+    if (event) {
+      setCurrentEvent(event.id, event.season)
+    }
+  }
   const listed = useMemo(() => roster.filter(isListed), [roster])
   const availableScouts = useMemo(() => listed.filter(isAvailable), [listed])
 
@@ -156,9 +190,12 @@ export function Assignments(): ReactElement {
                 <IconClipboardCheck size={24} stroke={1.6} />
               </ThemeIcon>
               <Box>
-                <Title order={1} c="slate.0" data-tour="assignments-overview" style={{ fontSize: 28, fontWeight: 700 }}>
-                  Scout Assignments
-                </Title>
+                <Group gap="sm">
+                  <Title order={1} c="slate.0" data-tour="assignments-overview" style={{ fontSize: 28, fontWeight: 700 }}>
+                    Scout Assignments
+                  </Title>
+                  <Badge color="frc-orange" variant="light">Beta</Badge>
+                </Group>
                 <Text size="sm" c="slate.4">
                   Decide who watches which robot in every match
                 </Text>
@@ -182,6 +219,10 @@ export function Assignments(): ReactElement {
             />
           </Group>
         </Card>
+
+        <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={18} />} title="Very buggy beta">
+          Assignments may be incorrect or fail to save. Check every assignment before using it at an event. You can turn this beta off in Settings.
+        </Alert>
 
         {!eventsLoaded ? (
           <Card p="xl" radius="lg" className="surface-card">
@@ -212,12 +253,14 @@ export function Assignments(): ReactElement {
               <Stack gap="md">
                 <Select
                   label="Event"
-                  description="Assignments are made for this event’s qualification matches"
+                  description="This event is selected across Matchbook. Clearing it clears the active event everywhere."
+                  placeholder="Select an event"
                   value={eventKey}
-                  onChange={setChosenEvent}
+                  onChange={handleEventChange}
                   data={events.map((event) => ({ value: event.id, label: `${event.name} (${event.id})` }))}
                   searchable
-                  allowDeselect={false}
+                  clearable
+                  clearButtonProps={{ 'aria-label': 'Clear active event' }}
                 />
                 <Group gap="xs" wrap="wrap">
                   <Badge color="frc-blue" variant="light" radius="md" leftSection={<IconCalendarEvent size={12} />}>
@@ -233,9 +276,13 @@ export function Assignments(): ReactElement {
               </Stack>
             </Card>
 
-            <RosterPanel roster={roster} loads={loads} onAdd={handleAdd} onRename={handleRename} onSetStatus={handleStatus} />
+            {eventKey && <RosterPanel roster={roster} loads={loads} onAdd={handleAdd} onRename={handleRename} onSetStatus={handleStatus} />}
 
-            {matches.length > 0 ? (
+            {!eventKey ? (
+              <Card p="xl" radius="lg" className="surface-card">
+                <Text c="slate.4">No event selected. Choose an event above to view its scout assignments.</Text>
+              </Card>
+            ) : matches.length > 0 ? (
               <>
                 <PlanPanel
                   matchCount={matches.length}

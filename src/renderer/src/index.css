@@ -257,6 +257,30 @@
     @apply relative;
   }
 
+  .spotlight-tooltip {
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+  }
+
+  .spotlight-buttons {
+    flex-wrap: wrap;
+  }
+
+  /* Short or narrow windows may have no room beside a tour target. */
+  @media (max-height: 480px), (max-width: 480px) {
+    .spotlight-tooltip {
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      width: min(390px, calc(100vw - 16px));
+    }
+
+    .spotlight-tooltip .spotlight-arrow {
+      display: none;
+    }
+  }
+
   /* The shell is exactly one window tall and the main column is the only thing that
      scrolls. `dvh` follows the real window height; `vh` did not, and the old
      `calc(100vh - 64px)` was silently overridden by Mantine's own min-height. */

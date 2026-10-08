@@ -153,6 +153,7 @@ Do this while you still have internet.
 3. Open **Events**, press **Fetch Events**, find your event, and press **Import**.
    This downloads the match schedule. After this, you do not need the internet.
 4. On the **Home** screen, choose your event under **Current event**.
+   In **Events**, **Unselect event** clears the active event across Matchbook. **Remove event** removes it from this laptop. Its data is kept unless you select **Also delete all associated data**.
 
 > **Tip:** No internet at the event? Do this at school or at home first. Everything after this works with no internet.
 
@@ -198,16 +199,19 @@ Give every robot in every match a scout, fairly, in a few clicks.
 ![The Scout Assignments screen with a list of scouts, a box to type a new name, and a Plan card with a Fill open stations button.](../src/renderer/src/assets/guide/assignments.webp)
 *1. Add your scouts. 2. Press Fill open stations.*
 
-1. Open **Scout Assignments**, under Lead Scout Tools, and check the **Event** at the top.
-2. Under **Scouts**, type each scout’s name and press Enter.
+1. In **Settings**, under **Beta features**, turn on **Enable Scout Assignments beta**.
+   This beta is off by default and very buggy. Assignments may be incorrect or fail to save. Check every assignment before using it at an event.
+2. Open **Scout Assignments**, under Lead Scout Tools, and check the **Event** at the top.
+   Selecting or clearing an event here changes the active event across Matchbook.
+3. Under **Scouts**, type each scout’s name and press Enter.
    A scout who types their name in **Device Setup** and connects to your laptop is added by themselves. Switch someone to away when they step out. Their matches that nobody has scouted yet can then go to other scouts.
-3. Press **Fill open stations**, read the summary, then press **Assign**.
+4. Press **Fill open stations**, read the summary, then press **Assign**.
    Every match gets up to six scouts, spread evenly. A scout keeps the same robot position when they can. With fewer than six scouts, the robots watched least so far come first.
-4. Watch the bar fill as scouts send their entries.
+5. Watch the bar fill as scouts send their entries.
    Green is data that has arrived. Amber is waiting for data. A station is late when later matches have arrived without it.
-5. Change a station with the name list beside it, or see one scout’s whole day under **By scout**.
+6. Change a station with the name list beside it, or see one scout’s whole day under **By scout**.
    **More** has **Download as a spreadsheet** if you want to print the plan.
-6. Tell the scouts to open **Scout Match** and press **Get latest**.
+7. Tell the scouts to open **Scout Match** and press **Get latest**.
    A scout you added by name picks their name the first time. After that, their next match is at the top.
 
 > **Tip:** Added a scout late, or someone went away? Press **Fill open stations** again. It never changes a match that already has an entry.

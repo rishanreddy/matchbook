@@ -31,6 +31,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-r
 import { useDatabaseStore } from './stores/useDatabase'
 import { useDeviceStore, useIsHub } from './stores/useDeviceStore'
 import { useEventStore } from './stores/useEventStore'
+import { useBetaFeaturesStore } from './stores/useBetaFeaturesStore'
 import { handleError } from './lib/utils/errorHandler'
 import { logger } from './lib/utils/logger'
 import { ShortcutHelp } from './components/ShortcutHelp'
@@ -93,6 +94,7 @@ function App() {
   const loadEventFromStorage = useEventStore((state) => state.loadFromStorage)
   const currentEventId = useEventStore((state) => state.currentEventId)
   const currentSeason = useEventStore((state) => state.currentSeason)
+  const assignmentsBetaEnabled = useBetaFeaturesStore((state) => state.assignmentsEnabled)
   const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
   
   useHubSyncService()
@@ -411,8 +413,8 @@ function App() {
 
   const shortcutHelpGroups = useMemo(() => createShortcutHelpGroups(shortcutBindings), [shortcutBindings])
   const applicationTourSteps = useMemo(
-    () => createApplicationTourSteps(isHub, developerModeEnabled),
-    [isHub, developerModeEnabled],
+    () => createApplicationTourSteps(isHub, developerModeEnabled, assignmentsBetaEnabled),
+    [isHub, developerModeEnabled, assignmentsBetaEnabled],
   )
 
   const renderNavGroup = (groupKey: string, groupLabel: string) => {

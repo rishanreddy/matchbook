@@ -68,7 +68,6 @@ try {
     ['Review and correct observations', '#/entries'],
     ['Compare teams with collected evidence', '#/analysis'],
     ['Move scouting between laptops', '#/sync'],
-    ['Plan scout coverage', '#/assignments'],
     ['Shape the scouting form', '#/form-builder'],
     ['Give each laptop a clear role', '#/device-setup'],
     ['Tune Matchbook for your team', '#/settings'],
@@ -146,6 +145,10 @@ try {
 
   await window.keyboard.press('ControlOrMeta+Shift+A')
   await window.getByText('2 teams with 120 observations. Select up to 4 teams to compare.').waitFor()
+  assert.equal(await window.getByRole('textbox', { name: 'Analysis event', exact: true }).inputValue(), 'All events',
+    'Analysis should keep the event unselected until the user chooses one.')
+  await window.getByRole('textbox', { name: 'Analysis event', exact: true }).click()
+  await window.getByRole('option', { name: 'e2e-event', exact: true }).click()
   const rankings = window.getByRole('table', { name: 'Team rankings', exact: true })
   assert.equal(await rankings.locator('tbody tr').first().getByRole('button', { name: 'View team 111' }).count(), 1,
     'Teams should start ranked by the average, not by entry volume.')

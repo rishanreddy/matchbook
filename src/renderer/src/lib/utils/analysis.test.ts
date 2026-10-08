@@ -178,8 +178,13 @@ describe('analysis event scope', () => {
     expect(resolveAnalysisEvent({ ...context, requestedEventId: 'all' })).toBe('all')
   })
 
-  it('recovers from a deleted event and includes data received without event metadata', () => {
-    expect(resolveAnalysisEvent({ requestedEventId: 'deleted', currentEventId: null, events: [], observations: [observation({ eventId: 'received-event' })] })).toBe('received-event')
+  it('shows all events after clearing or deleting the current event instead of choosing another', () => {
+    expect(resolveAnalysisEvent({ requestedEventId: null, currentEventId: null, events: [event('event-a')], observations: [observation()] })).toBe('all')
+    expect(resolveAnalysisEvent({ requestedEventId: 'deleted', currentEventId: null, events: [], observations: [observation({ eventId: 'received-event' })] })).toBe('all')
     expect(resolveAnalysisEvent({ requestedEventId: 'deleted', currentEventId: 'deleted', events: [], observations: [] })).toBe('all')
+  })
+
+  it('allows reviewing an explicit event received without its metadata', () => {
+    expect(resolveAnalysisEvent({ requestedEventId: 'received-event', currentEventId: null, events: [], observations: [observation({ eventId: 'received-event' })] })).toBe('received-event')
   })
 })

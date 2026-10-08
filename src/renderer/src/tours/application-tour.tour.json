@@ -69,7 +69,7 @@
       "content": "Add your scouts, press Fill open stations, and every match gets a scout for each robot, spread fairly. Scouts see their own matches on the Scout Match screen with Get latest. Change any station by hand, or download the plan as a spreadsheet.",
       "placement": "bottom",
       "route": "/assignments",
-      "condition": "hub"
+      "condition": "assignments"
     },
     {
       "id": "form-builder",

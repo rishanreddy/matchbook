@@ -201,7 +201,10 @@
           "text": "Open **Events**, press **Fetch Events**, find your event, and press **Import**.",
           "detail": "This downloads the match schedule. After this, you do not need the internet."
         },
-        { "text": "On the **Home** screen, choose your event under **Current event**." }
+        {
+          "text": "On the **Home** screen, choose your event under **Current event**.",
+          "detail": "In **Events**, **Unselect event** clears the active event across Matchbook. **Remove event** removes it from this laptop. Its data is kept unless you select **Also delete all associated data**."
+        }
       ],
       "tip": "No internet at the event? Do this at school or at home first. Everything after this works with no internet."
     },
@@ -269,7 +272,12 @@
       ],
       "steps": [
         {
-          "text": "Open **Scout Assignments**, under Lead Scout Tools, and check the **Event** at the top."
+          "text": "In **Settings**, under **Beta features**, turn on **Enable Scout Assignments beta**.",
+          "detail": "This beta is off by default and very buggy. Assignments may be incorrect or fail to save. Check every assignment before using it at an event."
+        },
+        {
+          "text": "Open **Scout Assignments**, under Lead Scout Tools, and check the **Event** at the top.",
+          "detail": "Selecting or clearing an event here changes the active event across Matchbook."
         },
         {
           "text": "Under **Scouts**, type each scout’s name and press Enter.",

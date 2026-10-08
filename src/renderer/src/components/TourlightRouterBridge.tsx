@@ -13,7 +13,7 @@ const applicationTourTheme: SpotlightThemeInput = {
     borderRadius: '10px',
     boxShadow: '0 20px 56px rgba(0, 0, 0, 0.48)',
     padding: '20px',
-    maxWidth: '390px',
+    maxWidth: 'min(390px, calc(100vw - 16px))',
   },
   title: { fontSize: '18px', fontWeight: '600', color: '#eef1f5', marginBottom: '8px' },
   content: { fontSize: '14px', color: '#b8c0cb', lineHeight: '1.55' },

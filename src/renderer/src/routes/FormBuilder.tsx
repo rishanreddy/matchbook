@@ -370,7 +370,12 @@ export function FormBuilder(): ReactElement {
               opinions neutral, and avoid giving both a total and its inputs phase prefixes.
             </Alert>
           )}
-          <Box className="survey-creator-container" data-tour="form-builder" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Box className="survey-creator-container" style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+            <Box
+              data-tour="form-builder"
+              aria-hidden="true"
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 'min(48px, 100%)', pointerEvents: 'none' }}
+            />
             <SurveyCreatorComponent creator={creator} />
           </Box>
         </Box>

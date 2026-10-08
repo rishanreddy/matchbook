@@ -61,6 +61,7 @@ import {
 } from '../config/shortcuts'
 import { RouteHelpModal } from '../components/RouteHelpModal'
 import { useEventStore } from '../stores/useEventStore'
+import { useBetaFeaturesStore } from '../stores/useBetaFeaturesStore'
 
 type SettingsProps = {
   appVersion: string
@@ -116,6 +117,8 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
   const currentEventId = useEventStore((state) => state.currentEventId)
   const setCurrentEvent = useEventStore((state) => state.setCurrentEvent)
   const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
+  const assignmentsBetaEnabled = useBetaFeaturesStore((state) => state.assignmentsEnabled)
+  const setAssignmentsBetaEnabled = useBetaFeaturesStore((state) => state.setAssignmentsEnabled)
 
   const selectedEvent = useMemo(() => events.find((event) => event.id === currentEventId) ?? null, [events, currentEventId])
   const eventOptions = useMemo(
@@ -707,6 +710,26 @@ export function Settings({ appVersion, onOpenAbout }: SettingsProps): ReactEleme
                 Extra diagnostics and detailed logs are available for troubleshooting.
               </Alert>
             )}
+          </Stack>
+        </Card>
+
+        <Card p="lg" radius="lg" className="surface-card">
+          <Stack gap="md">
+            <Group gap="sm">
+              <ThemeIcon size={32} radius="lg" variant="light" color="frc-orange">
+                <IconRocket size={16} />
+              </ThemeIcon>
+              <Text fw={600} c="slate.0" size="lg">Beta features</Text>
+            </Group>
+            <Switch
+              label="Enable Scout Assignments beta"
+              description="Try scout assignment planning on lead-scout devices. Off by default."
+              checked={assignmentsBetaEnabled}
+              onChange={(event) => setAssignmentsBetaEnabled(event.currentTarget.checked)}
+            />
+            <Alert color="yellow" variant="light" icon={<IconAlertTriangle size={16} />} title="Very buggy beta">
+              Scout Assignments is still in development. Assignments may be incorrect or fail to save. Check every assignment before using it at an event.
+            </Alert>
           </Stack>
         </Card>
 

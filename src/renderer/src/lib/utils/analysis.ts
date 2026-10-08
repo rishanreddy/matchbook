@@ -224,10 +224,7 @@ export function resolveAnalysisEvent({ requestedEventId, currentEventId, events,
   if (requestedEventId === 'all') return 'all'
   if (requestedEventId && available.has(requestedEventId)) return requestedEventId
   if (currentEventId && available.has(currentEventId)) return currentEventId
-  const withData = new Set(observations.map((observation) => observation.eventId))
-  return events.find((event) => withData.has(event.id))?.id
-    ?? [...observations].sort((left, right) => right.timestamp.localeCompare(left.timestamp))[0]?.eventId
-    ?? events[0]?.id ?? 'all'
+  return 'all'
 }
 
 export function formatAnalysisValue(result: MetricSummary): string {

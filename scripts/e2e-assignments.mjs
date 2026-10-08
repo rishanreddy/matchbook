@@ -356,6 +356,10 @@ try {
 
   await step('the scout appears on the roster and the lead scout adds more by hand', async () => {
     await hub.window.evaluate(() => {
+      window.location.hash = '#/settings'
+    })
+    await hub.window.getByRole('switch', { name: /^Enable Scout Assignments beta/ }).check()
+    await hub.window.evaluate(() => {
       window.location.hash = '#/assignments'
     })
     const roster = hub.window.locator('[data-tour="assignments-roster"]')

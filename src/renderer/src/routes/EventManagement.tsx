@@ -43,6 +43,7 @@ import { logger } from '../lib/utils/logger'
 import { handleError } from '../lib/utils/errorHandler'
 import { useEventStore } from '../stores/useEventStore'
 import type { EventDocType } from '../lib/db/schemas/events.schema'
+import { countEventData, removeLocalEvent, type EventDataCounts } from '../features/events/eventRemoval'
 
 function getYearOptions(currentYear: number): Array<{ value: string; label: string }> {
   return Array.from({ length: 7 }, (_, index) => {
@@ -93,9 +94,9 @@ export function EventManagement(): ReactElement {
   const currentEventId = useEventStore((state) => state.currentEventId)
   const setCurrentEvent = useEventStore((state) => state.setCurrentEvent)
   const clearCurrentEvent = useEventStore((state) => state.clearCurrentEvent)
-  const [eventPendingRemoval, setEventPendingRemoval] = useState<TBAEvent | null>(null)
-  const [removalCounts, setRemovalCounts] = useState<{ matches: number; assignments: number; observations: number } | null>(null)
-  const [acceptObservationLoss, setAcceptObservationLoss] = useState<boolean>(false)
+  const [eventPendingRemoval, setEventPendingRemoval] = useState<Pick<EventDocType, 'id' | 'name'> | null>(null)
+  const [removalCounts, setRemovalCounts] = useState<EventDataCounts | null>(null)
+  const [deleteAssociatedData, setDeleteAssociatedData] = useState<boolean>(false)
   const [isRemoving, setIsRemoving] = useState<boolean>(false)
 
   const eventTypeOptions = [
@@ -162,25 +163,14 @@ export function EventManagement(): ReactElement {
     setImportedEventKeys(importedKeys)
   }
 
-  const handleRequestRemoval = async (event: TBAEvent): Promise<void> => {
+  const handleRequestRemoval = async (event: Pick<EventDocType, 'id' | 'name'>): Promise<void> => {
     if (!db) {
       return
     }
 
     try {
-      // Matches and scouting data key off `eventId`, assignments off `eventKey`.
-      const [matches, assignments, observations] = await Promise.all([
-        db.collections.matches.find({ selector: { eventId: event.key } }).exec(),
-        db.collections.assignments.find({ selector: { eventKey: event.key } }).exec(),
-        db.collections.scoutingData.find({ selector: { eventId: event.key } }).exec(),
-      ])
-
-      setRemovalCounts({
-        matches: matches.length,
-        assignments: assignments.length,
-        observations: observations.length,
-      })
-      setAcceptObservationLoss(false)
+      setRemovalCounts(await countEventData(db, event.id))
+      setDeleteAssociatedData(false)
       setEventPendingRemoval(event)
     } catch (error: unknown) {
       handleError(error, 'Preparing event removal')
@@ -192,30 +182,11 @@ export function EventManagement(): ReactElement {
       return
     }
 
-    const eventKey = eventPendingRemoval.key
+    const eventKey = eventPendingRemoval.id
     setIsRemoving(true)
 
     try {
-      const [matches, assignments, observations, eventDoc] = await Promise.all([
-        db.collections.matches.find({ selector: { eventId: eventKey } }).exec(),
-        db.collections.assignments.find({ selector: { eventKey } }).exec(),
-        db.collections.scoutingData.find({ selector: { eventId: eventKey } }).exec(),
-        db.collections.events.findOne(eventKey).exec(),
-      ])
-
-      await Promise.all(matches.map(async (doc) => await doc.remove()))
-      await Promise.all(assignments.map(async (doc) => await doc.remove()))
-
-      // Observations only go when the user has ticked the box accepting the loss.
-      if (observations.length > 0) {
-        await Promise.all(observations.map(async (doc) => await doc.remove()))
-      }
-
-      await eventDoc?.remove()
-
-      if (currentEventId === eventKey) {
-        clearCurrentEvent()
-      }
+      const deleted = await removeLocalEvent({ db, eventId: eventKey, deleteAssociatedData })
 
       setImportedEventKeys((prev) => {
         const next = new Set(prev)
@@ -223,11 +194,13 @@ export function EventManagement(): ReactElement {
         return next
       })
 
-      logger.info('Event removed', { eventKey, ...removalCounts })
+      logger.info('Event removed', { eventKey, deleteAssociatedData, ...deleted })
       notify({
         color: 'green',
         title: 'Event removed',
-        message: `Removed ${eventPendingRemoval.short_name ?? eventPendingRemoval.name} and its ${removalCounts.matches} matches. You can import it again at any time.`,
+        message: deleteAssociatedData
+          ? `Removed ${eventPendingRemoval.name}, ${deleted.matches} matches, ${deleted.assignments} assignments, and ${deleted.observations} observations from this laptop.`
+          : `Removed ${eventPendingRemoval.name}. Its matches, assignments, and scouting data were kept on this laptop.`,
       })
 
       setEventPendingRemoval(null)
@@ -419,9 +392,16 @@ export function EventManagement(): ReactElement {
                   Includes events received from another laptop or imported from The Blue Alliance.
                 </Text>
               </Box>
-              <Badge variant="light" color="blue">
-                {storedEvents.length} {storedEvents.length === 1 ? 'event' : 'events'} saved
-              </Badge>
+              <Group gap="sm">
+                <Badge variant="light" color="blue">
+                  {storedEvents.length} {storedEvents.length === 1 ? 'event' : 'events'} saved
+                </Badge>
+                {currentEventId && (
+                  <Button variant="default" size="xs" leftSection={<IconX size={14} />} onClick={clearCurrentEvent}>
+                    Clear active event
+                  </Button>
+                )}
+              </Group>
             </Group>
 
             <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
@@ -446,14 +426,24 @@ export function EventManagement(): ReactElement {
                       <Text size="sm" c="slate.2">
                         {event.season} season · {dates}
                       </Text>
-                      <Button
-                        variant={isCurrent ? 'default' : 'filled'}
-                        disabled={isCurrent}
-                        onClick={() => setCurrentEvent(event.id, event.season)}
-                        style={{ alignSelf: 'flex-start' }}
-                      >
-                        {isCurrent ? 'Current event' : 'Use this event'}
-                      </Button>
+                      <Group gap="xs" wrap="wrap">
+                        <Button
+                          variant={isCurrent ? 'default' : 'filled'}
+                          onClick={() => isCurrent ? clearCurrentEvent() : setCurrentEvent(event.id, event.season)}
+                        >
+                          {isCurrent ? 'Unselect event' : 'Use this event'}
+                        </Button>
+                        <Button
+                          variant="light"
+                          color="red"
+                          leftSection={<IconTrash size={16} />}
+                          onClick={() => void handleRequestRemoval(event)}
+                          aria-label={`Remove ${event.name}`}
+                          disabled={isRemoving}
+                        >
+                          Remove event
+                        </Button>
+                      </Group>
                     </Stack>
                   </Card>
                 )
@@ -763,7 +753,7 @@ export function EventManagement(): ReactElement {
                           <ActionIcon
                             variant="default"
                             size="lg"
-                            onClick={() => void handleRequestRemoval(event)}
+                            onClick={() => void handleRequestRemoval({ id: event.key, name: event.short_name ?? event.name })}
                             aria-label={`Remove ${event.short_name ?? event.name}`}
                           >
                             <IconTrash size={18} />
@@ -781,55 +771,60 @@ export function EventManagement(): ReactElement {
 
       <Modal
         opened={eventPendingRemoval !== null}
-        onClose={() => setEventPendingRemoval(null)}
+        onClose={() => { if (!isRemoving) setEventPendingRemoval(null) }}
         title="Remove this event?"
+        centered
+        closeOnClickOutside={!isRemoving}
+        closeOnEscape={!isRemoving}
+        withCloseButton={!isRemoving}
       >
         <Stack gap="md">
           <Text size="sm">
-            This removes <strong>{eventPendingRemoval?.short_name ?? eventPendingRemoval?.name}</strong>{' '}
+            This removes <strong>{eventPendingRemoval?.name}</strong>{' '}
             from this laptop only. Other laptops keep their copy, and you can import it again
             from The Blue Alliance whenever you have internet.
           </Text>
 
           <Stack gap={4}>
             <Text size="sm" c="slate.3">
-              {removalCounts?.matches ?? 0} matches will be deleted
+              {removalCounts?.matches ?? 0} {removalCounts?.matches === 1 ? 'match' : 'matches'}
             </Text>
             <Text size="sm" c="slate.3">
-              {removalCounts?.assignments ?? 0} scout assignments will be deleted
+              {removalCounts?.assignments ?? 0} scout {removalCounts?.assignments === 1 ? 'assignment' : 'assignments'}
+            </Text>
+            <Text size="sm" c="slate.3">
+              {removalCounts?.observations ?? 0} scouting {removalCounts?.observations === 1 ? 'observation' : 'observations'}
             </Text>
           </Stack>
 
-          {(removalCounts?.observations ?? 0) > 0 && (
-            <Alert color="red" variant="light" icon={<IconAlertTriangle size={16} />} title="This event has scouting data">
-              <Stack gap="sm">
-                <Text size="sm">
-                  {removalCounts?.observations} match observations were collected for this event.
-                  Deleting it destroys them, and that cannot be undone. Export a CSV from Sync
-                  first if there is any chance you need them.
-                </Text>
-                <Checkbox
-                  checked={acceptObservationLoss}
-                  onChange={(check: React.ChangeEvent<HTMLInputElement>) =>
-                    setAcceptObservationLoss(check.currentTarget.checked)
-                  }
-                  label={`Yes, permanently delete ${removalCounts?.observations} observations`}
-                />
-              </Stack>
+          <Checkbox
+            checked={deleteAssociatedData}
+            onChange={(check) => setDeleteAssociatedData(check.currentTarget.checked)}
+            label="Also delete all associated data"
+            description="Delete this event's matches, scout assignments, and scouting observations."
+            disabled={isRemoving}
+          />
+
+          {deleteAssociatedData ? (
+            <Alert color="red" variant="light" icon={<IconAlertTriangle size={16} />} title="Associated data will be deleted">
+              This permanently deletes this event's data from this laptop. Export it from Sync Data first if you need a copy.
             </Alert>
+          ) : (
+            <Text size="sm" c="slate.4">
+              Associated data will be kept. You can still review the observations in Review Entries or Analysis and re-import the event later.
+            </Text>
           )}
 
           <Group justify="flex-end" gap="sm">
-            <Button variant="default" onClick={() => setEventPendingRemoval(null)}>
+            <Button variant="default" onClick={() => setEventPendingRemoval(null)} disabled={isRemoving}>
               Keep event
             </Button>
             <Button
               color="red"
               loading={isRemoving}
-              disabled={(removalCounts?.observations ?? 0) > 0 && !acceptObservationLoss}
               onClick={() => void handleConfirmRemoval()}
             >
-              Remove event
+              {deleteAssociatedData ? 'Remove event and data' : 'Remove event'}
             </Button>
           </Group>
         </Stack>

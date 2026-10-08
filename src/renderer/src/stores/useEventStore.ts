@@ -1,4 +1,5 @@
 import { createStoreHook } from './createStoreHook'
+import { updateAnalysisView } from './analysisViewStore'
 
 interface EventState {
   currentEventId: string | null
@@ -17,11 +18,13 @@ export const useEventStore = createStoreHook<EventState>((set) => ({
     // Persist to localStorage
     localStorage.setItem('matchbook-current-event-id', eventId)
     localStorage.setItem('matchbook-current-season', String(season))
+    updateAnalysisView({ selectedEventId: null, comparison: null })
     set({ currentEventId: eventId, currentSeason: season, isLoaded: true })
   },
   clearCurrentEvent: () => {
     localStorage.removeItem('matchbook-current-event-id')
     localStorage.removeItem('matchbook-current-season')
+    updateAnalysisView({ selectedEventId: null, comparison: null })
     set({ currentEventId: null, currentSeason: null, isLoaded: true })
   },
   loadFromStorage: () => {
